@@ -1,0 +1,396 @@
+﻿@page "/TagEdit/{Id}"
+@using DelegationStation.Models;
+@using DelegationStation.Services;
+
+
+@inject ILogger<TagEdit> logger
+@inject IDeviceTagDBService deviceTagDBService
+@inject IGraphService graphService
+@inject IConfiguration config
+@inject NavigationManager nav
+
+@attribute [Authorize]
+
+@if (Id == null)
+{
+    <h3>Error in navigation path</h3>
+}
+else if (userRole == Role.None)
+{
+    <h3>Not authorized</h3>
+}
+else if (tag != null)
+{
+    <h3>@tag.Name</h3>
+    <h4>@tag.Description</h4>
+    <br/>
+    <hr/>
+    <label>Name:</label>
+    <InputText @bind-Value=tag.Name class="form-control"></InputText>
+    <label>Description:</label>
+    <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
+    <br/>
+    <hr />
+    <div class="container">
+        <h2>Assigned Groups</h2>
+        <table class="table table-responsive">
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Security Group Name</th>
+                    <th>Security Group Id</th>                    
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(RoleDelegation r in tag.RoleDelegations)
+                {
+                    <tr>
+                        <td>@r.Role</td>
+                        <td>@r.SecurityGroupName</td>
+                        <td>@r.SecurityGroupId</td>                        
+                        <td></td>
+                        <td><button type="button" class="btn btn-danger" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        Role:
+        <InputSelect @bind-Value=roleDelegation.Role class="form-select">
+            @foreach (var r in Enum.GetValues(typeof(Role)))
+            {
+                <option value="@r">@r</option>
+            }
+        </InputSelect>
+        <ValidationMessage For=@(() => roleDelegation.Role) />
+
+        <label class="form-label">Security Group Id:</label>
+        <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3"></InputText>
+        <ValidationMessage For=@(() => roleDelegation.SecurityGroupId) />
+        <input type="submit" class="btn btn-primary mb-3" value="Add Role" />
+    </EditForm>
+
+    <div class="container">
+        <h2>Actions on Enrollment</h2>
+        <table class="table table-responsive">
+            <thead>
+                <tr>
+                    <th>Action Type</th>
+                    <th>Name</th>
+                    <th>Value</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (DeviceUpdateAction a in tag.UpdateActions)
+                {
+                    <tr>
+                        <td>@a.ActionType</td>
+                        <td>@a.Name</td>
+                        <td>@a.Value</td>
+                        <td><button type="button" class="btn btn-danger" @onclick=@(() => tag.UpdateActions.Remove(a))><span class="oi oi-trash"></span> Delete</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    
+    <EditForm Model="@deviceUpdateAction" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @if (!string.IsNullOrEmpty(deviceUpdateActionsValidationMessage))
+        {
+            <p class="error-text">@deviceUpdateActionsValidationMessage</p>
+        }
+        
+        Update Action:
+        <InputSelect @bind-Value=deviceUpdateAction.ActionType class="form-select">
+            @foreach (var t in Enum.GetValues(typeof(DeviceUpdateActionType)))
+            {
+                <option value="@t">@t</option>
+            }
+        </InputSelect>
+        <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
+        @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
+        {
+            <label class="form-label">Attribute name:</label>
+            <InputText @bind-Value=deviceUpdateAction.Name class="form-control"></InputText>
+            <label class="form-label">Attribute value:</label>
+            <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+        }
+        else
+        {
+            
+            <br />
+            <text>Security Group Id: </text>
+            <InputText class="form-control" @bind-Value=deviceUpdateAction.Value></InputText>
+        }
+        <br/>
+        
+        <input type="submit" class="btn btn-primary mb-3" value="Add Action" />
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(tagErrorMessage))
+    {
+        <p class="text-danger">@tagErrorMessage</p>
+    }
+    @if (!string.IsNullOrEmpty(tagSuccessMessage))
+    {
+        <p class="text-success">@tagSuccessMessage</p>
+    }
+    <button type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
+    <button type="button" class="btn btn-danger" @onclick=@(() => Delete())>Delete</button>
+}
+@code {
+    [CascadingParameter] public Task<AuthenticationState>? AuthState { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
+    private Role userRole = Role.None;
+    private DeviceTag tag;
+    private RoleDelegation roleDelegation = new RoleDelegation();
+    private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
+    private string defaultGroup = "";
+    private string userName = "";
+    private string userId = "";
+    private string deviceUpdateActionsValidationMessage = "";
+    private string addDeviceUpdateState = "";
+    private string tagErrorMessage = "";
+    private string tagSuccessMessage = "";
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+        if (AuthState != null)
+        {
+            authState = await AuthState;
+            userName = authState?.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = authState?.User.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+        }
+        await GetTag();
+        UpdateClaims();
+        UpdateUserRole();
+        await UpdateRoleDelegationGroups();
+    }
+
+    private async Task GetTag()
+    {
+        try
+        {
+            if (Id != null)
+            {
+                tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Failed to find Device Tag {Id} to Edit.\n{ex.Message}");
+        }
+    }
+
+    private void UpdateUserRole()
+    {
+        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
+        if(groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = Role.Admin;
+        }
+        else
+        {
+            foreach (RoleDelegation role in tag.RoleDelegations.OrderBy(r => Array.IndexOf(roleOrder, r)))
+            {
+                if (groups.Contains(role.SecurityGroupId))
+                {
+                    userRole = role.Role;
+                }
+            }
+        }        
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
+        foreach (var c in roleClaims)
+        {
+            groups.Add(c.Value);
+        }
+    }
+
+    private void AddRoleDelegation()
+    {
+        if(userRole != Role.Admin)
+        {
+            deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
+            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            return;
+        }        
+
+        tag.RoleDelegations.Add(roleDelegation);
+        roleDelegation = new RoleDelegation();
+    }
+
+    private async void AddDeviceUpdateAction(EditContext editContext)
+    {
+        addDeviceUpdateState = "disabled";
+        deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
+        deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
+
+        if(userRole != Role.Admin)
+        {
+            deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
+            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            addDeviceUpdateState = "";
+            return;
+        }
+
+        if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && !System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+        {
+            deviceUpdateActionsValidationMessage = $"When using a group update action value must be a valid GUID";
+            addDeviceUpdateState = "";
+            return;
+        }
+
+        if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+        {
+            try
+            {
+                string groupName = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
+                if(string.IsNullOrEmpty(groupName))
+                {
+                    deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
+                    addDeviceUpdateState = "";
+                    return;
+                }
+                deviceUpdateAction.Name = groupName;
+            }
+            catch (Exception ex)
+            {
+                Guid g = Guid.NewGuid();
+                deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}\nCorrelation Id: {g.ToString()}";
+                logger.LogError($"Failed to find group id {deviceUpdateAction.Value} when adding to Tag {tag.Id}.\nCorrelation Id: {g.ToString()}\n{ex.Message}");
+                addDeviceUpdateState = "";
+                return;
+            }
+        }
+
+
+        deviceUpdateActionsValidationMessage = "";
+        tag.UpdateActions.Add(deviceUpdateAction);
+        deviceUpdateAction = new DeviceUpdateAction();        
+        addDeviceUpdateState = "";
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        Guid g = Guid.NewGuid();
+        if (userRole == Role.Admin)
+        {
+            try
+            {
+                await deviceTagDBService.AddOrUpdateDeviceTagAsync(tag);                
+                tagSuccessMessage = $"Saved tag. Correlation Id:{g.ToString()}";
+                tagErrorMessage = "";
+                logger.LogInformation($"'{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
+            }
+            catch(Exception ex)
+            {
+                tagSuccessMessage = "";
+                tagErrorMessage = $"'{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
+                logger.LogError($"'{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
+            }            
+        }
+        else
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"'{userName}' {userId} is not an admin for Tag {tag.Id}. Correlation Id:{g.ToString()}";
+            logger.LogWarning($"'{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id} without Admin rights");
+        }
+    }
+
+    private async Task Delete()
+    {
+        if (userRole == Role.Admin)
+        {
+            try
+            {
+                await deviceTagDBService.DeleteDeviceTagAsync(tag);
+                nav.NavigateTo("/Tags");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Unable to delete Tag {tag.Id}.\n{ex.Message}");
+            }
+        }
+        else
+        {
+            logger.LogWarning($"'{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id}");
+        }
+    }
+
+    private async Task GetGroupForNewUpdateAction(KeyboardEventArgs e)
+    {
+        try
+        {
+            if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value.Trim(), "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            {
+                deviceUpdateAction.Name = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
+            }
+            else
+            {
+                deviceUpdateAction.Name = "Not valid security group Id";
+            }
+        }
+        catch(Exception ex)
+        {
+            logger.LogError($"Unable to get groups for update actions.\n{ex.Message}");
+        }                
+    }
+
+    private async Task UpdateRoleDelegationGroups()
+    {
+        foreach(RoleDelegation r in tag.RoleDelegations)
+        {
+            try
+            {
+                if (System.Text.RegularExpressions.Regex.Match(r.SecurityGroupId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+                {
+                    r.SecurityGroupName = await graphService.GetSecurityGroupName(r.SecurityGroupId);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Unable to get group {r.SecurityGroupId} for RoleDelegation {r.Id} under Tag {tag.Id}.\n{ex.Message}");
+            }
+
+        }
+    }
+
+    private async Task UpdateUpdateActionGroups()
+    {
+        foreach (DeviceUpdateAction action in tag.UpdateActions)
+        {
+            try
+            {
+                if (System.Text.RegularExpressions.Regex.Match(action.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+                {
+                    action.Name = await graphService.GetSecurityGroupName(action.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Unable to get group {action.Value} for UpdateAction {action.Id} under Tag {tag.Id}.\n{ex.Message}");
+            }
+        }
+    }
+}

@@ -1,0 +1,138 @@
+﻿@page "/Tags"
+@using DelegationStation.Services;
+@using DelegationStation.Models;
+
+@inject IDeviceTagDBService deviceTagDBService
+@inject ILogger<Tags> logger
+@inject NavigationManager nav
+@inject IConfiguration config
+
+@attribute [Authorize]
+
+<h3>Tags</h3>
+<table class="table table-responsive">
+    <thead>
+        <tr>
+            <th>Tag Name</th>
+            <th>Tag Description</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (DeviceTag tag in deviceTags)
+        {
+            <tr>
+                <td>@tag.Name</td>
+                <td>@tag.Description</td>
+                <td>
+                    <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
+                        <span class="oi oi-pencil" aria-hidden="true"></span> Edit
+                    </button> 
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if(userRole == Role.Admin)
+{
+    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @if (!string.IsNullOrEmpty(tagAddValidationMessage))
+        {
+            <p class="error-text">@tagAddValidationMessage</p>
+        }
+        <div class="mb-3">
+            <label for="TagName" class="form-label">Tag name</label>
+            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
+        </div>
+        <div class="mb-3">
+            <label for="TagDescription" class="form-label">Tag description</label>
+            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>            
+        </div>
+        <input type="submit" class="btn btn-primary mb-3" value="Add" />
+    </EditForm>
+}
+else
+{
+    <p>Role: @userRole</p>
+}
+
+
+
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
+    private List<DeviceTag> deviceTags = new List<DeviceTag>();
+    private DeviceTag newTag = new DeviceTag();
+    private Role userRole = Role.None;
+    private string tagAddValidationMessage = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            authState = await AuthState;
+        }
+        UpdateClaims();
+        await GetTags();
+        UpdateUserRole();
+    }
+
+    private void UpdateUserRole()
+    {
+        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
+        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = Role.Admin;
+        }
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>(); 
+
+        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
+        foreach (var c in roleClaims)
+        {
+            groups.Add(c.Value);
+        }
+    }
+
+    private async Task GetTags()
+    {
+        try
+        {
+            deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
+        }
+        catch(Exception ex)
+        {
+            logger.LogError($"Error retreiving tags.\n{ex.Message}");
+        }
+    }
+
+    private async Task AddTag()
+    {
+        try
+        {
+            DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
+            deviceTags.Add(resp);
+            newTag = new DeviceTag(); 
+        }
+        catch (Exception ex)
+        {
+            Guid g = Guid.NewGuid();
+            tagAddValidationMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
+            logger.LogError($"Error adding tags.\nCorrelation Id: {g.ToString()}\n{ex.Message}");
+            return;
+        }
+        tagAddValidationMessage = "";
+    }    
+}

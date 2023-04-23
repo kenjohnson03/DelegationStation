@@ -1,0 +1,219 @@
+﻿@page "/"
+@using DelegationStation.Services;
+@using DelegationStation.Models;
+
+@inject IDeviceTagDBService deviceTagDBService
+@inject IDeviceDBService deviceDBService
+@inject ILogger<Tags> logger
+@inject NavigationManager nav
+@inject IConfiguration config
+
+@attribute [Authorize]
+
+<h3>Devices</h3>
+<table class="table table-responsive">
+    <thead>
+        <tr>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Serial Number</th>
+            <th>Tags</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (Device device in devices)
+        {
+            <tr>
+                <td>@device.Make</td>
+                <td>@device.Model</td>
+                <td>@device.SerialNumber</td>
+                <td>
+                    @foreach(string t in device.Tags)
+                    {
+                        <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
+                    }
+                </td>
+                <td>
+                    <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/DeviceEdit/{device.Id}"))>
+                        <span class="oi oi-pencil" aria-hidden="true"></span> Edit
+                    </button> 
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if(userRole != Role.None)
+{
+    <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-3">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @if (!string.IsNullOrEmpty(deviceAddValidationMessage))
+        {
+            <p class="error-text">@deviceAddValidationMessage</p>
+        }
+        <div class="mb-3">
+            <label for="DeviceMake" class="form-label">Device Make</label>
+            <InputText @bind-Value=newDevice.Make class="form-control" id="DeviceMake"></InputText>
+            <ValidationMessage For=@(() => newDevice.Make) />
+        </div>
+        <div class="mb-3">
+            <label for="DeviceModel" class="form-label">Device Model</label>
+            <InputText @bind-Value=newDevice.Model class="form-control" id="DeviceModel"></InputText>
+            <ValidationMessage For=@(() => newDevice.Model) />
+        </div>
+        <div class="mb-3">
+            <label for="SerialNumber" class="form-label">Serial Number</label>
+            <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
+            <ValidationMessage For=@(() => newDevice.SerialNumber) />
+        </div>
+        <div class="mb-3">
+            <label for="Tags" class="form-label">Tags:</label>
+            <input @bind=tagSearch @bind:event="oninput" class="form-control">
+            @foreach(DeviceTag tag in deviceTags.Where(t => t.Name.Contains(tagSearch)))
+            {
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" @onchange=@(() => AddRemoveTag(tag))>
+                    <label class="form-check-label">@tag.Name</label>
+                </div>
+            }
+        </div>
+        
+        <input type="submit" class="btn btn-primary mb-3" value="Add" />
+    </EditForm>
+} else
+{
+    <p>Role: @userRole</p>
+}
+
+
+
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
+    private List<Device> devices = new List<Device>();
+    private List<DeviceTag> deviceTags = new List<DeviceTag>();
+    private Device newDevice = new Device();
+    private Role userRole = Role.None;
+    private string tagSearch = "";
+    private string deviceAddValidationMessage = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            authState = await AuthState;
+        }
+        UpdateClaims();
+        UpdateUserRole();
+        await GetTags();
+        await GetDevices();        
+    }
+
+    private void UpdateUserRole()
+    {
+        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
+        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = Role.Admin;
+            return;
+        }
+        else if(deviceTags.Count > 0)
+        {
+            List<Role> roles = new List<Role>();
+            foreach(DeviceTag t in deviceTags)
+            {
+                foreach(RoleDelegation rd in t.RoleDelegations)
+                {
+                    roles.Add(rd.Role);
+                }
+            }
+            userRole = roles.OrderBy(r => Array.IndexOf(roleOrder, r)).LastOrDefault();
+        }        
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+
+        if(groupClaims == null)
+        {
+            return;
+        }
+
+        foreach (var c in groupClaims)
+        {
+            groups.Add(c.Value);
+        }
+    }
+
+    private async Task GetTags()
+    {
+        try
+        {
+            deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
+        }
+        catch(Exception ex)
+        {
+            logger.LogError($"Error retrieving tags.\n{ex.Message}");
+        }
+    }
+
+    private async Task GetDevices()
+    {
+        try
+        {
+            devices = await deviceDBService.GetDevicesAsync(groups);
+        }
+        catch(Exception ex)
+        {
+            logger.LogError($"Error retreiving tags.\n{ex.Message}");
+        }
+    }
+
+    private async Task AddDevice()
+    {
+        try
+        {
+            string Id = deviceTags.Select(t => t.Id.ToString()).FirstOrDefault() ?? "";
+            if(newDevice.Tags.Count < 1 && !string.IsNullOrEmpty(Id))
+            {
+                newDevice.Tags.Add(Id);
+            }
+            else if (newDevice.Tags.Count < 1)
+            {
+                deviceAddValidationMessage = "Device must have at least one Tag";
+                return;
+            }
+            Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
+            devices.Add(resp);
+            newDevice = new Device();
+            deviceAddValidationMessage = "";
+        }
+        catch (Exception ex)
+        {
+            Guid c = Guid.NewGuid();
+            deviceAddValidationMessage = $"Error adding tags.\nCorrelation Id:{c.ToString()}";
+            logger.LogError($"Error adding tags.\nCorrelation Id:{c.ToString()}\n{ex.Message}\n");
+        }
+    }
+
+    private void AddRemoveTag(DeviceTag tag)
+    {
+        if(newDevice.Tags.Contains(tag.Id.ToString()))
+        {
+            newDevice.Tags.Remove(tag.Id.ToString());
+        }
+        else
+        {
+            newDevice.Tags.Add(tag.Id.ToString());
+        }
+    }
+}

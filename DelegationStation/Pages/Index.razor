@@ -1,0 +1,56 @@
+﻿@page "/claims"
+@using DelegationStation.Services;
+
+@attribute [Authorize]
+
+@inject IDeviceTagDBService deviceTagDBService
+
+<PageTitle>Index</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<AuthorizeView>
+    <Authorized>
+        @foreach(var claim in context.User.Claims)
+        {
+            <p>@claim.ToString()</p>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <a href="MicrosoftIdentity/Account/SignIn">Log in</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+<SurveyPrompt Title="How is Blazor working for you?" />
+
+@foreach(var group in roles)
+{
+    <p>@group</p>
+}
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthState { get; set; }
+    private AuthenticationState? authState;
+    private List<string> roles = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if(AuthState != null)
+        {
+            authState = await AuthState;
+        }
+        UpdateClaims();
+    }
+
+    private void UpdateClaims()
+    {
+        roles = new List<string>();
+        foreach(var c in authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"))
+        {
+            roles.Add(c.Value);
+        }
+    }
+}
