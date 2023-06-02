@@ -19,7 +19,7 @@ namespace DelegationStation.Models
         public RoleDelegation()
         {
             Id = Guid.NewGuid();
-            Role = Role.Read;
+            //Role = Role.Read;
             SecurityGroupId = string.Empty;
             SecurityGroupName = string.Empty;
             PartitionKey = this.Id.ToString();
@@ -28,11 +28,11 @@ namespace DelegationStation.Models
 
 
 
-    public enum Role
-    {
-        None,
-        Read,
-        Edit,
-        Admin        
-    }
+    //public enum Role
+    //{
+    //    None,
+    //    Read,
+    //    Edit,
+    //    Admin        
+    //}
 }

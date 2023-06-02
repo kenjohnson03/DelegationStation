@@ -35,7 +35,7 @@ namespace DelegationStation.Services
         {
             if (groupId == null)
             {
-                throw new Exception("GraphService GetSecurityGroupName was sent null tagId");
+                throw new Exception("GraphService GetSecurityGroupName was sent null Group Id");
             }
 
             if (!System.Text.RegularExpressions.Regex.Match(groupId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
