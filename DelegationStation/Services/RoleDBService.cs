@@ -6,9 +6,9 @@ namespace DelegationStation.Services
 {
     public interface IRoleDBService
     {
-        Task<Device> AddOrUpdateDeviceAsync(Device device);
-        Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds);
-
+        Task<Role> AddOrUpdateRoleAsync(Role role);
+        Task<List<Role>> GetRolesAsync();
+        Task<Role> GetRoleAsync(string roleId);
     }
     public class RoleDBService : IRoleDBService
     {
@@ -22,8 +22,8 @@ namespace DelegationStation.Services
             CosmosClient client = new(
                 connectionString: configuration.GetSection("COSMOS_CONNECTION_STRING").Value!
             );
-            ConfigureCosmosDatabase(client, "DelegationStation", "Device");
-            this._container = client.GetContainer("DelegationStation", "Device");
+            ConfigureCosmosDatabase(client, "DelegationStation", "Role");
+            this._container = client.GetContainer("DelegationStation", "Role");
             _DefaultGroup = configuration.GetSection("DefaultAdminGroupObjectId").Value;
         }
 
@@ -33,121 +33,42 @@ namespace DelegationStation.Services
             await database.Database.CreateContainerIfNotExistsAsync(containerName, "/PartitionKey");
         }
 
-        public async Task<List<Device>> GetRolesAsync()
+        public async Task<List<Role>> GetRolesAsync()
         {
             List<Role> roles = new List<Role>();
-                        
-            // Get tags that the user has access to
-            System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            int argCount = 0;
+            string query = $"SELECT * FROM r WHERE r.PartitionKey = \"{typeof(Role).Name}\"";
 
-            if (groupIds.Contains(_DefaultGroup))
-            {
-                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-            }
-            else
-            {
-                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");                
+            QueryDefinition q = new QueryDefinition(query);
 
-                foreach (string groupId in groupIds)
-                {
-                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-                    if (groupId != groupIds.Last())
-                    {
-                        sb.Append("OR ");
-                    }
-                    argCount++;
-                }
-                sb.Append(")");
-            }
-
-
-            argCount = 0;
-            QueryDefinition q = new QueryDefinition(sb.ToString());
-
-            if (!groupIds.Contains(_DefaultGroup))
-            {
-                foreach (string groupId in groupIds)
-                {
-                    q.WithParameter($"@arg{argCount}", groupId);
-                    argCount++;
-                }
-            }
-
-            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            var queryIterator = this._container.GetItemQueryIterator<Role>(q);
             while (queryIterator.HasMoreResults)
             {
                 var response = await queryIterator.ReadNextAsync();
-                deviceTags.AddRange(response.ToList());
+                roles.AddRange(response.ToList());
             }
 
-
-            // Get Devices with the tags the user has access to
-            sb = new System.Text.StringBuilder();
-            argCount = 0;
-
-            if (groupIds.Contains(_DefaultGroup))
-            {
-                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
-            }
-            else
-            {
-                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\" AND (");
-
-                foreach (DeviceTag tag in deviceTags)
-                {
-                    sb.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
-                    if (tag != deviceTags.Last())
-                    {
-                        sb.Append("OR ");
-                    }
-                    argCount++;
-                }
-                sb.Append(")");
-            }
-
-
-            argCount = 0;
-            q = new QueryDefinition(sb.ToString());
-
-            if (!groupIds.Contains(_DefaultGroup))
-            {
-                foreach (DeviceTag tag in deviceTags)
-                {
-                    q.WithParameter($"@arg{argCount}", tag.Id);
-                    argCount++;
-                }
-            }
-
-            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
-            while (deviceQueryIterator.HasMoreResults)
-            {
-                var response = await deviceQueryIterator.ReadNextAsync();
-                devices.AddRange(response.ToList());
-            }
-
-            return devices;
+            return roles;
         }
 
-        public async Task<Device> AddOrUpdateDeviceAsync(Device device)
+        public async Task<Role> AddOrUpdateRoleAsync(Role role)
         {
-            ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
+            ItemResponse<Role> response = await this._container.UpsertItemAsync<Role>(role);
             return response;
         }
 
-        public async Task<Device> GetDeviceAsync(string deviceId)
+        public async Task<Role> GetRoleAsync(string roleId)
         {
-            if(deviceId == null)
+            if(roleId == null)
             {
-                throw new Exception("DeviceDBService GetDeviceAsync was sent null deviceId");
+                throw new Exception("RoleDBService GetRoleAsync was sent null roleId");
             }
 
-            if(!System.Text.RegularExpressions.Regex.Match(deviceId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            if(!System.Text.RegularExpressions.Regex.Match(roleId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
             {
-                throw new Exception($"DeviceDBService GetDeviceAsync deviceId did not match GUID format {deviceId}");
+                throw new Exception($"DeviceDBService GetDeviceAsync deviceId did not match GUID format {roleId}");
             }
 
-            ItemResponse<Device> response = await this._container.ReadItemAsync<Device>(deviceId, new PartitionKey(deviceId));
+            ItemResponse<Role> response = await this._container.ReadItemAsync<Role>(roleId, new PartitionKey(roleId));
             return response;
         }
     }
