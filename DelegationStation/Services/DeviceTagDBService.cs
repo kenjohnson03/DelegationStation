@@ -1,6 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
-using DelegationStation.Models;
+using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity;

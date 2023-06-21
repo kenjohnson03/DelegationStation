@@ -1,4 +1,4 @@
-using DelegationStation.Models;
+using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using System.Configuration;
 

@@ -21,6 +21,8 @@ using System.Linq;
 using Microsoft.Graph.Chats.Item.SendActivityNotification;
 using Microsoft.Graph.Models;
 using System.Reflection;
+using DelegationStationShared.Models;
+
 
 namespace DelegationStation.Function
 {
@@ -81,9 +83,9 @@ namespace DelegationStation.Function
                 .WithParameter("@manufacturer", device.Manufacturer.Trim())
                 .WithParameter("@model", device.Model.Trim())
                 .WithParameter("@serialNumber", device.SerialNumber.Trim());
-            var queryIterator = container.GetItemQueryIterator<Device>(query);
+            var queryIterator = container.GetItemQueryIterator<DelegationStationShared.Models.Device>(query);
 
-            List<Device> deviceResults = new List<Device>();
+            List<DelegationStationShared.Models.Device> deviceResults = new List<DelegationStationShared.Models.Device>();
             while(queryIterator.HasMoreResults)
             {
                 var response = await queryIterator.ReadNextAsync();
@@ -94,12 +96,12 @@ namespace DelegationStation.Function
             if(deviceResults.Count < 1) 
             {
                 // TODO make personal / add to group / update attribute
-                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction { Name = "AccountEnabled", Value = "false" } }); 
-                _logger.LogWarning("Did not find any devices matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'");
+                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction() { ActionType = DeviceUpdateActionType.Attribute, Name = "AccountEnabled", Value = "false" } }); 
+                _logger.LogWarning($"Did not find any devices matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'");
                 return;
             }
 
-            Device d = deviceResults.FirstOrDefault();
+            DelegationStationShared.Models.Device d = deviceResults.FirstOrDefault();
             foreach(string tagId in d.Tags)
             {
                 DeviceTag tag = new DeviceTag();

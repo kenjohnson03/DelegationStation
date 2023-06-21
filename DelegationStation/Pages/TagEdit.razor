@@ -1,4 +1,4 @@
-﻿@page "/TagEdit/{Id}"
+﻿@*@page "/TagEdit/{Id}"
 @using DelegationStation.Models;
 @using DelegationStation.Services;
 
@@ -8,6 +8,7 @@
 @inject IGraphService graphService
 @inject IConfiguration config
 @inject NavigationManager nav
+@inject IRoleDBService roleDBService
 
 @attribute [Authorize]
 
@@ -152,7 +153,7 @@ else if (tag != null)
 
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
-    private Role userRole = Role.None;
+    private Role userRole = new Role();
     private DeviceTag tag;
     private RoleDelegation roleDelegation = new RoleDelegation();
     private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
@@ -198,10 +199,18 @@ else if (tag != null)
 
     private void UpdateUserRole()
     {
-        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
-        if(groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        if(string.IsNullOrEmpty(defaultGroup))
         {
-            userRole = Role.Admin;
+            
+        }
+        if(groups.Contains(defaultGroup))
+        {
+            userRole = new Role()
+            {
+                Name = "Admin",
+                Attributes = new List<DeviceAttribute>() { new DeviceAttribute() { Name = "*" } },
+                SecurityGroups = true
+            };
         }
         else
         {
@@ -394,3 +403,4 @@ else if (tag != null)
         }
     }
 }
+*@

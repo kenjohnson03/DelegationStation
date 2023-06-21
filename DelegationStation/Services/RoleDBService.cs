@@ -1,4 +1,4 @@
-using DelegationStation.Models;
+using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using System.Configuration;
 
@@ -9,6 +9,8 @@ namespace DelegationStation.Services
         Task<Role> AddOrUpdateRoleAsync(Role role);
         Task<List<Role>> GetRolesAsync();
         Task<Role> GetRoleAsync(string roleId);
+
+        Task DeleteRoleAsync(Role role);
     }
     public class RoleDBService : IRoleDBService
     {
@@ -68,8 +70,17 @@ namespace DelegationStation.Services
                 throw new Exception($"DeviceDBService GetDeviceAsync deviceId did not match GUID format {roleId}");
             }
 
-            ItemResponse<Role> response = await this._container.ReadItemAsync<Role>(roleId, new PartitionKey(roleId));
+            ItemResponse<Role> response = await this._container.ReadItemAsync<Role>(roleId, new PartitionKey(typeof(Role).Name));
             return response;
+        }
+
+        public async Task DeleteRoleAsync(Role role)
+        {
+            ItemResponse<Role> response = await this._container.DeleteItemAsync<Role>(role.Id.ToString(), new PartitionKey(typeof(Role).Name));
+            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+            {
+                throw new Exception($"RoleDBService DeleteRoleAsync failed to delete role {role.Id}");
+            }
         }
     }
 }

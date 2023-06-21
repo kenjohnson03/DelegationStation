@@ -1,5 +1,157 @@
-﻿<h3>RoleEdit</h3>
+﻿@page "/Role/{Id}"
+@using DelegationStation.Models;
+
+@inject Services.IRoleDBService roleDBService
+@inject NavigationManager nav
+@inject ILogger<RoleEdit> logger
+
+@attribute [Authorize]
+
+<h3>Role Edit</h3>
+<AuthorizeView Context="userContext">
+    <Authorized>
+        @if(role != null)
+        {
+            <EditForm Model="@role" OnSubmit="SaveRole">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="mb-3">
+                    <label for="Name" class="form-label">Name</label>
+                    <InputText @bind-Value=role.Name class="form-control" id="Name"></InputText>
+                </div>
+                <h4>Editable Attributes</h4>
+                <div class="container p-0">
+                    @foreach (DeviceAttribute attr in role.Attributes)
+                    {
+                        <div class="row mb-2">
+                            <div class="col">
+                                <InputText @bind-Value=attr.Name class="form-control" id="DeviceAttribute"></InputText>
+
+                            </div>
+                            <div class="col">
+                                <button type="button" class="btn btn-danger" @onclick=@(() => role.Attributes.Remove(attr))><span class="oi oi-trash"></span> Delete</button>
+
+                            </div>
+
+
+                            
+                        </div>
+                        <div class="row">
+                            <ValidationMessage For=@(() => attr.Name) />
+                        </div>
+                    }
+                </div>
+                
+                <div class="container p-0 mt-lg-4">
+                    <div class="row mb-2">
+                        <div class="col">
+                            <InputText @bind-Value=attributeToAdd placeholder="New Attribute" class="form-control" id="DeviceAttribute"></InputText>
+                        </div>
+                        <div class="col">
+                            <button type="button" class="btn btn-secondary" @onclick=@(() => AddAttribute())><span class="oi oi-plus"></span>  Add Attribute</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="SecurityGroups" class="form-label">Edit Security Groups</label>
+                    <InputCheckbox @bind-Value=role.SecurityGroups class="form-check-input" id="SecurityGroups"></InputCheckbox>
+                    <ValidationMessage For=@(() => role.SecurityGroups) />
+                </div>
+                <button class="btn btn-secondary" type="button" @onclick=@(() => nav.NavigateTo("/Roles"))>Cancel</button>
+                <button class="btn btn-success" type="submit">Save</button>
+                
+            </EditForm>
+        }
+        else
+        {
+            <p>Role not found</p>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Not Authorized</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@if(!string.IsNullOrEmpty(userMessage))
+{
+    @if(userMessage.ToLower().Contains("error"))
+    {
+        <div class="alert alert-danger" role="alert">
+          @userMessage
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-success" role="alert">
+          @userMessage
+        </div>
+    }
+}
+
 
 @code {
+    [Parameter]
+    public string? Id { get; set; }
 
+    public Role role { get; set; } = new Role();
+    private string attributeToAdd = "";
+    private string userMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Guid g = Guid.NewGuid();
+
+        if(Id == null)
+        {
+            return;
+        }
+
+        if(Id == Guid.Empty.ToString())
+        {
+            return;
+        }
+
+        try
+        {
+            role = await roleDBService.GetRoleAsync(Id);
+        }
+        catch(Exception e)
+        {
+            var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
+            logger.LogError(e, erMessage);
+            Console.WriteLine(erMessage);
+            userMessage = erMessage;
+        }    
+    }
+
+    private async Task SaveRole()
+    {
+        Guid g = Guid.NewGuid();
+
+        try
+        {
+            role.Attributes.Where(a => string.IsNullOrEmpty(a.Name) || a.Name == "*").ToList().ForEach(a => role.Attributes.Remove(a));
+            role = await roleDBService.AddOrUpdateRoleAsync(role);
+            var message = $"Correlation Id: {g.ToString()}\nSaved role.";
+            logger.LogInformation(message);
+            Console.WriteLine(message);
+            nav.NavigateTo("/Roles");
+        }
+        catch(Exception e)
+        {
+            var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
+            logger.LogError(e, erMessage);
+            Console.WriteLine(erMessage);
+            userMessage = erMessage;
+        }          
+    }
+
+    private void AddAttribute()
+    {
+        if(!string.IsNullOrEmpty(attributeToAdd))
+        {
+            role.Attributes.Add(new DeviceAttribute() { Name = attributeToAdd });
+            attributeToAdd = "";
+        }
+    }
 }

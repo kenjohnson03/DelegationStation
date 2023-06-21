@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
 
-namespace DelegationStation.Function
+namespace DelegationStationShared.Models
 {
-    internal class Device
+    public class Device
     {
         [Required]
         [JsonProperty(PropertyName = "id")]

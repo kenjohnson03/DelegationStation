@@ -1,6 +1,6 @@
 ﻿@page "/"
 @using DelegationStation.Services;
-@using DelegationStation.Models;
+@using DelegationStationShared.Models;
 
 @inject IDeviceTagDBService deviceTagDBService
 @inject IDeviceDBService deviceDBService
@@ -43,49 +43,43 @@
         }
     </tbody>
 </table>
-@if(userRole != Role.None)
-{
-    <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-3">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-        @if (!string.IsNullOrEmpty(deviceAddValidationMessage))
-        {
-            <p class="error-text">@deviceAddValidationMessage</p>
-        }
-        <div class="mb-3">
-            <label for="DeviceMake" class="form-label">Device Make</label>
-            <InputText @bind-Value=newDevice.Make class="form-control" id="DeviceMake"></InputText>
-            <ValidationMessage For=@(() => newDevice.Make) />
-        </div>
-        <div class="mb-3">
-            <label for="DeviceModel" class="form-label">Device Model</label>
-            <InputText @bind-Value=newDevice.Model class="form-control" id="DeviceModel"></InputText>
-            <ValidationMessage For=@(() => newDevice.Model) />
-        </div>
-        <div class="mb-3">
-            <label for="SerialNumber" class="form-label">Serial Number</label>
-            <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
-            <ValidationMessage For=@(() => newDevice.SerialNumber) />
-        </div>
-        <div class="mb-3">
-            <label for="Tags" class="form-label">Tags:</label>
-            <input @bind=tagSearch @bind:event="oninput" class="form-control">
-            @foreach(DeviceTag tag in deviceTags.Where(t => t.Name.Contains(tagSearch)))
-            {
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" @onchange=@(() => AddRemoveTag(tag))>
-                    <label class="form-check-label">@tag.Name</label>
-                </div>
-            }
-        </div>
-        
-        <input type="submit" class="btn btn-primary mb-3" value="Add" />
-    </EditForm>
-} else
-{
-    <p>Role: @userRole</p>
-}
 
+<EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-3">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    @if (!string.IsNullOrEmpty(deviceAddValidationMessage))
+    {
+        <p class="error-text">@deviceAddValidationMessage</p>
+    }
+    <div class="mb-3">
+        <label for="DeviceMake" class="form-label">Device Make</label>
+        <InputText @bind-Value=newDevice.Make class="form-control" id="DeviceMake"></InputText>
+        <ValidationMessage For=@(() => newDevice.Make) />
+    </div>
+    <div class="mb-3">
+        <label for="DeviceModel" class="form-label">Device Model</label>
+        <InputText @bind-Value=newDevice.Model class="form-control" id="DeviceModel"></InputText>
+        <ValidationMessage For=@(() => newDevice.Model) />
+    </div>
+    <div class="mb-3">
+        <label for="SerialNumber" class="form-label">Serial Number</label>
+        <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
+        <ValidationMessage For=@(() => newDevice.SerialNumber) />
+    </div>
+    <div class="mb-3">
+        <label for="Tags" class="form-label">Tags:</label>
+        <input @bind=tagSearch @bind:event="oninput" class="form-control">
+        @foreach (DeviceTag tag in deviceTags.Where(t => t.Name.Contains(tagSearch)))
+        {
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" @onchange=@(() => AddRemoveTag(tag))>
+                <label class="form-check-label">@tag.Name</label>
+            </div>
+        }
+    </div>
+
+    <input type="submit" class="btn btn-primary mb-3" value="Add" />
+</EditForm>
 
 
 
@@ -98,7 +92,7 @@
     private List<Device> devices = new List<Device>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private Device newDevice = new Device();
-    private Role userRole = Role.None;
+    private Role userRole = new Role() { Id = Guid.Parse("1"), Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
     private string tagSearch = "";
     private string deviceAddValidationMessage = "";
 
@@ -118,10 +112,9 @@
     private void UpdateUserRole()
     {
         string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
         if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
         {
-            userRole = Role.Admin;
+            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
             return;
         }
         else if(deviceTags.Count > 0)
@@ -133,8 +126,7 @@
                 {
                     roles.Add(rd.Role);
                 }
-            }
-            userRole = roles.OrderBy(r => Array.IndexOf(roleOrder, r)).LastOrDefault();
+            }            
         }        
     }
 

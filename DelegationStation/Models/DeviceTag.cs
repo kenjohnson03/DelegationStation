@@ -7,29 +7,14 @@ namespace DelegationStation.Models
     {
         [Required]
         [JsonProperty(PropertyName = "id")]
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         [Required(AllowEmptyStrings = false)]
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public List<RoleDelegation> RoleDelegations { get; set; }
-        public List<DeviceUpdateAction> UpdateActions { get; set; }
-        public int Order { get; set; }
-        [Required(AllowEmptyStrings = false)]
-        public string PartitionKey { get; set; }
-        [Required(AllowEmptyStrings = false)]
-        public string Type { get; private set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public List<RoleDelegation> RoleDelegations { get; set; } = new List<RoleDelegation>();
+        public List<DeviceUpdateAction> UpdateActions { get; set; } = new List<DeviceUpdateAction>();
 
-
-        public DeviceTag() 
-        {
-            this.Id = Guid.NewGuid();
-            this.Name = string.Empty;
-            this.Description = string.Empty;
-            this.RoleDelegations = new List<RoleDelegation>();
-            this.UpdateActions = new List<DeviceUpdateAction>();
-            this.Order = 0;
-            this.PartitionKey = "DeviceTag";
-            this.Type = typeof(DeviceTag).Name;
-        }
+        [Required(AllowEmptyStrings = false)]
+        public string PartitionKey { get; set; } = typeof(DeviceTag).Name;
     }
 }

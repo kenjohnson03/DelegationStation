@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IntuneEnrollment", "IntuneE
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DelegationStationTests", "DelegationStationTests\DelegationStationTests.csproj", "{86E2271F-95E8-4485-9F42-72C399914025}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DelegationSharedLibrary", "DelegationSharedLibrary\DelegationSharedLibrary.csproj", "{E400A002-298F-4EBF-BD81-E5BB38068188}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{86E2271F-95E8-4485-9F42-72C399914025}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{86E2271F-95E8-4485-9F42-72C399914025}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{86E2271F-95E8-4485-9F42-72C399914025}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E400A002-298F-4EBF-BD81-E5BB38068188}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E400A002-298F-4EBF-BD81-E5BB38068188}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E400A002-298F-4EBF-BD81-E5BB38068188}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E400A002-298F-4EBF-BD81-E5BB38068188}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
