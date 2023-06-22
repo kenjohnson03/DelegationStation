@@ -31,7 +31,7 @@
                         <tr>
                             <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>@role.Name</td>
                             <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                @foreach (AllowedAttributes attr in role.Attributes)
+                                @foreach (AllowedAttributes attr in role.Attributes.OrderBy(a => a))
                                 {
                                     <p>@attr</p>
                                 }

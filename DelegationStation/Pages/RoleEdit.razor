@@ -1,5 +1,5 @@
 ﻿@page "/Role/{Id}"
-@using DelegationStation.Models;
+@using DelegationStationShared.Models;
 
 @inject Services.IRoleDBService roleDBService
 @inject NavigationManager nav
@@ -21,41 +21,48 @@
                 </div>
                 <h4>Editable Attributes</h4>
                 <div class="container p-0">
-                    @foreach (DeviceAttribute attr in role.Attributes)
-                    {
-                        <div class="row mb-2">
-                            <div class="col">
-                                <InputText @bind-Value=attr.Name class="form-control" id="DeviceAttribute"></InputText>
+                    @{
+                        foreach (var attr in Enum.GetValues(typeof(AllowedAttributes)))
+                        {
+                            if((AllowedAttributes)attr == AllowedAttributes.All)
+                            {
+                                continue;
+                            }
 
+                            bool isChecked = role.Attributes.Contains((AllowedAttributes)attr);
+
+                            <div class="row mb-2">
+                                <div class="col">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" checked="@isChecked" @oninput=@((e) => AttributesChanged((AllowedAttributes)attr, e))>
+                                        <label class="form-check-label" for="flexSwitchCheckDefault">@((AllowedAttributes)attr)</label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                </div>
                             </div>
-                            <div class="col">
-                                <button type="button" class="btn btn-danger" @onclick=@(() => role.Attributes.Remove(attr))><span class="oi oi-trash"></span> Delete</button>
-
+                            <div class="row">
                             </div>
-
-
-                            
-                        </div>
-                        <div class="row">
-                            <ValidationMessage For=@(() => attr.Name) />
-                        </div>
+                        }                        
                     }
                 </div>
                 
-                <div class="container p-0 mt-lg-4">
-                    <div class="row mb-2">
-                        <div class="col">
-                            <InputText @bind-Value=attributeToAdd placeholder="New Attribute" class="form-control" id="DeviceAttribute"></InputText>
-                        </div>
-                        <div class="col">
-                            <button type="button" class="btn btn-secondary" @onclick=@(() => AddAttribute())><span class="oi oi-plus"></span>  Add Attribute</button>
-                        </div>
-                    </div>
+                
+                <div class="mb-3">
+                    <label for="SecurityGroups" class="form-label">Allowed to edit Security Groups</label>
+                    <span>Delegation Station must have access to the security group to make changes.</span>
+                    <div class="form-check form-switch">
+                        <InputCheckbox @bind-Value=role.SecurityGroups class="form-check-input" id="SecurityGroups"></InputCheckbox>
+                        <ValidationMessage For=@(() => role.SecurityGroups) />
+                    </div>                    
                 </div>
                 <div class="mb-3">
-                    <label for="SecurityGroups" class="form-label">Edit Security Groups</label>
-                    <InputCheckbox @bind-Value=role.SecurityGroups class="form-check-input" id="SecurityGroups"></InputCheckbox>
-                    <ValidationMessage For=@(() => role.SecurityGroups) />
+                    <label for="AdministrativeUnits" class="form-label">Allowed to edit Administrative Units</label>
+                    <span>Delegation Station must have access to the administrative unit to make changes.</span>
+                    <div class="form-check form-switch">
+                        <InputCheckbox @bind-Value=role.AdministrativeUnits class="form-check-input" id="AdministrativeUnits"></InputCheckbox>
+                        <ValidationMessage For=@(() => role.AdministrativeUnits) />
+                    </div>
                 </div>
                 <button class="btn btn-secondary" type="button" @onclick=@(() => nav.NavigateTo("/Roles"))>Cancel</button>
                 <button class="btn btn-success" type="submit">Save</button>
@@ -130,7 +137,7 @@
 
         try
         {
-            role.Attributes.Where(a => string.IsNullOrEmpty(a.Name) || a.Name == "*").ToList().ForEach(a => role.Attributes.Remove(a));
+            role.Attributes.Where(a => a == AllowedAttributes.All ).ToList().ForEach(a => role.Attributes.Remove(a));
             role = await roleDBService.AddOrUpdateRoleAsync(role);
             var message = $"Correlation Id: {g.ToString()}\nSaved role.";
             logger.LogInformation(message);
@@ -146,12 +153,22 @@
         }          
     }
 
-    private void AddAttribute()
+    private void AttributesChanged(AllowedAttributes attr, ChangeEventArgs e)
     {
-        if(!string.IsNullOrEmpty(attributeToAdd))
+        var value = e?.Value?.ToString();
+
+        if(string.IsNullOrEmpty(value))
         {
-            role.Attributes.Add(new DeviceAttribute() { Name = attributeToAdd });
-            attributeToAdd = "";
+            return;
+        }
+
+        if(Convert.ToBoolean(value) && !role.Attributes.Contains(attr))
+        {
+            role.Attributes.Add(attr);
+        }
+        else
+        {
+            role.Attributes.Remove(attr);
         }
     }
 }

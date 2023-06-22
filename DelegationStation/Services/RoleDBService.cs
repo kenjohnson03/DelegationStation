@@ -54,6 +54,12 @@ namespace DelegationStation.Services
 
         public async Task<Role> AddOrUpdateRoleAsync(Role role)
         {
+            if(role == null)
+            {
+                throw new Exception("RoleDBService AddOrUpdateRoleAsync was sent null role");
+            }
+
+            role.Attributes.Where(a => a == AllowedAttributes.All).ToList().ForEach(a => role.Attributes.Remove(a));
             ItemResponse<Role> response = await this._container.UpsertItemAsync<Role>(role);
             return response;
         }

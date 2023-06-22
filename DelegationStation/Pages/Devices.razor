@@ -92,7 +92,7 @@
     private List<Device> devices = new List<Device>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private Device newDevice = new Device();
-    private Role userRole = new Role() { Id = Guid.Parse("1"), Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
+    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
     private string tagSearch = "";
     private string deviceAddValidationMessage = "";
 
