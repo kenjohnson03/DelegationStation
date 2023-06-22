@@ -19,6 +19,8 @@ namespace DelegationStationShared.Models
         public List<string> Tags { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string Type { get; private set; }
+
+        public DateTime ModifiedUTC { get; set; }
         public List<DeviceUpdateAction> UpdateActions { get; set; }
 
         public Device()
@@ -31,6 +33,7 @@ namespace DelegationStationShared.Models
             this.Tags = new List<string>();
             this.UpdateActions = new List<DeviceUpdateAction>();
             this.Type = typeof(Device).Name;
+            ModifiedUTC = DateTime.UtcNow;
         }        
     }
 }

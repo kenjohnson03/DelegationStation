@@ -8,6 +8,8 @@ namespace DelegationStation.Services
     {
         Task<Device> AddOrUpdateDeviceAsync(Device device);
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds);
+        Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0);
+
 
     }
     public class DeviceDBService : IDeviceDBService
@@ -157,6 +159,114 @@ namespace DelegationStation.Services
 
             ItemResponse<Device> response = await this._container.ReadItemAsync<Device>(deviceId, new PartitionKey(deviceId));
             return response;
+        }
+
+        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0)
+        {
+            List<Device> devices = new List<Device>();
+
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+
+            if (groupIds.Count() < 1)
+            {
+                throw new Exception("DeviceDBService GetDevicesAsync no valid group ids sent.");
+            }
+
+            // Get tags that the user has access to
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
+
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            }
+            else
+            {
+                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            
+
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
+            }
+
+            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            while (queryIterator.HasMoreResults)
+            {
+                var response = await queryIterator.ReadNextAsync();
+                deviceTags.AddRange(response.ToList());
+            }
+
+
+            // Get Devices with the tags the user has access to
+            sb = new System.Text.StringBuilder();
+            argCount = 0;
+
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
+            }
+            else
+            {
+                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\" AND (");
+
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    sb.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
+                    if (tag != deviceTags.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
+
+
+            argCount = 0;
+            q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    q.WithParameter($"@arg{argCount}", tag.Id);
+                    argCount++;
+                }
+            }
+
+            q.WithParameter("@offset", page * pageSize);
+            q.WithParameter("@limit", pageSize);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var response = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(response.ToList());
+            }
+
+            return devices;
         }
     }
 }
