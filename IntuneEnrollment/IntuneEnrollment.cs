@@ -122,7 +122,6 @@ namespace DelegationStation.Function
                 }
 
                 await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
-                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction { Name = "AccountEnabled", Value = "false" } });
             }
 
             return;
