@@ -38,10 +38,6 @@
     <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
         <DataAnnotationsValidator />
         <ValidationSummary />
-        @if (!string.IsNullOrEmpty(tagAddValidationMessage))
-        {
-            <p class="error-text">@tagAddValidationMessage</p>
-        }
         <div class="mb-3">
             <label for="TagName" class="form-label">Tag name</label>
             <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
@@ -58,7 +54,21 @@ else
     <p>Role: @userRole.Name unable to create Tags</p>
 }
 
-
+@if (!string.IsNullOrEmpty(userMessage))
+{
+    @if (userMessage.ToLower().Contains("error"))
+    {
+        <div class="alert alert-danger" role="alert">
+            @userMessage
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-success" role="alert">
+            @userMessage
+        </div>
+    }
+}
 
 
 
@@ -70,7 +80,7 @@ else
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private DeviceTag newTag = new DeviceTag();
     private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
-    private string tagAddValidationMessage = "";
+    private string userMessage = string.Empty;
 
 
     protected override async Task OnInitializedAsync()
@@ -86,10 +96,16 @@ else
 
     private void UpdateUserRole()
     {
+        userMessage = "";
         string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
         {
             userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
+        }
+        else
+        {
+            userMessage = "Error: Default Admin Group not found.";
+            logger.LogError(userMessage);
         }
     }
 
@@ -107,18 +123,21 @@ else
 
     private async Task GetTags()
     {
+        userMessage = "";
         try
         {
             deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
         }
         catch(Exception ex)
         {
-            logger.LogError($"Error retreiving tags.\n{ex.Message}");
+            userMessage = "Error: retreiving tags.";
+            logger.LogError($"{userMessage}\n{ex.Message}");
         }
     }
 
     private async Task AddTag()
     {
+        userMessage = "";
         try
         {
             DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
@@ -128,10 +147,9 @@ else
         catch (Exception ex)
         {
             Guid g = Guid.NewGuid();
-            tagAddValidationMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
-            logger.LogError($"Error adding tags.\nCorrelation Id: {g.ToString()}\n{ex.Message}");
+            userMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}");
             return;
         }
-        tagAddValidationMessage = "";
     }    
 }

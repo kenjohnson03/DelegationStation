@@ -1,4 +1,5 @@
 using DelegationStation.Services;
+using DelegationStationShared.Models;
 
 namespace DelegationStationTests
 {
@@ -7,12 +8,10 @@ namespace DelegationStationTests
     {       
 
         [TestMethod]
-        public void PartitionKey_is_set_to_type()
+        public void PartitionKey_is_set_to_Id()
         {
             DeviceTag tag = new DeviceTag();
-            Assert.AreEqual(tag.PartitionKey, tag.Type);
-
-            new Mock
+            Assert.AreEqual(tag.PartitionKey, tag.Id);
         }
     }
 }
