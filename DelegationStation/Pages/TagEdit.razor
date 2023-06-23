@@ -1,4 +1,4 @@
-﻿@*@page "/TagEdit/{Id}"
+﻿@page "/TagEdit/{Id}"
 @using DelegationStationShared.Models;
 @using DelegationStation.Services;
 
@@ -16,7 +16,7 @@
 {
     <h3>Error in navigation path</h3>
 }
-else if (userRole == Role.None)
+else if (userRole.Id == Guid.Empty && userRole.Name == "None")
 {
     <h3>Not authorized</h3>
 }
@@ -47,10 +47,9 @@ else if (tag != null)
                 @foreach(RoleDelegation r in tag.RoleDelegations)
                 {
                     <tr>
-                        <td>@r.Role</td>
+                        <td>@r.Role.Name</td>
                         <td>@r.SecurityGroupName</td>
-                        <td>@r.SecurityGroupId</td>                        
-                        <td></td>
+                        <td>@r.SecurityGroupId</td>    
                         <td><button type="button" class="btn btn-danger" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
                     </tr>
                 }
@@ -61,18 +60,28 @@ else if (tag != null)
         <DataAnnotationsValidator />
         <ValidationSummary />
         Role:
-        <InputSelect @bind-Value=roleDelegation.Role class="form-select">
-            @foreach (var r in Enum.GetValues(typeof(Role)))
+        <select @onchange=@((e) => UpdateRole(e)) class="form-select">
+            <option></option>
+            @foreach (Role r in roles)
             {
-                <option value="@r">@r</option>
+                <option value="@r.Id">@r.Name</option>
             }
-        </InputSelect>
+        </select>
         <ValidationMessage For=@(() => roleDelegation.Role) />
 
         <label class="form-label">Security Group Id:</label>
-        <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3"></InputText>
+        <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3" @onfocusout=@((e) => GetRoleDelegationName(e))></InputText>
         <ValidationMessage For=@(() => roleDelegation.SecurityGroupId) />
-        <input type="submit" class="btn btn-primary mb-3" value="Add Role" />
+            @if(!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
+            {
+                <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
+            }
+            else
+            {
+                <p class="mt-2 mb-2">Input a valid security group Id</p>
+            }
+
+        <input type="submit" class="btn btn-primary mb-3 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) ? "disabled" : "")" value="Add Role" />
     </EditForm>
 
     <div class="container">
@@ -104,10 +113,6 @@ else if (tag != null)
     <EditForm Model="@deviceUpdateAction" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
         <DataAnnotationsValidator />
         <ValidationSummary />
-        @if (!string.IsNullOrEmpty(deviceUpdateActionsValidationMessage))
-        {
-            <p class="error-text">@deviceUpdateActionsValidationMessage</p>
-        }
         
         Update Action:
         <InputSelect @bind-Value=deviceUpdateAction.ActionType class="form-select">
@@ -120,20 +125,45 @@ else if (tag != null)
         @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
         {
             <label class="form-label">Attribute name:</label>
-            <InputText @bind-Value=deviceUpdateAction.Name class="form-control"></InputText>
+            <InputSelect @bind-Value=deviceUpdateAction.Name class="form-select">
+                @{
+                    foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
+                    {
+                        if(t == AllowedAttributes.All)
+                        {
+                            continue;
+                        }
+                        <option value="@t">@t</option>
+                    }
+                }
+            </InputSelect>
             <label class="form-label">Attribute value:</label>
             <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
         }
-        else
+        else if(deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+        {
+            <br />
+            <label class="form-label">Administrative Unit Id:</label>
+            <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+        }
+        else if(deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
         {
             
             <br />
-            <text>Security Group Id: </text>
-            <InputText class="form-control" @bind-Value=deviceUpdateAction.Value></InputText>
+            <label class="form-label">Security Group Id: </label>
+            <InputText class="form-control" @bind-Value=deviceUpdateAction.Value @onfocusout=@((e) => GetActionSecurityGroupName(e))></InputText>
+            @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+            {
+                <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
+            }
+            else
+            {
+                <p class="mt-2 mb-2">Input a valid security group Id</p>
+            }
         }
         <br/>
-        
-        <input type="submit" class="btn btn-primary mb-3" value="Add Action" />
+
+        <input type="submit" class="btn btn-primary mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
     </EditForm>
 
     @if (!string.IsNullOrEmpty(tagErrorMessage))
@@ -153,6 +183,7 @@ else if (tag != null)
 
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
+    private List<Role> roles = new List<Role>();
     private Role userRole = new Role();
     private DeviceTag tag;
     private RoleDelegation roleDelegation = new RoleDelegation();
@@ -180,6 +211,24 @@ else if (tag != null)
         UpdateClaims();
         UpdateUserRole();
         await UpdateRoleDelegationGroups();
+        await GetRolesAsync();
+    }
+
+    private async Task GetRolesAsync()
+    {        
+        try
+        {
+            roles = await roleDBService.GetRolesAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Failed to get Roles.\n{ex.Message}");
+        }
+    }
+
+    private bool IsAdmin()
+    {
+        return userRole.Name == "Admin" && userRole.Id == Guid.Empty;
     }
 
     private async Task GetTag()
@@ -201,27 +250,30 @@ else if (tag != null)
     {
         if(string.IsNullOrEmpty(defaultGroup))
         {
-            
+
         }
         if(groups.Contains(defaultGroup))
         {
             userRole = new Role()
             {
+                Id = Guid.Empty,
                 Name = "Admin",
-                Attributes = new List<DeviceAttribute>() { new DeviceAttribute() { Name = "*" } },
-                SecurityGroups = true
+                Attributes = new List<AllowedAttributes>() { AllowedAttributes.All },
+                SecurityGroups = true,
+                AdministrativeUnits = true
             };
         }
         else
         {
-            foreach (RoleDelegation role in tag.RoleDelegations.OrderBy(r => Array.IndexOf(roleOrder, r)))
+            userRole = new Role()
             {
-                if (groups.Contains(role.SecurityGroupId))
-                {
-                    userRole = role.Role;
-                }
-            }
-        }        
+                Id = Guid.Empty,
+                Name = "None",
+                Attributes = new List<AllowedAttributes>() { },
+                SecurityGroups = false,
+                AdministrativeUnits = false
+            };
+        }
     }
 
     private void UpdateClaims()
@@ -235,17 +287,76 @@ else if (tag != null)
         }
     }
 
+    private async Task GetRoleDelegationName(EventArgs? e)
+    {
+        if(string.IsNullOrEmpty(roleDelegation.SecurityGroupId))
+        {
+            return;
+        }
+
+        if (!System.Text.RegularExpressions.Regex.Match(roleDelegation.SecurityGroupId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+        {
+            return;
+        }
+
+        try
+        {
+            string name = await graphService.GetSecurityGroupName(roleDelegation.SecurityGroupId);
+            roleDelegation.SecurityGroupName = name;
+        }
+        catch (Exception ex)
+        {
+            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
+            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            return;
+        }
+    }
+
+    private async Task GetActionSecurityGroupName(EventArgs? e)
+    {
+        if (string.IsNullOrEmpty(deviceUpdateAction.Value))
+        {
+            return;
+        }
+
+        if (!System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+        {
+            return;
+        }
+
+        try
+        {
+            string name = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
+            deviceUpdateAction.Name = name;
+        }
+        catch (Exception ex)
+        {
+            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\n{ex.Message}";
+            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            return;
+        }
+    }
+
     private void AddRoleDelegation()
     {
-        if(userRole != Role.Admin)
+        if (!IsAdmin())
         {
             deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
             logger.LogWarning(deviceUpdateActionsValidationMessage);
             return;
-        }        
+        } 
 
-        tag.RoleDelegations.Add(roleDelegation);
-        roleDelegation = new RoleDelegation();
+        try
+        {
+            tag.RoleDelegations.Add(roleDelegation);
+            roleDelegation = new RoleDelegation();
+        }
+        catch (Exception ex)
+        {
+            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
+            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            return;
+        }        
     }
 
     private async void AddDeviceUpdateAction(EditContext editContext)
@@ -254,7 +365,7 @@ else if (tag != null)
         deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
         deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
 
-        if(userRole != Role.Admin)
+        if (!IsAdmin())
         {
             deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
             logger.LogWarning(deviceUpdateActionsValidationMessage);
@@ -303,7 +414,7 @@ else if (tag != null)
     private async Task Save()
     {
         Guid g = Guid.NewGuid();
-        if (userRole == Role.Admin)
+        if (IsAdmin())
         {
             try
             {
@@ -329,7 +440,7 @@ else if (tag != null)
 
     private async Task Delete()
     {
-        if (userRole == Role.Admin)
+        if (userRole.Id == Guid.Empty && userRole.Name == "Admin")
         {
             try
             {
@@ -402,5 +513,17 @@ else if (tag != null)
             }
         }
     }
+
+    private void UpdateRole(ChangeEventArgs e)
+    {
+        var value = ((ChangeEventArgs)e).Value?.ToString();
+        if(!string.IsNullOrEmpty(value))
+        {
+            Role? r = roles.Where(r => r.Id == Guid.Parse(value)).FirstOrDefault();
+            if(r != null)
+            {
+                roleDelegation.Role = r;
+            }
+        }
+    }
 }
-*@
