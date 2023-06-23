@@ -1,6 +1,6 @@
-﻿@*@page "/Tags"
+﻿@page "/Tags"
 @using DelegationStation.Services;
-@using DelegationStation.Models;
+@using DelegationStationShared.Models;
 
 @inject IDeviceTagDBService deviceTagDBService
 @inject ILogger<Tags> logger
@@ -33,7 +33,7 @@
         }
     </tbody>
 </table>
-@if(userRole == Role.Admin)
+@if(userRole.Id == Guid.Empty && userRole.Name == "Admin")
 {
     <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
         <DataAnnotationsValidator />
@@ -55,7 +55,7 @@
 }
 else
 {
-    <p>Role: @userRole</p>
+    <p>Role: @userRole.Name unable to create Tags</p>
 }
 
 
@@ -69,7 +69,7 @@ else
     private List<string> groups = new List<string>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private DeviceTag newTag = new DeviceTag();
-    private Role userRole = Role.None;
+    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
     private string tagAddValidationMessage = "";
 
 
@@ -87,10 +87,9 @@ else
     private void UpdateUserRole()
     {
         string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
         if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
         {
-            userRole = Role.Admin;
+            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
         }
     }
 
@@ -136,4 +135,3 @@ else
         tagAddValidationMessage = "";
     }    
 }
-*@

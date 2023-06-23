@@ -14,6 +14,8 @@ namespace DelegationStationShared.Models
         public string Model { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string SerialNumber { get; set; }
+
+        public string MacAddress { get; set; }
         public string PartitionKey { get; set; }
 
         public List<string> Tags { get; set; }
@@ -25,14 +27,15 @@ namespace DelegationStationShared.Models
 
         public Device()
         {
-            this.Id = Guid.NewGuid();
-            this.PartitionKey = this.Id.ToString();
-            this.Make = "";
-            this.Model = "";
-            this.SerialNumber = "";
-            this.Tags = new List<string>();
-            this.UpdateActions = new List<DeviceUpdateAction>();
-            this.Type = typeof(Device).Name;
+            Id = Guid.NewGuid();
+            PartitionKey = this.Id.ToString();
+            Make = string.Empty;
+            Model = string.Empty;
+            SerialNumber = string.Empty;
+            MacAddress = string.Empty;
+            Tags = new List<string>();
+            UpdateActions = new List<DeviceUpdateAction>();
+            Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
         }        
     }

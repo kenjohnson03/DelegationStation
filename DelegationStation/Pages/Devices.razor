@@ -17,7 +17,7 @@
             <th>Make</th>
             <th>Model</th>
             <th>Serial Number</th>
-            <th>Tags</th>
+            <th>Tag</th>
             <th></th>
         </tr>
     </thead>
@@ -43,7 +43,14 @@
         }
     </tbody>
 </table>
-
+<div class="row mb-4">
+    <div class="col">
+        <input type="text" @bind="search" @bind:event="oninput" class="form-control" placeholder="Search" />
+    </div>
+    <div class="col">
+        <button type="button" class="btn btn-success" @onclick=@(() => GetDevices())>Search</button>
+    </div>
+</div>
 <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-3">
     <DataAnnotationsValidator />
     <ValidationSummary />
@@ -95,6 +102,9 @@
     private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
     private string tagSearch = "";
     private string deviceAddValidationMessage = "";
+    private int pageSize = 10;
+    private int currentPage = 0;
+    private string search = "";
 
 
     protected override async Task OnInitializedAsync()
@@ -162,11 +172,11 @@
     {
         try
         {
-            devices = await deviceDBService.GetDevicesAsync(groups);
+            devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
         }
         catch(Exception ex)
         {
-            logger.LogError($"Error retreiving tags.\n{ex.Message}");
+            logger.LogError($"Error retreiving Devices.\n{ex.Message}");
         }
     }
 

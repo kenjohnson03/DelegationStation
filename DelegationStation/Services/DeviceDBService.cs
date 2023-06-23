@@ -141,6 +141,27 @@ namespace DelegationStation.Services
 
         public async Task<Device> AddOrUpdateDeviceAsync(Device device)
         {
+            if(device == null)
+            {
+                throw new Exception("DeviceDBService AddOrUpdateDeviceAsync was sent null device");
+            }
+            List<Device> devices = new List<Device>();
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
+            q.WithParameter("@serial", device.SerialNumber);
+            q.WithParameter("@make", device.Make);
+            q.WithParameter("@model", device.Model);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(qIresponse.ToList());
+            }
+            if(devices.Count != 0)
+            {
+                throw new Exception("Duplicate device found in database");
+            }
+
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
             return response;
         }
@@ -241,7 +262,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
+            sb.Append(" AND (CONTAINS(d.Make, @search, true) OR CONTAINS(d.Model, @search, true) OR CONTAINS(d.SerialNumber, @search, true)) ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
 
 
             argCount = 0;
@@ -255,7 +276,7 @@ namespace DelegationStation.Services
                     argCount++;
                 }
             }
-
+            q.WithParameter("@search", search);
             q.WithParameter("@offset", page * pageSize);
             q.WithParameter("@limit", pageSize);
 
@@ -263,6 +284,7 @@ namespace DelegationStation.Services
             while (deviceQueryIterator.HasMoreResults)
             {
                 var response = await deviceQueryIterator.ReadNextAsync();
+                _logger.LogInformation($"Search query cost: {response.RequestCharge.ToString()}");
                 devices.AddRange(response.ToList());
             }
 
