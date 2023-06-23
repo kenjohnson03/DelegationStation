@@ -31,7 +31,7 @@ Welcome to your new app.
 
 @code {
     [CascadingParameter]
-    public Task<AuthenticationState> AuthState { get; set; }
+    public Task<AuthenticationState>? AuthState { get; set; }
     private AuthenticationState? authState;
     private List<string> roles = new List<string>();
 
@@ -46,8 +46,13 @@ Welcome to your new app.
 
     private void UpdateClaims()
     {
+        if(authState == null)
+        {
+            return;
+        }
+
         roles = new List<string>();
-        foreach(var c in authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"))
+        foreach(var c in authState.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"))
         {
             roles.Add(c.Value);
         }
