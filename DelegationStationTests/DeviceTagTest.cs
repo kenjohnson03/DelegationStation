@@ -11,7 +11,7 @@ namespace DelegationStationTests
         public void PartitionKey_is_set_to_Id()
         {
             DeviceTag tag = new DeviceTag();
-            Assert.AreEqual(tag.PartitionKey, tag.Id);
+            Assert.AreEqual(tag.PartitionKey, typeof(DeviceTag).Name);
         }
     }
 }

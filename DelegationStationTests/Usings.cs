@@ -1,2 +1,2 @@
 global using Microsoft.VisualStudio.TestTools.UnitTesting;
-global using DelegationStation.Models;
+global using DelegationStationShared.Models;
