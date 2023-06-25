@@ -1,9 +1,26 @@
 ﻿using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
+using System.Text.RegularExpressions;
 
 namespace DelegationStationShared.Models
 {
-    public class Role
+    public interface IRole
+    {
+        Guid Id { get; set; }
+        string Name { get; set; }
+        List<AllowedAttributes> Attributes { get; set; }
+        bool SecurityGroups { get; set; }
+        bool AdministrativeUnits { get; set; }
+        string PartitionKey { get; set; }
+
+        Role GetRole(List<string> groups, DeviceTag tag);
+        Role GetDefaultRole();
+        Role GetAdminRole();
+
+        bool IsAdminRole();
+        bool IsDefaultRole();
+    }
+    public class Role : IRole
     {
         [Required]
         [JsonProperty(PropertyName = "id")]
@@ -22,6 +39,79 @@ namespace DelegationStationShared.Models
             SecurityGroups = false;
             AdministrativeUnits = false;
             PartitionKey = typeof(Role).Name;
+        }
+
+        public Role GetRole(List<string> groups, DeviceTag tag)
+        {
+            Role userRole = GetDefaultRole();
+            if (tag == null || groups == null || groups?.Count == 0)
+            {
+                return userRole;
+            }
+
+            foreach (RoleDelegation roleDelegation in tag.RoleDelegations)
+            {
+                foreach (string group in groups!)
+                {
+                    if (Regex.Match(group, roleDelegation.SecurityGroupId).Success)
+                    {
+                        // Add all attributes from the role to the userRole
+                        foreach (AllowedAttributes attribute in roleDelegation.Role.Attributes)
+                        {
+                            if (userRole.Attributes.Where(a => a == attribute).Count() == 0)
+                            {
+                                userRole.Attributes.Add(attribute);
+                            }
+                        }
+
+                        // If the role has security groups or administrative units, set the userRole to true
+                        if (roleDelegation.Role.SecurityGroups)
+                        {
+                            userRole.SecurityGroups = true;
+                        }
+                        if (roleDelegation.Role.AdministrativeUnits)
+                        {
+                            userRole.AdministrativeUnits = true;
+                        }
+                    }
+                }
+            }
+
+            return userRole;
+        }
+
+        public Role GetDefaultRole()
+        {
+            return new Role()
+            {
+                Id = Guid.Parse("96c95f35-edee-4565-b30b-c7ddb19405ce"),
+                Name = "None",
+                Attributes = new List<AllowedAttributes>() { },
+                SecurityGroups = false,
+                AdministrativeUnits = false
+            };
+        }
+
+        public Role GetAdminRole()
+        {
+            return new Role()
+            {
+                Id = Guid.Parse("b1a13567-256c-41d8-8ec0-80671a9e909d"),
+                Name = "Admin",
+                Attributes = new List<AllowedAttributes>() { AllowedAttributes.All },
+                SecurityGroups = true,
+                AdministrativeUnits = true
+            };
+        }
+
+        public bool IsAdminRole()
+        {
+            return Id == GetAdminRole().Id;
+        }
+
+        public bool IsDefaultRole()
+        {
+            return Id == GetDefaultRole().Id;
         }
     }
 }

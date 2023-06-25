@@ -1,4 +1,6 @@
 using DelegationStation.Services;
+using Microsoft.Extensions.Configuration;
+using System.Configuration;
 
 namespace DelegationStationTests
 {

@@ -21,11 +21,30 @@ namespace DelegationStation.Services
         public DeviceDBService(IConfiguration configuration, ILogger<DeviceDBService> logger)
         {
             this._logger = logger;
+            if(configuration == null)
+            {
+                throw new Exception("DeviceDBService appsettings configuration is null.");
+            }
+            if(string.IsNullOrEmpty(configuration.GetSection("COSMOS_CONNECTION_STRING").Value))
+            {
+                throw new Exception("DeviceDBService appsettings COSMOS_CONNECTION_STRING is null or empty");
+            }
+            if(string.IsNullOrEmpty(configuration.GetSection("DefaultAdminGroupObjectId").Value))
+            {
+                throw new Exception("DefaultAdminGroupObjectId appsettings is null or empty");
+            }
+            if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASSE_NAME").Value))
+            {
+                _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
+            }
+
+            string dbName = string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASE_NAME").Value) ? "DelegationStationData" : configuration.GetSection("COSMOS_DATABASE_NAME").Value!;
+
             CosmosClient client = new(
                 connectionString: configuration.GetSection("COSMOS_CONNECTION_STRING").Value!
             );
-            ConfigureCosmosDatabase(client, "DelegationStation", "Device");
-            this._container = client.GetContainer("DelegationStation", "Device");
+            ConfigureCosmosDatabase(client, "DelegationStation", dbName);
+            this._container = client.GetContainer("DelegationStation", dbName);
             _DefaultGroup = configuration.GetSection("DefaultAdminGroupObjectId").Value;
         }
 
