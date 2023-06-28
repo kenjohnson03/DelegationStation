@@ -9,10 +9,10 @@ namespace DelegationStation.Services
     }
     public class GraphService : IGraphService
     {
-        private readonly ILogger<DeviceDBService> _logger;
+        private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
 
-        public GraphService(IConfiguration configuration, ILogger<DeviceDBService> logger) 
+        public GraphService(IConfiguration configuration, ILogger<GraphService> logger) 
         {
             this._logger = logger;
 

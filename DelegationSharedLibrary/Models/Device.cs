@@ -8,13 +8,22 @@ namespace DelegationStationShared.Models
         [Required]
         [JsonProperty(PropertyName = "id")]
         public Guid Id { get; set; }
+
         [Required(AllowEmptyStrings = false)]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
         public string Make { get; set; }
-        [Required(AllowEmptyStrings = false)]
+
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$")]
+
         public string Model { get; set; }
+
+
         [Required(AllowEmptyStrings = false)]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
         public string SerialNumber { get; set; }
 
+        [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$",ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
         public string MacAddress { get; set; }
         public string PartitionKey { get; set; }
 

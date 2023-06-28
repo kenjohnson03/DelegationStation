@@ -393,12 +393,25 @@ namespace DelegationStation.Function
 
         private static async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
         {
-            var graphAccessToken = await GetAccessTokenAsync("https://graph.microsoft.com");
+            var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
+
+            string tokenUri = "";
+            if (TargetCloud == "AzurePublicCloud")
+            {
+                tokenUri = "https://graph.microsoft.com";
+            }
+            else
+            {
+                // TODO update URI
+                tokenUri = "https://graph.microsoft.us";
+            }
+
+            var graphAccessToken = await GetAccessTokenAsync(tokenUri);
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
 
 
-            string deviceADRequestUri = String.Format("https://graph.microsoft.com/v1.0/devices?$filter=deviceId eq '{0}'", deviceId);
+            string deviceADRequestUri = $"{tokenUri}/v1.0/devices?$filter=deviceId eq '{deviceId}'";
             var deviceADRequest = new HttpRequestMessage(HttpMethod.Get, deviceADRequestUri);
             deviceADRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
             HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
@@ -412,11 +425,11 @@ namespace DelegationStation.Function
                 deviceAzureAdId = deviceMatch.Value;
             }
 
-            var groupRequest = new HttpRequestMessage(HttpMethod.Post, $"https://graph.microsoft.com/v1.0/groups/{groupId}/members/$ref");
+            var groupRequest = new HttpRequestMessage(HttpMethod.Post, $"{tokenUri}/v1.0/groups/{groupId}/members/$ref");
             groupRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
 
             var values = new Dictionary<string, string>{
-                { "@odata.id", $"https://graph.microsoft.com/v1.0/directoryObjects/{deviceAzureAdId}" }
+                { "@odata.id", $"{tokenUri}/v1.0/directoryObjects/{deviceAzureAdId}" }
             };
 
             var json = JsonConvert.SerializeObject(values, Formatting.Indented);
