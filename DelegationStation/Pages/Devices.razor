@@ -78,9 +78,13 @@
         <input @bind=tagSearch @bind:event="oninput" class="form-control">
         @foreach (DeviceTag tag in deviceTags.Where(t => t.Name.ToLower().Contains(tagSearch.ToLower())))
         {
-            <div class="form-check">
+            @*<div class="form-check">
                 <input type="checkbox" class="form-check-input" @onchange=@(() => AddRemoveTag(tag))>
                 <label class="form-check-label">@tag.Name</label>
+            </div>*@
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" @onchange=@(() => AddRemoveTag(tag))>
+                <label class="form-check-label" for="flexSwitchCheckDefault">@tag.Name</label>
             </div>
         }
     </div>
