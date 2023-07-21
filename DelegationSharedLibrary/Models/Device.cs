@@ -46,6 +46,20 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
-        }        
+        }
+        
+        public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
+        {
+            Id = Guid.NewGuid();
+            PartitionKey = this.Id.ToString();
+            Make = make;
+            Model = model;
+            SerialNumber = serialNumber;
+            MacAddress = macAddress;
+            Tags = tags;
+            UpdateActions = new List<DeviceUpdateAction>();
+            Type = typeof(Device).Name;
+            ModifiedUTC = DateTime.UtcNow;
+        }
     }
 }

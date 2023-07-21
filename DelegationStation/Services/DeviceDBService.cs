@@ -1,5 +1,6 @@
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Graph.Models.Security;
 using System.Configuration;
 
 namespace DelegationStation.Services
@@ -8,9 +9,11 @@ namespace DelegationStation.Services
     {
         Task<Device> AddOrUpdateDeviceAsync(Device device);
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds);
+        Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber);
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0);
-
-
+        Task<Device?> GetDeviceAsync(string make, string model, string serialNumber);
+        Task<List<Device>> GetDevicesByTagAsync(string tagId);
+        Task DeleteDeviceAsync(Device device);
     }
     public class DeviceDBService : IDeviceDBService
     {
@@ -33,7 +36,7 @@ namespace DelegationStation.Services
             {
                 throw new Exception("DefaultAdminGroupObjectId appsettings is null or empty");
             }
-            if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASSE_NAME").Value))
+            if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASE_NAME").Value))
             {
                 _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
             }
@@ -52,6 +55,87 @@ namespace DelegationStation.Services
         {
             DatabaseResponse database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
             await database.Database.CreateContainerIfNotExistsAsync(containerName, "/PartitionKey");
+        }
+
+        public async Task<Device?> GetDeviceAsync(string make, string model, string serialNumber)
+        {
+            List<Device> devices = new List<Device>();
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
+            q.WithParameter("@serial", serialNumber);
+            q.WithParameter("@make", make);
+            q.WithParameter("@model", model);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(qIresponse.ToList());
+            }
+            if(devices.Count == 0)
+            {
+                throw new Exception($"Device not found.");
+            }
+            else
+            {
+                return devices.FirstOrDefault();
+            }
+        }
+
+        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber)
+        {
+            List<Device> devices = new List<Device>();
+            string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
+            if(!string.IsNullOrEmpty(make.Trim()))
+            {
+                queryBuilder += "AND CONTAINS(d.Make, @make, true) ";
+            }
+
+            if (!string.IsNullOrEmpty(model.Trim()))
+            {
+                queryBuilder += " AND CONTAINS(d.Model, @model, true)";
+            }
+
+            if (!string.IsNullOrEmpty(serialNumber.Trim()))
+            {
+                queryBuilder += " AND CONTAINS(d.SerialNumber, @serial, true)";
+            }
+
+            QueryDefinition q = new QueryDefinition(queryBuilder);
+
+            //QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND (CONTAINS(d.Make, @make, true) OR CONTAINS(d.Model, @model, true) OR CONTAINS(d.SerialNumber, @serial, true))");
+            q.WithParameter("@serial", serialNumber);
+            q.WithParameter("@make", make);
+            q.WithParameter("@model", model);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(qIresponse.ToList());
+            }
+
+            return devices;
+        }
+
+        public async Task<List<Device>> GetDevicesByTagAsync(string tagId)
+        {
+            List<Device> devices = new List<Device>();
+
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
+
+            string query = "SELECT * FROM d WHERE d.Type = \"Device\" AND ARRAY_CONTAINS(d.Tags, @tagId, true)";
+
+            QueryDefinition q = new QueryDefinition(query);
+            q.WithParameter($"@tagId", tagId);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var response = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(response.ToList());
+            }
+
+            return devices;
         }
 
         public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds)
@@ -178,7 +262,8 @@ namespace DelegationStation.Services
             }
             if(devices.Count != 0)
             {
-                throw new Exception("Duplicate device found in database");
+                throw new Exception("Duplicate device found in database. Remove device first then add.");
+                
             }
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
@@ -308,6 +393,11 @@ namespace DelegationStation.Services
             }
 
             return devices;
+        }
+        
+        public async Task DeleteDeviceAsync(Device device)
+        {
+            await this._container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
         }
     }
 }

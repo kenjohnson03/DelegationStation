@@ -10,65 +10,76 @@
 @attribute [Authorize]
 
 <h3>Tags</h3>
-<table class="table table-responsive">
-    <thead>
-        <tr>
-            <th>Tag Name</th>
-            <th>Tag Description</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (DeviceTag tag in deviceTags)
-        {
-            <tr>
-                <td>@tag.Name</td>
-                <td>@tag.Description</td>
-                <td>
-                    <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
-                        <span class="oi oi-pencil" aria-hidden="true"></span> Edit
-                    </button> 
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>
-@if(userRole.Id == Guid.Empty && userRole.Name == "Admin")
-{
-    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-        <div class="mb-3">
-            <label for="TagName" class="form-label">Tag name</label>
-            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
-        </div>
-        <div class="mb-3">
-            <label for="TagDescription" class="form-label">Tag description</label>
-            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>            
-        </div>
-        <input type="submit" class="btn btn-primary mb-3" value="Add" />
-    </EditForm>
-}
-else
-{
-    <p>Role: @userRole.Name unable to create Tags</p>
-}
 
-@if (!string.IsNullOrEmpty(userMessage))
-{
-    @if (userMessage.ToLower().Contains("error"))
-    {
-        <div class="alert alert-danger" role="alert">
-            @userMessage
-        </div>
-    }
-    else
-    {
-        <div class="alert alert-success" role="alert">
-            @userMessage
-        </div>
-    }
-}
+<AuthorizeView Context="authContext">
+    <Authorized>
+        <table class="table table-responsive">
+            <thead>
+                <tr>
+                    <th>Tag Name</th>
+                    <th>Tag Description</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (DeviceTag tag in deviceTags)
+                {
+                    <tr>
+                        <td>@tag.Name</td>
+                        <td>@tag.Description</td>
+                        <td>
+                            <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
+                                <span class="oi oi-pencil" aria-hidden="true"></span> Edit
+                            </button> 
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if(userRole.Id == Guid.Empty && userRole.Name == "Admin")
+        {
+            <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="mb-3">
+                    <label for="TagName" class="form-label">Tag name</label>
+                    <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
+                </div>
+                <div class="mb-3">
+                    <label for="TagDescription" class="form-label">Tag description</label>
+                    <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>            
+                </div>
+                <input type="submit" class="btn btn-primary mb-3" value="Add" />
+            </EditForm>
+        }
+        else
+        {
+            <p>Role: @userRole.Name unable to create Tags</p>
+        }
+
+        @if (!string.IsNullOrEmpty(userMessage))
+        {
+            @if (userMessage.ToLower().Contains("error"))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @userMessage
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" role="alert">
+                    @userMessage
+                </div>
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Not Authorized</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
 
 
 

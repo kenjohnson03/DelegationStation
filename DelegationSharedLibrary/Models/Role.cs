@@ -14,6 +14,7 @@ namespace DelegationStationShared.Models
         string PartitionKey { get; set; }
 
         Role GetRole(List<string> groups, DeviceTag tag);
+        Role GetRole(List<string> userGroups, string defaultAdminGroup, DeviceTag tag);
         Role GetDefaultRole();
         Role GetAdminRole();
 
@@ -40,21 +41,66 @@ namespace DelegationStationShared.Models
             AdministrativeUnits = false;
             PartitionKey = typeof(Role).Name;
         }
-
-        public Role GetRole(List<string> groups, DeviceTag tag)
+        public Role GetRole(List<string> userGroups, DeviceTag tag)
         {
             Role userRole = GetDefaultRole();
-            if (tag == null || groups == null || groups?.Count == 0)
+            if (tag == null || userGroups == null || userGroups?.Count == 0)
             {
                 return userRole;
             }
 
+
             foreach (RoleDelegation roleDelegation in tag.RoleDelegations)
             {
-                foreach (string group in groups!)
+                foreach (string group in userGroups!)
                 {
-                    if (Regex.Match(group, roleDelegation.SecurityGroupId).Success)
+                    if (group == roleDelegation.SecurityGroupId)
                     {
+                        userRole.Id = new Guid();
+                        // Add all attributes from the role to the userRole
+                        foreach (AllowedAttributes attribute in roleDelegation.Role.Attributes)
+                        {
+                            if (userRole.Attributes.Where(a => a == attribute).Count() == 0)
+                            {
+                                userRole.Attributes.Add(attribute);
+                            }
+                        }
+
+                        // If the role has security groups or administrative units, set the userRole to true
+                        if (roleDelegation.Role.SecurityGroups)
+                        {
+                            userRole.SecurityGroups = true;
+                        }
+                        if (roleDelegation.Role.AdministrativeUnits)
+                        {
+                            userRole.AdministrativeUnits = true;
+                        }
+                    }
+                }
+            }
+
+            return userRole;
+        }
+        public Role GetRole(List<string> userGroups, string defaultAdminGroup, DeviceTag tag)
+        {
+            Role userRole = GetDefaultRole();
+            if (tag == null || userGroups == null || userGroups?.Count == 0)
+            {
+                return userRole;
+            }
+
+            if((bool)userGroups.Where(g => g == defaultAdminGroup).Any())
+            {
+                return userRole.GetAdminRole();
+            }
+
+            foreach (RoleDelegation roleDelegation in tag.RoleDelegations)
+            {
+                foreach (string group in userGroups!)
+                {
+                    if (group == roleDelegation.SecurityGroupId)
+                    {
+                        userRole.Id = new Guid();
                         // Add all attributes from the role to the userRole
                         foreach (AllowedAttributes attribute in roleDelegation.Role.Attributes)
                         {

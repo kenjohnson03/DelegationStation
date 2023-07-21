@@ -1,0 +1,481 @@
+﻿@page "/DevicesBulkAction"
+@using System
+@using System.IO
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Logging
+@using System.ComponentModel.DataAnnotations;
+@using DelegationStation.Services;
+@using DelegationStationShared.Models;
+@inject ILogger<DeviceBulkAction> logger
+@inject IWebHostEnvironment Environment
+@inject IDeviceDBService deviceDBService
+@inject IDeviceTagDBService deviceTagDBService
+@inject IConfiguration config
+
+
+<div class="container">
+    <div class="row align-items-start mt-3">
+        <div class="col">
+            <h3>Upload Device Actions</h3>
+        </div>
+    </div>
+    <div class="row align-items-start mt-3">
+        <div class="col-12 col-lg-6">
+            <p>
+                Upload a csv file with the following format:
+                <ul>
+                    <li>Make,Model,SerialNumber,Action (add,remove)</li>
+                    <li>Make,Model,SerialNumber,Action (add,remove)</li>
+                    <li>Make,Model,SerialNumber,Action (add,remove)</li>
+                </ul>
+            </p>
+        </div>
+        <div class="col-12  col-lg-6 card p-3">
+            <p>
+                Example:
+                <ul>
+                    <li>Microsoft Surface,Laptop 5,246813579,add</li>
+                    <li>Microsoft Surface,Laptop 5,246813579,remove</li>
+                </ul>
+            </p>
+        </div>
+    </div>
+    <div class="row align-items-start mt-3">
+        <div class="col">
+            <p>
+                <label>
+                    Upload @maxAllowedFiles file up to @GetBytes(maxFileSize):
+                    <InputFile OnChange="@LoadFiles" />
+                </label>
+            </p>
+        </div>
+    </div>
+  
+
+
+
+@if (isLoading)
+{
+        <div class="row align-items-start mt-3">
+            <div class="col">
+                <p>Uploading...</p>
+            </div>
+        </div>    
+}
+else
+{
+    
+    @if(fileError.Count > 0)
+    {
+            <div class="row align-items-start mt-2 mb-2">
+                <div class="col-6 error-ui">
+                    <p>File Errors:</p>
+                    <ol>
+                        @foreach (var error in fileError)
+                        {
+                            <li class="flashError">@error</li>
+                        }
+                    </ol>
+                </div>
+            </div>
+            
+    }
+        <div class="row align-items-start mt-2">
+            <div class="col-6">
+                <label for="Tags" class="form-label">Tags:</label>
+                <input @bind=tagSearch @bind:event="oninput" class="form-control" placeholder="Filter tags">
+                @foreach (DeviceTag tag in deviceTags.Where(t => t.Name.ToLower().Contains(tagSearch.ToLower())))
+                {
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" @onchange=@(() => AddRemoveTag(tag)) checked="@((appliedTags.Where(t => t == tag.Id.ToString()).Count() > 0) ? "checked" : null)">
+                        <label class="form-check-label" for="flexSwitchCheckDefault">@tag.Name</label>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="row align-items-start mt-2">
+            <div class="col">
+                <button type="button" class="btn btn-primary mt-2" @onclick=@UpdateDevices title="Run actions on data">Add / Remove Devices</button>
+                <a class="btn btn-success mt-2" href="/api/BulkDevice?id=@(appliedTags.FirstOrDefault() ?? "")">Download Devices</a>
+                <button type="button" class="btn btn-danger mt-2" @onclick=@Clear title="Remove all data references">Clear</button>
+            </div>
+        </div>
+
+    <div class="pt-2 pb-2">
+        
+    </div>
+
+    @if(isUpdating || completedDevices > 0)
+    {
+        @if(isUpdating)
+        {
+            <p>Running</p>
+        }
+        else
+        {
+            <p>Complete</p>
+        }
+        <p>Currently completed @(completedDevices) devices out of @(devices.Count).</p>
+
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info progress-data" style="width: calc((@completedDevices / @totalDevices) * 100%);" role="progressbar" aria-label="Progress uploading" aria-valuenow="@completedDevices" aria-valuemin="0" aria-valuemax="@totalDevices"></div>
+        </div>
+          
+    }
+    @if(updateErrors.Count > 0)
+    {
+        <div class="error-ui mt-3 mb-3">
+            Update Errors:
+            <ol>
+                @foreach (var updateError in updateErrors)
+                {
+                    <li>
+                        <span style="white-space: pre-line" class="flashError">@updateError</span>
+                    </li>
+                }
+            </ol>
+        </div>
+    }
+
+
+    @if(devices.Count > 0)
+    {
+        <b>Device data preview</b>
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>Make</th>
+                    <th>Model</th>
+                    <th>Serial Number</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (DeviceBulk device in devices)
+                {
+                    <tr>
+                        <td>@device.Make</td>
+                        <td>@device.Model</td>
+                        <td>@device.SerialNumber</td>
+                        <td>@device.Action</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    
+}
+</div>
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+    private AuthenticationState? authState;
+
+    private List<DeviceTag> deviceTags = new List<DeviceTag>();
+    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
+    private List<string> groups = new List<string>();
+    private string tagSearch = "";
+    private List<string> appliedTags = new();
+
+    private string percentComplete = "0";
+    private List<IBrowserFile> loadedFiles = new();
+    private long maxFileSize = 1024 * 100;
+    private int maxAllowedFiles = 1;
+    private bool isLoading;
+    private List<DeviceBulk> devices = new();
+    private List<string> fileError = new();
+    private int completedDevices = 0;
+    private int totalDevices = 0;
+    private bool isUpdating;
+    private List<string> updateErrors = new();
+
+
+    private double percent = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            authState = await AuthState;
+        }
+        UpdateClaims();
+        UpdateUserRole();
+        await GetTags();
+    }
+
+    private void UpdateUserRole()
+    {
+        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
+            return;
+        }
+        else if (deviceTags.Count > 0)
+        {
+            List<Role> roles = new List<Role>();
+            foreach (DeviceTag t in deviceTags)
+            {
+                foreach (RoleDelegation rd in t.RoleDelegations)
+                {
+                    roles.Add(rd.Role);
+                }
+            }
+        }
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+
+        if (groupClaims == null)
+        {
+            return;
+        }
+
+        foreach (var c in groupClaims)
+        {
+            groups.Add(c.Value);
+        }
+    }
+
+    private async Task GetTags()
+    {
+        try
+        {
+            deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Error retrieving tags.\n{ex.Message}");
+        }
+    }
+
+    private void AddRemoveTag(DeviceTag tag)
+    {
+        if (appliedTags.Contains(tag.Id.ToString()))
+        {
+            appliedTags.Remove(tag.Id.ToString());
+        }
+        else
+        {
+            appliedTags.Clear();
+            appliedTags.Add(tag.Id.ToString());
+        }
+    }
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        isLoading = true;
+        loadedFiles.Clear();
+        fileError = new();
+        string path = "";
+        devices = new();
+
+        foreach (var file in e.GetMultipleFiles(maxAllowedFiles))
+        {
+            try
+            {
+                loadedFiles.Add(file);
+                if (file.Size > maxFileSize)
+                {
+                    isLoading = false;
+                    fileError.Add("File too large");
+                    return;
+                }
+                if (file.ContentType != "text/csv")
+                {
+                    fileError.Add("Content type must be text/csv");
+                    isLoading = false;
+                    return;
+                }
+
+
+                var trustedFileNameForFileStorage = Path.GetRandomFileName();
+                var rootFolder = Path.Combine(Environment.ContentRootPath,
+                    Environment.EnvironmentName, "unsafe_uploads");
+                if (!Directory.Exists(rootFolder))
+                {
+                    Directory.CreateDirectory(rootFolder);
+                }
+                path = Path.Combine(rootFolder,
+                        trustedFileNameForFileStorage);
+
+                await using FileStream fs = new(path, FileMode.Create);
+                await file.OpenReadStream(maxFileSize).CopyToAsync(fs);
+                fs.Dispose();
+
+                // Read the file and parse it line by line.
+                using (StreamReader newFile = new(path))
+                {
+                    string ln;
+                    int line = 0;
+
+                    while ((ln = newFile.ReadLine()!) != null)
+                    {
+                        line++;
+                        // parse CSV and add to devices list
+                        // Make,Model,SerialNumber,Action
+                        if(ln.StartsWith("Make,"))
+                        {
+                            continue;
+                        }
+                        var input = ln.Split(',');
+                        if(input.Length != 4)
+                        {
+                            fileError.Add($"Line {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.");
+                            logger.LogError("File: {Filename} Error: {Error}",
+                                file.Name, "Invalid number of columns");
+                            isLoading = false;
+                            return;
+                        }
+                        try
+                        {
+                            // Validate Make, Model, SerialNumber, Action
+                            if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
+                            {
+                                fileError.Add($"Line {line}. Invalid action. Action should be either add or remove.");
+                                logger.LogError("File: {Filename} Error: {Error}",
+                                    file.Name, "Invalid action");
+                                continue;
+                            }
+
+                            var newDevice = new DeviceBulk()
+                                {
+                                    Make = input[0],
+                                    Model = input[1],
+                                    SerialNumber = input[2],
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))
+                                };
+                            var context = new ValidationContext(newDevice, null, null);
+                            var results = new List<ValidationResult>();
+
+                            if (!Validator.TryValidateObject(newDevice, context, results, true))
+                            {
+                                string validationErrors = "";
+                                validationErrors += $"Line {line}. Invalid input\n";
+                                foreach(var result in results)
+                                {
+                                    validationErrors += "\t" + result.ErrorMessage + "\n" ?? "";
+                                };
+                                fileError.Add(validationErrors);
+                                logger.LogError("File: {Filename} Error: {Error}\nErrors: {Errors}",
+                                    file.Name, "Invalid input", fileError);
+                                continue;
+                            }
+
+                            devices.Add(newDevice);
+                        } 
+                        catch (Exception ex)
+                        {
+                            fileError.Add($"Line {line}. File: {file.Name} Error: {ex.Message}");
+                            logger.LogError($"Line {line}. File: {file.Name} Error: {ex.Message}");
+                            isLoading = false;
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                fileError.Add(ex.Message);
+                logger.LogError("File: {Filename} Error: {Error}",
+                    file.Name, ex.Message);
+            }
+            finally
+            {
+                // Delete file from temporary location
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+
+        isLoading = false;
+    }
+
+    private string GetBytes(long bytes)
+    {
+        string[] suffixes = { "Bytes", "KB", "MB", "GB", "TB", "PB" };
+        int counter = 0;
+        decimal number = (decimal)bytes;
+        while (Math.Round(number / 1024) >= 1)
+        {
+            number = number / 1024;
+            counter++;
+        }
+        return string.Format("{0:n0} {1}", number, suffixes[counter]);
+    }
+
+    private async Task UpdateDevices()
+    {
+        isUpdating = true;
+        completedDevices = 0;
+        totalDevices = devices.Count();
+        updateErrors = new();
+
+        string tagToApply = appliedTags.FirstOrDefault() ?? "";
+        if(string.IsNullOrEmpty(tagToApply))
+        {
+            updateErrors.Add("Must select at least one tag.");
+            return;
+        }
+
+        foreach(DeviceBulk device in devices)
+        {
+            try
+            {
+                if (device.Action == DeviceBulkAction.add)
+                {
+                    Device d = new Device();
+                    d.Make = device.Make;
+                    d.Model = device.Model;
+                    d.SerialNumber = device.SerialNumber;
+                    d.Tags.Add(tagToApply);
+                    var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                    if(deviceResult == null)
+                    {
+                        updateErrors.Add($"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}");
+                    }
+                }
+                else if (device.Action == DeviceBulkAction.remove)
+                {
+                    Device? d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                    if(d != null)
+                    {
+                        await deviceDBService.DeleteDeviceAsync(d);
+                    }
+                    else
+                    {
+                        updateErrors.Add($"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}");
+                    }
+                }
+                else
+                {
+                    updateErrors.Add("No update action");
+                }
+            }
+            catch (Exception ex)
+            {
+                string err = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}";
+                updateErrors.Add(err);
+                logger.LogError(err);
+            }
+
+            completedDevices++;
+            StateHasChanged();
+        }
+        isUpdating = false;
+    }
+
+    private void Clear()
+    {
+        updateErrors.Clear();
+        fileError.Clear();
+        loadedFiles.Clear();
+        devices.Clear();
+    }
+    
+}
