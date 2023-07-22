@@ -12,7 +12,7 @@ namespace DelegationStationTests.Pages
     public class LoginDisplayTest : Bunit.TestContext
     {
         [TestMethod]
-        public void BadLoginTest()
+        public void UnauthorizedShouldNotRender()
         {
             // Arrange
             var authContext = this.AddTestAuthorization();
@@ -26,7 +26,7 @@ namespace DelegationStationTests.Pages
         }
 
         [TestMethod]
-        public void SuccessfulLoginTest()
+        public void SuccessfulLoginShouldShowSignOutLink()
         {
             // Arrange
             var authContext = this.AddTestAuthorization();
@@ -42,7 +42,7 @@ namespace DelegationStationTests.Pages
         }
 
         [TestMethod]
-        public void PartialIsFoundTest()
+        public void SuccessfulLoginShouldShowUserName()
         {
             // Arrange
             var authContext = this.AddTestAuthorization();

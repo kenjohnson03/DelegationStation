@@ -2,7 +2,6 @@
 @using DelegationStationShared.Models;
 @using DelegationStation.Services;
 
-
 @inject ILogger<TagEdit> logger
 @inject IDeviceTagDBService deviceTagDBService
 @inject IGraphService graphService
@@ -12,192 +11,204 @@
 
 @attribute [Authorize]
 
-@if (Id == null)
-{
-    <h3>Error in navigation path</h3>
-}
-else if (userRole.IsDefaultRole())
-{
-    <h3>Not authorized</h3>
-}
-else if (tag != null)
-{
-    <h3>@tag.Name</h3>
-    <h4>@tag.Description</h4>
-    <br/>
-    <hr/>
-    <label>Name:</label>
-    <InputText @bind-Value=tag.Name class="form-control"></InputText>
-    <label>Description:</label>
-    <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
-    <br/>
-    <hr />
-    <div class="container">
-        <h2>Assigned Groups</h2>
-        <table class="table table-responsive">
-            <thead>
-                <tr>
-                    <th>Role</th>
-                    <th>Security Group Name</th>
-                    <th>Security Group Id</th>                    
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach(RoleDelegation r in tag.RoleDelegations)
-                {
-                    <tr>
-                        <td>@r.Role.Name</td>
-                        <td>@r.SecurityGroupName</td>
-                        <td>@r.SecurityGroupId</td>
-                        <td><button type="button" class="btn btn-danger @(userRole.IsAdminRole() ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-    @if (userRole.IsAdminRole())
-    {
-        <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-            Role:
-            <select @onchange=@((e) => UpdateRole(e)) class="form-select">
-                <option></option>
-                @foreach (Role r in roles)
-                {
-                    <option value="@r.Id">@r.Name</option>
-                }
-            </select>
-            <ValidationMessage For=@(() => roleDelegation.Role) />
+<h3>Tag Edit</h3>
 
-            <label class="form-label">Security Group Id:</label>
-            <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3" @onfocusout=@((e) => GetRoleDelegationName(e))></InputText>
-            <ValidationMessage For=@(() => roleDelegation.SecurityGroupId) />
-            @if (!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
-            {
-                <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
-            }
-            else
-            {
-                <p class="mt-2 mb-2">Input a valid security group Id</p>
-            }
-
-            <input type="submit" class="btn btn-primary mb-3 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) ? "disabled" : "")" value="Add Role" />
-        </EditForm>
-    }
-    
-    <div class="container">
-        <h2>Actions on Enrollment</h2>
-        <table class="table table-responsive">
-            <thead>
-                <tr>
-                    <th>Action Type</th>
-                    <th>Name</th>
-                    <th>Value</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (DeviceUpdateAction a in tag.UpdateActions)
-                {
-                    <tr class="">
-                        <td>@a.ActionType</td>
-                        <td>@a.Name</td>
-                        <td>@a.Value</td>
-                        <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(() => tag.UpdateActions.Remove(a))><span class="oi oi-trash"></span> Delete</button></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    @if(!userRole.IsDefaultRole())
-    {
-        @*<EditForm Model="@deviceUpdateAction" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">*@
-        <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-
-            Update Action:
-            <InputSelect
-                @bind-Value=deviceUpdateAction.ActionType
-                class="form-select">
-
-                @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
-                {
-                    if((t == DeviceUpdateActionType.Group && userRole.SecurityGroups) || 
-                        (t == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits) ||
-                        (t == DeviceUpdateActionType.Attribute && userRole.Attributes.Count > 0))
-                    {
-                        <option value="@t">@t</option>
-                    }                    
-                }
-            </InputSelect>
-            <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
-            @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
-            {
-                <label class="form-label">Attribute name:</label>
-                <InputSelect @bind-Value=deviceUpdateAction.Name class="form-select">
-                    @{
-                        foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
+<AuthorizeView Context="authContext">
+    <Authorized>
+        @if (Id == null)
+        {
+            <h3>Error in navigation path</h3>
+        }
+        else if (userRole.IsDefaultRole())
+        {
+            <h3>Not authorized</h3>
+        }
+        else if (tag != null)
+        {
+            <h3>@tag.Name</h3>
+            <h4>@tag.Description</h4>
+            <br />
+            <hr />
+            <label>Name:</label>
+            <InputText @bind-Value=tag.Name class="form-control"></InputText>
+            <label>Description:</label>
+            <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
+            <br />
+            <hr />
+            <div class="container">
+                <h2>Assigned Groups</h2>
+                <table class="table table-responsive">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Security Group Name</th>
+                            <th>Security Group Id</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (RoleDelegation r in tag.RoleDelegations)
                         {
-                            if (t == AllowedAttributes.All)
+                            <tr>
+                                <td>@r.Role.Name</td>
+                                <td>@r.SecurityGroupName</td>
+                                <td>@r.SecurityGroupId</td>
+                                <td><button type="button" class="btn btn-danger @(userRole.IsAdminRole() ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (userRole.IsAdminRole())
+            {
+                <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    Role:
+                    <select @onchange=@((e) => UpdateRole(e)) class="form-select">
+                        <option></option>
+                        @foreach (Role r in roles)
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                    <ValidationMessage For=@(() => roleDelegation.Role) />
+
+                    <label class="form-label">Security Group Id:</label>
+                    <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3" @onfocusout=@((e) => GetRoleDelegationName(e))></InputText>
+                    <ValidationMessage For=@(() => roleDelegation.SecurityGroupId) />
+                    @if (!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
+                    {
+                        <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
+                    }
+                    else
+                    {
+                        <p class="mt-2 mb-2">Input a valid security group Id</p>
+                    }
+
+                    <input type="submit" class="btn btn-primary mb-3 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) ? "disabled" : "")" value="Add Role" />
+                </EditForm>
+            }
+
+            <div class="container">
+                <h2>Actions on Enrollment</h2>
+                <table class="table table-responsive">
+                    <thead>
+                        <tr>
+                            <th>Action Type</th>
+                            <th>Name</th>
+                            <th>Value</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (DeviceUpdateAction a in tag.UpdateActions)
+                        {
+                            <tr class="">
+                                <td>@a.ActionType</td>
+                                <td>@a.Name</td>
+                                <td>@a.Value</td>
+                                <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(() => tag.UpdateActions.Remove(a))><span class="oi oi-trash"></span> Delete</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (!userRole.IsDefaultRole())
+            {
+                <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    Update Action:
+                    <InputSelect @bind-Value=deviceUpdateAction.ActionType
+                                 class="form-select">
+
+                        @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
+                        {
+                            if ((t == DeviceUpdateActionType.Group && userRole.SecurityGroups) ||
+                            (t == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits) ||
+                            (t == DeviceUpdateActionType.Attribute && userRole.Attributes.Count > 0))
                             {
-                                continue;
-                            }
-                            if(ActionAllowed(deviceUpdateAction))
-                            {
-                                    <option value="@t">@t</option>
+                                <option value="@t">@t</option>
                             }
                         }
+                    </InputSelect>
+                    <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
+                    @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
+                    {
+                        <label class="form-label">Attribute name:</label>
+                        <InputSelect @bind-Value=deviceUpdateAction.Name class="form-select">
+                            @{
+                                foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
+                                {
+                                    if (t == AllowedAttributes.All)
+                                    {
+                                        continue;
+                                    }
+                                    if (AttributeAllowed(t))
+                                    {
+                                        <option value="@t">@t</option>
+                                    }
+                                }
+                            }
+                        </InputSelect>
+                        <label class="form-label">Attribute value:</label>
+                        <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
                     }
-                </InputSelect>
-                <label class="form-label">Attribute value:</label>
-                <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+                    else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+                    {
+                        <br />
+                        <label class="form-label">Administrative Unit Id:</label>
+                        <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+                    }
+                    else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+                    {
+
+                        <br />
+                        <label class="form-label">Security Group Id: </label>
+                        <InputText class="form-control" @bind-Value=deviceUpdateAction.Value @onfocusout=@((e) => GetActionSecurityGroupName(e))></InputText>
+                        @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+                        {
+                            <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
+                        }
+                        else
+                        {
+                            <p class="mt-2 mb-2">Input a valid security group Id</p>
+                        }
+                    }
+                    <br />
+
+                    <input type="submit" class="btn btn-primary mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
+                </EditForm>
+
             }
-            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+
+            @if (!string.IsNullOrEmpty(tagErrorMessage))
             {
-                <br />
-                <label class="form-label">Administrative Unit Id:</label>
-                <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+                <p class="text-danger">@tagErrorMessage</p>
             }
-            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+            @if (!string.IsNullOrEmpty(tagSuccessMessage))
             {
-
-                <br />
-                <label class="form-label">Security Group Id: </label>
-                <InputText class="form-control" @bind-Value=deviceUpdateAction.Value @onfocusout=@((e) => GetActionSecurityGroupName(e))></InputText>
-                @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
-                {
-                    <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
-                }
-                else
-                {
-                    <p class="mt-2 mb-2">Input a valid security group Id</p>
-                }
+                <p class="text-success">@tagSuccessMessage</p>
             }
-            <br />
+            <button type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
+            <button type="button" class="btn btn-danger" @onclick=@(() => Delete())>Delete</button>
+        }
+    </Authorized>
+        
+    <NotAuthorized>
+        <p>Not Authorized</p>
+    </NotAuthorized>
+</AuthorizeView>
 
-            <input type="submit" class="btn btn-primary mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
-        </EditForm>
 
-    }
-    
-    @if (!string.IsNullOrEmpty(tagErrorMessage))
-    {
-        <p class="text-danger">@tagErrorMessage</p>
-    }
-    @if (!string.IsNullOrEmpty(tagSuccessMessage))
-    {
-        <p class="text-success">@tagSuccessMessage</p>
-    }
-    <button type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
-    <button type="button" class="btn btn-danger" @onclick=@(() => Delete())>Delete</button>
 
-}
+
 @code {
-    [CascadingParameter] public Task<AuthenticationState>? AuthState { get; set; }
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
     [Parameter] public string? Id { get; set; }
 
     private AuthenticationState? authState;
@@ -223,6 +234,7 @@ else if (tag != null)
     {
         deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
         deviceUpdateActionEditContext.OnFieldChanged += DeviceUpdateAction_OnFieldChanged;
+
 
         defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if (AuthState != null)
@@ -332,12 +344,21 @@ else if (tag != null)
             return true;
         }
 
-        if((action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Where(a => a.ToString() == action.Name).Count() > 0) ||
-            (action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Where(a => a == AllowedAttributes.All).Count() > 0))
+        if((action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Count() > 0))
         {
             return true;
         }
 
+        return false;
+    }
+
+    private bool AttributeAllowed(AllowedAttributes e)
+    {
+        if ((userRole.Attributes.Where(a => a.ToString() == e.ToString()).Count() > 0) ||
+            (userRole.Attributes.Where(a => a == AllowedAttributes.All).Count() > 0))
+        {
+            return true;
+        }
         return false;
     }
 

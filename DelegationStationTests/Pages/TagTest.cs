@@ -18,7 +18,7 @@ namespace DelegationStationTests.Pages
     public class TagTest : Bunit.TestContext
     {
         [TestMethod]
-        public void TagsRenderCorrectly()
+        public void TagsShouldRender()
         {
             using (ShimsContext.Create()) 
             {
