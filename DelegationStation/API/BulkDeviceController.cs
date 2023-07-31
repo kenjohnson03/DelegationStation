@@ -37,9 +37,9 @@ namespace DelegationStation.API
             Role userRole = new Role();
             string defaultGroup = _config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
 
-            if(!string.IsNullOrEmpty(id))
+            if(string.IsNullOrEmpty(id))
             {
-                return BadRequest();
+                return BadRequest("Tag Id Empty");
             }
 
             DeviceTag tag = null;

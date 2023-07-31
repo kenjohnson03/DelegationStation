@@ -96,7 +96,7 @@ else
         <div class="row align-items-start mt-2">
             <div class="col">
                 <button type="button" class="btn btn-primary mt-2" @onclick=@UpdateDevices title="Run actions on data">Add / Remove Devices</button>
-                <a class="btn btn-success mt-2" href="/api/BulkDevice?id=@(appliedTags.FirstOrDefault() ?? "")">Download Devices</a>
+                <a class="btn btn-success mt-2 @((appliedTags?.Count() < 1) ? "disabled" : "" )" href="/api/BulkDevice?id=@(appliedTags?.FirstOrDefault() ?? "")">Download Devices</a>
                 <button type="button" class="btn btn-danger mt-2" @onclick=@Clear title="Remove all data references">Clear</button>
             </div>
         </div>

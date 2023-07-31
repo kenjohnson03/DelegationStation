@@ -211,6 +211,15 @@
     public Task<AuthenticationState>? AuthState { get; set; }
     [Parameter] public string? Id { get; set; }
 
+    public List<string> pGroups
+    {
+        get {
+            return groups;
+        }
+        set {
+        }
+    }
+
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();

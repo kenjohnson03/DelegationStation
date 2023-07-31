@@ -448,6 +448,8 @@ namespace DelegationStation.Function
             string fullMethodName = className + "." + methodName;
 
             var httpClient = new HttpClient();
+
+            // TODO update for Azure Government
             var accessToken = await GetAccessTokenAsync("https://api.loganalytics.io");
             if(accessToken == null)
             {
