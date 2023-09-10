@@ -346,7 +346,7 @@ else
                                     Make = input[0],
                                     Model = input[1],
                                     SerialNumber = input[2],
-                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))                                    
                                 };
                             var context = new ValidationContext(newDevice, null, null);
                             var results = new List<ValidationResult>();
@@ -433,6 +433,8 @@ else
                     d.Make = device.Make;
                     d.Model = device.Model;
                     d.SerialNumber = device.SerialNumber;
+                    d.ModifiedUTC = DateTime.UtcNow;
+                    d.AddedBy = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").ToString();
                     d.Tags.Add(tagToApply);
                     var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
                     if(deviceResult == null)

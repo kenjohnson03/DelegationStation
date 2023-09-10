@@ -570,7 +570,7 @@ namespace DelegationStation.Function
 
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(auId))
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId or GroupId is null or empty. DeviceId: {deviceId} AuId: {auId}");
+                _logger.LogError($"{fullMethodName} Error: DeviceId or AU Id is null or empty. DeviceId: {deviceId} AU Id: {auId}");
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
@@ -580,7 +580,7 @@ namespace DelegationStation.Function
             }
             if (Regex.IsMatch(auId, _guidRegex) == false)
             {
-                _logger.LogError($"{fullMethodName} Error: GroupId is not a valid GUID. AuId: {auId}");
+                _logger.LogError($"{fullMethodName} Error: AU Id is not a valid GUID. AU Id: {auId}");
                 return;
             }
 
@@ -676,7 +676,6 @@ namespace DelegationStation.Function
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
             List<DeviceResponse> devices = new List<DeviceResponse>();
 
-
             foreach (string d in deviceIds)
             {
                 try
@@ -728,7 +727,6 @@ namespace DelegationStation.Function
             }
             else
             {
-                // TODO update URI
                 tokenUri = $"https://login.microsoftonline.us/{TenantId}/oauth2/token";
             }
 

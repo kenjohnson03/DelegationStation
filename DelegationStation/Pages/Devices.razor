@@ -225,6 +225,8 @@
                 deviceAddValidationMessage = "Device must only have one Tag";
                 return;
             }
+            newDevice.ModifiedUTC = DateTime.UtcNow;
+            newDevice.AddedBy = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").ToString();
             Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
             devices.Add(resp);
             newDevice = new Device();

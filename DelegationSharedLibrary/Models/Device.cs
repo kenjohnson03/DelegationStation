@@ -32,6 +32,9 @@ namespace DelegationStationShared.Models
         public string Type { get; private set; }
 
         public DateTime ModifiedUTC { get; set; }
+
+        public string? AddedBy { get; set; }
+        public bool Update { get; set; }
         public List<DeviceUpdateAction> UpdateActions { get; set; }
 
         public Device()

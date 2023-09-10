@@ -1,52 +1,18 @@
+﻿using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Extensions.Logging;
-using Microsoft.Graph.Models;
-using Newtonsoft.Json;
 
-namespace IntuneEnrollment
+namespace IntuneEnrollment.Utilities
 {
-    public class UpdateDevicesCRON
+    public class GraphAccess
     {
-        private static ILogger _logger;
-
-        [FunctionName("UpdateDevicesCRON")]
-        public void Run([TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, ILogger log)
-        {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
-            string fullMethodName = className + "." + methodName;
-
-            _logger = log;
-
-            _logger.LogInformation($"C# Timer trigger function {fullMethodName} executed at: {DateTime.Now}");
-
-
-        }
-
-        private static async Task<List<Device>> GetDevicesAddedAfter(DateTime dateTime)
-        {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
-            string fullMethodName = className + "." + methodName;
-
-            List<Device> devices = new List<Device>();
-
-            var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
-
-
-            return devices;
-        }
-
-        private static async Task<String> GetAccessTokenAsync(string uri)
+        public static async Task<String> GetAccessTokenAsync(string uri, ILogger logger)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -66,8 +32,8 @@ namespace IntuneEnrollment
                 sb.Append(String.IsNullOrEmpty(AppId) ? "AzureAd:ClientId\n" : "");
                 sb.Append(String.IsNullOrEmpty(TenantId) ? "AzureAd:TenantId\n" : "");
                 sb.Append(String.IsNullOrEmpty(TargetCloud) ? "AzureEnvironment\n" : "");
-                _logger.LogError(sb.ToString());
-                return null;
+                logger.LogError(sb.ToString());
+                throw new ArgumentNullException(sb.ToString());
             }
 
             string tokenUri = "";
@@ -77,12 +43,10 @@ namespace IntuneEnrollment
             }
             else
             {
-                // TODO update URI
                 tokenUri = $"https://login.microsoftonline.us/{TenantId}/oauth2/token";
             }
 
             // Get token for Log Analytics
-
             var tokenRequest = new HttpRequestMessage(HttpMethod.Post, tokenUri);
             tokenRequest.Content = new FormUrlEncodedContent(new[]
             {
@@ -102,8 +66,8 @@ namespace IntuneEnrollment
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: getting access token for URI {tokenUri}: {ex.Message}");
-                return null;
+                logger.LogError($"{fullMethodName} Error: getting access token for URI {tokenUri}: {ex.Message}");
+                throw new InvalidOperationException($"Error: getting access token for URI {tokenUri}: {ex.Message}");
             }
         }
     }
