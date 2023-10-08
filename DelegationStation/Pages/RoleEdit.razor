@@ -4,6 +4,8 @@
 @inject Services.IRoleDBService roleDBService
 @inject NavigationManager nav
 @inject ILogger<RoleEdit> logger
+@inject IHttpContextAccessor httpContextAccessor
+
 
 @attribute [Authorize]
 
@@ -99,6 +101,15 @@
 @code {
     [Parameter]
     public string? Id { get; set; }
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
+    private List<Role> roles = new List<Role>();
+    private Role userRole = (new Role()).GetDefaultRole();
+    private string defaultGroup = "";
+    private DeviceTag tag = new DeviceTag();
 
     public Role role { get; set; } = new Role();
     private string attributeToAdd = "";
@@ -118,6 +129,30 @@
             return;
         }
 
+        if (userRole.IsAdminRole() && Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
+        {
+            Guid c = Guid.NewGuid();
+            try
+            {
+                roles = await roleDBService.GetRolesAsync();
+            }
+            catch (Exception ex)
+            {
+                string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
+                logger.LogError(ex, message);
+                userMessage = message;
+            }
+        }
+        else
+        {
+            if (Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
+            {
+                logger.LogWarning($"Unauthorized access attempt.");
+            }
+
+            userMessage = "Error: Not Authorized";
+        }
+
         try
         {
             role = await roleDBService.GetRoleAsync(Id);
@@ -129,6 +164,29 @@
             Console.WriteLine(erMessage);
             userMessage = erMessage;
         }    
+    }
+
+    private void UpdateUserRole()
+    {
+        if (string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = userRole.GetDefaultRole();
+        }
+        else if (groups.Contains(defaultGroup))
+        {
+            userRole = userRole.GetAdminRole();
+        }
+        else
+        {
+            userRole = userRole.GetRole(groups, tag);
+        }
+        StateHasChanged();
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        groups = Models.ClaimsManager.GetRoles(authState?.User.Claims);
     }
 
     private async Task SaveRole()

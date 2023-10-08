@@ -67,12 +67,12 @@ namespace DelegationStation.API
             string fileName = "Devices.csv";
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("Make,Model,SerialNumber,Action");
+            sb.AppendLine("Make,Model,SerialNumber,Action,AddedBy");
             if (!string.IsNullOrEmpty(id))
             {
                 foreach (Device device in devices)
                 {
-                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber}");
+                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},,{device.AddedBy}");
                 }
             }            
 

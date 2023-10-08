@@ -38,7 +38,7 @@ namespace DelegationStation.Services
             }
             if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASE_NAME").Value))
             {
-                _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
+                _logger.LogInformation("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
             }
 
             string dbName = string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASE_NAME").Value) ? "DelegationStationData" : configuration.GetSection("COSMOS_DATABASE_NAME").Value!;

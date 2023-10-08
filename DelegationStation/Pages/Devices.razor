@@ -24,21 +24,39 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (Device device in devices)
+                @if(devicesLoading)
                 {
                     <tr>
-                        <td>@device.Make</td>
-                        <td>@device.Model</td>
-                        <td>@device.SerialNumber</td>
-                        <td>
-                            @foreach (string t in device.Tags)
-                            {
-                                <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
-
-                                <br />
-                            }
+                        <td colspan="4">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
                         </td>
                     </tr>
+                }
+                else if (devices.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4">No devices found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (Device device in devices)
+                    {
+                        <tr>
+                            <td>@device.Make</td>
+                            <td>@device.Model</td>
+                            <td>@device.SerialNumber</td>
+                            <td>
+                                @foreach (string t in device.Tags)
+                                {
+                                    <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
+                                    <br />
+                                }
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -119,6 +137,7 @@
     private int currentPage = 0;
     private string search = "";
     private Device searchDevice = new Device();
+    private bool devicesLoading = true;
 
 
     protected override async Task OnInitializedAsync()
@@ -157,7 +176,7 @@
     private void UpdateClaims()
     {
         groups = new List<string>();
-        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
 
         if(groupClaims == null)
         {
@@ -183,7 +202,7 @@
     }
 
     private async Task GetDevices()
-    {
+    {        
         try
         {
             devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
@@ -191,6 +210,10 @@
         catch(Exception ex)
         {
             logger.LogError($"Error retreiving Devices.\n{ex.Message}");
+        }
+        finally
+        {
+            devicesLoading = false;
         }
     }
 

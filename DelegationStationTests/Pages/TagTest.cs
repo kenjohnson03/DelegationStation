@@ -67,7 +67,7 @@ namespace DelegationStationTests.Pages
                 var cut = RenderComponent<Tags>();
 
                 // Assert
-                Assert.IsTrue(cut.Markup.Contains("<td>testName1</td>"), "Tag1 name should be rendered in the table.");
+                Assert.IsTrue(cut.Markup.Contains("<td>testName1</td>"), $"Tag1 name should be rendered in the table. \\nActual:\\n{cut.Markup}\"");
                 Assert.IsTrue(cut.Markup.Contains("<td>testDescription1</td>"), "Tag1 description should be rendered in the table.");
                 Assert.IsTrue(cut.Markup.Contains("<td>testName2</td>"), "Tag2 name should be rendered in the table.");
                 Assert.IsTrue(cut.Markup.Contains("<td>testDescription2</td>"), "Tag2 description should be rendered in the table.");

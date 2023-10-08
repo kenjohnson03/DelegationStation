@@ -94,44 +94,6 @@ a, .btn-link {
         content: "An error has occurred."
     }
 
-.DS-tooltip {
-    position: relative;
-    display: inline-block;
-}
-
-    .DS-tooltip .DS-tooltiptext {
-        visibility: hidden;
-        width: 120px;
-        background-color: #555;
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 5px 0;
-        position: absolute;
-        z-index: 1;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -60px;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-
-    .DS-tooltip .DS-tooltiptext::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #444 transparent transparent transparent;
-    }
-
-    .DS-tooltip:hover .DS-tooltiptext {
-        visibility: visible;
-        opacity: 1;
-    }
-
 .progress-data::after {
     --widthA: attr(aria-valuenow);
     --widthB: attr(aria-valuemax);
@@ -158,4 +120,73 @@ a, .btn-link {
     background: lightyellow;
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
     padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+}
+
+footer > div > a {
+    text-decoration: none;
+    font-weight: 800;
+    color: #4d4d4d;
+    text-transform: uppercase;
+    line-height: 30px;
+}
+    footer > div > a:hover {
+        color: #4d4d4d;
+        cursor: default;
+    }
+
+.bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1.25rem 0.5rem 1.25rem;
+}
+
+[data-tooltip]:hover {
+    position: relative;
+    cursor: default;
+}
+
+    [data-tooltip]:hover::before {
+        all: initial;
+        font-family: Arial, Helvetica, sans-serif;
+        display: inline-block;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #1a1a1a;
+        content: attr(data-tooltip);
+        color: #f9f9f9;
+        position: absolute;
+        bottom: 100%;
+        width: 100px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        margin-bottom: 15px;
+        text-align: center;
+        font-size: 14px;
+    }
+    [data-tooltip]:hover::after {
+        all: initial;
+        display: inline-block;
+        width: 0;
+        height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-top: 10px solid #1a1a1a;
+        position: absolute;
+        bottom: 100%;
+        content: '';
+        left: 50%;
+        transform: translate(-50%, 0);
+        margin-bottom: 5px;
+    }
+
+
+main > article {
+    min-height: calc(100vh - 95px);
+}
+
+@media (max-width: 640px) {
+    main > article {
+        min-height: calc(100vh - 145px);
+    }
 }

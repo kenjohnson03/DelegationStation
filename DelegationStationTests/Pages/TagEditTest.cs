@@ -283,6 +283,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
 
                 AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 

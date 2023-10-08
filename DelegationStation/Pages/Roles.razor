@@ -4,6 +4,9 @@
 @inject Services.IRoleDBService roleDBService
 @inject NavigationManager nav
 @inject ILogger<RoleEdit> logger
+@inject IConfiguration config
+@inject IHttpContextAccessor httpContextAccessor
+
 
 @attribute [Authorize]
 
@@ -11,7 +14,7 @@
 
 <h3>Roles</h3>
 
-<AuthorizeView>
+<AuthorizeView Roles="@defaultGroup">
     <Authorized>
         @if (roles.Count > 0)
         {
@@ -65,6 +68,10 @@
                 </tbody>
             </table>
         }
+        else if (loading)
+        {
+            <p>Loading...</p>
+        }
         else
         {
             <p>No roles found</p>
@@ -75,7 +82,8 @@
         <p>Not Authorized</p>
     </NotAuthorized>
 </AuthorizeView>
-
+<br/>
+<br/>
 @if (!string.IsNullOrEmpty(userMessage))
 {
     @if (userMessage.ToLower().Contains("error"))
@@ -111,7 +119,18 @@
 </div>
 
 @code {
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();
+    private Role userRole = (new Role()).GetDefaultRole();
+    private string defaultGroup = "";
+    private DeviceTag tag = new DeviceTag();
+    private bool loading = true;
+
+
     private string userMessage = "";
     private bool popupIsVisible = false;
     private string showClass = "hideModal";
@@ -120,21 +139,70 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Guid c = Guid.NewGuid();
-        try
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+        if (AuthState != null)
         {
-            roles = await roleDBService.GetRolesAsync();
+            authState = await AuthState;
         }
-        catch (Exception ex)
+
+        UpdateClaims();
+        UpdateUserRole();
+
+        if (userRole.IsAdminRole() && Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
         {
-            string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
-            logger.LogError(ex, message);
-            userMessage = message;
+            Guid c = Guid.NewGuid();
+            try
+            {
+                roles = await roleDBService.GetRolesAsync();
+            }
+            catch (Exception ex)
+            {
+                string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
+                logger.LogError(ex, message);
+                userMessage = message;
+            }
         }
+        else
+        {
+            if (Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
+            {
+                logger.LogWarning($"Unauthorized access attempt.");
+            }
+
+            userMessage = "Error: Not Authorized";
+        }
+        loading = false;
+    }
+
+    private void UpdateUserRole()
+    {
+        if (string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = userRole.GetDefaultRole();
+        }
+        else if (groups.Contains(defaultGroup))
+        {
+            userRole = userRole.GetAdminRole();
+        }
+        else
+        {
+            userRole = userRole.GetRole(groups, tag);
+        }
+        StateHasChanged();
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        groups = Models.ClaimsManager.GetRoles(authState?.User.Claims);
     }
 
     private void RemoveRole(Role role)
     {
+        if (!userRole.IsAdminRole())
+        {
+            return;
+        }
         deleteRole = role;
         Show();
     }
@@ -142,6 +210,7 @@
     private void DeleteRole()
     {
         Close();
+        
 
         if(deleteRole.Id == Guid.Empty)
         {

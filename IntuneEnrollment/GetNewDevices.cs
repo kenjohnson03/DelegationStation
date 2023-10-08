@@ -26,7 +26,7 @@ namespace IntuneEnrollment
         private static Microsoft.Azure.Cosmos.Container _container = null;
 
         [FunctionName("GetNewDevices")]
-        public async Task Run([TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, ILogger log)
+        public async Task Run([TimerTrigger("0 5 * * * *")]TimerInfo myTimer, ILogger log)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;

@@ -9,6 +9,7 @@
 @inject NavigationManager nav
 @inject IRoleDBService roleDBService
 
+
 @attribute [Authorize]
 
 <h3>Tag Edit</h3>
@@ -323,7 +324,7 @@
     private void UpdateClaims()
     {
         groups = new List<string>();
-        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
         roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
         foreach (var c in roleClaims)
         {

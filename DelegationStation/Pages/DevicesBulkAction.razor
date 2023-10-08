@@ -95,9 +95,9 @@ else
         </div>
         <div class="row align-items-start mt-2">
             <div class="col">
-                <button type="button" class="btn btn-primary mt-2" @onclick=@UpdateDevices title="Run actions on data">Add / Remove Devices</button>
-                <a class="btn btn-success mt-2 @((appliedTags?.Count() < 1) ? "disabled" : "" )" href="/api/BulkDevice?id=@(appliedTags?.FirstOrDefault() ?? "")">Download Devices</a>
-                <button type="button" class="btn btn-danger mt-2" @onclick=@Clear title="Remove all data references">Clear</button>
+                <button type="button" class="btn btn-primary mt-2 @(isUpdating ? "disabled" : "" )" @onclick=@UpdateDevices title="Run actions on data">Add / Remove Devices</button>
+                <a class="btn btn-success mt-2 @((appliedTags?.Count() < 1) || isUpdating ? "disabled" : "" )" href="/api/BulkDevice?id=@(appliedTags?.FirstOrDefault() ?? "")">Download Devices</a>
+                <button type="button" class="btn btn-danger mt-2 @(isUpdating ? "disabled" : "" )" @onclick=@Clear title="Remove all data references">Clear</button>
             </div>
         </div>
 
@@ -227,7 +227,7 @@ else
     private void UpdateClaims()
     {
         groups = new List<string>();
-        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
 
         if (groupClaims == null)
         {
@@ -434,7 +434,8 @@ else
                     d.Model = device.Model;
                     d.SerialNumber = device.SerialNumber;
                     d.ModifiedUTC = DateTime.UtcNow;
-                    d.AddedBy = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").ToString();
+                    System.Security.Claims.Claim userId = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").FirstOrDefault() ?? new System.Security.Claims.Claim("no","No user ID");
+                    d.AddedBy = userId.Value;
                     d.Tags.Add(tagToApply);
                     var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
                     if(deviceResult == null)
@@ -447,7 +448,15 @@ else
                     Device? d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
                     if(d != null)
                     {
-                        await deviceDBService.DeleteDeviceAsync(d);
+                        // Validate the applied tag is on the device
+                        if(!d.Tags.Contains(tagToApply))
+                        {
+                            updateErrors.Add($"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.");                      
+                        }
+                        else
+                        {
+                            await deviceDBService.DeleteDeviceAsync(d);
+                        }                        
                     }
                     else
                     {
@@ -478,6 +487,8 @@ else
         fileError.Clear();
         loadedFiles.Clear();
         devices.Clear();
+        completedDevices = 0;
+        totalDevices = 0;
     }
     
 }
