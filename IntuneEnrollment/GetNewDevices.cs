@@ -26,7 +26,7 @@ namespace IntuneEnrollment
         private static Microsoft.Azure.Cosmos.Container _container = null;
 
         [FunctionName("GetNewDevices")]
-        public async Task Run([TimerTrigger("0 5 * * * *")]TimerInfo myTimer, ILogger log)
+        public async Task Run([TimerTrigger("%TriggerTime%")]TimerInfo myTimer, ILogger log)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -46,7 +46,8 @@ namespace IntuneEnrollment
 
 
             FunctionSettings settings = await GetFunctionSettings();
-            List<DelegationSharedLibrary.Models.Graph.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(settings.LastRun.AddMinutes(-10));
+            DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-30) : ((DateTime)settings.LastRun).AddHours(-2);
+            List<DelegationSharedLibrary.Models.Graph.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
             if (devices == null)
             {
                 _logger.LogError($"{fullMethodName} Error: Failed to get new devices, exiting");
@@ -124,30 +125,29 @@ namespace IntuneEnrollment
             string methodName = method.Name;
             string className = method.ReflectedType.Name;
             string fullMethodName = className + "." + methodName;
-            FunctionSettings settings = null;
+            FunctionSettings settings = new FunctionSettings();
             try
             {
-                var query = $"SELECT TOP 1 * FROM c WHERE c.PartitionKey = 'DefaultActionDisable' ORDER BY c.LastRun DESC";
-                var queryDefinition = new QueryDefinition(query);
-                var queryResultSetIterator = _container.GetItemQueryIterator<FunctionSettings>(queryDefinition);
-                while (queryResultSetIterator.HasMoreResults)
-                {
-                    var currentResultSet = await queryResultSetIterator.ReadNextAsync();
-                    foreach (var item in currentResultSet)
-                    {
-                        settings = item;
-                    }
-                }
+                settings = await _container.ReadItemAsync<FunctionSettings>(settings.Id.ToString(), new PartitionKey(settings.PartitionKey));                
             }
             catch (Exception ex)
             {
                 _logger.LogError($"{fullMethodName} Error: {ex.Message}");
             }
-            if(settings == null)
+            finally
             {
-                settings = new FunctionSettings();
-                settings.LastRun = DateTime.UtcNow;
+                if (settings == null)
+                {
+                    settings = new FunctionSettings();
+                    settings.LastRun = DateTime.UtcNow;
+                } 
+                else  if (settings.LastRun == null)
+                {
+                    settings = new FunctionSettings();
+                    settings.LastRun = DateTime.UtcNow;
+                }
             }
+            
 
             return settings;
         }
