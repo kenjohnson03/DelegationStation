@@ -57,21 +57,29 @@
             </tbody>
         </table>
 
-        <AuthorizeView Roles="@defaultGroup" Context="adminAuthContext">
+        <AuthorizeView Context="adminAuthContext">
             <Authorized>
-                <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
-                    <DataAnnotationsValidator />
-                    <ValidationSummary />
-                    <div class="mb-3">
-                        <label for="TagName" class="form-label">Tag name</label>
-                        <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
-                    </div>
-                    <div class="mb-3">
-                        <label for="TagDescription" class="form-label">Tag description</label>
-                        <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>            
-                    </div>
-                    <input type="submit" class="btn btn-primary mb-3" value="Add" />
-                </EditForm>
+                @if(groups.Contains(defaultGroup))
+                {
+                    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="mb-3">
+                            <label for="TagName" class="form-label">Tag name</label>
+                            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
+                        </div>
+                        <div class="mb-3">
+                            <label for="TagDescription" class="form-label">Tag description</label>
+                            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
+                        </div>
+                        <input type="submit" class="btn btn-primary mb-3" value="Add" />
+                    </EditForm>
+                }
+                else
+                {
+                    <p>You are not a member of the default admin group.  You will not be able to create or edit roles.</p>
+                }
+                
             </Authorized>
             <NotAuthorized>
                 Not Authorized to create Tags

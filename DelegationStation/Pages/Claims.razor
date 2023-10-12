@@ -4,6 +4,8 @@
 @attribute [Authorize]
 
 @inject IDeviceTagDBService deviceTagDBService
+@inject IConfiguration config
+
 
 <PageTitle>Claims</PageTitle>
 
@@ -25,14 +27,19 @@
     <p>@group</p>
 }
 
+<h3>Default Group</h3>
+<p>@defaultGroup</p>
+
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
     private AuthenticationState? authState;
     private List<string> roles = new List<string>();
+    private string defaultGroup = "";
 
     protected override async Task OnInitializedAsync()
     {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if(AuthState != null)
         {
             authState = await AuthState;

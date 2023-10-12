@@ -14,68 +14,76 @@
 
 <h3>Roles</h3>
 
-<AuthorizeView Roles="@defaultGroup">
+<AuthorizeView>
     <Authorized>
-        @if (roles.Count > 0)
+        @if(groups.Contains(defaultGroup))
         {
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Editable Attributes</th>
-                        <th>Edit Security Groups</th>
-                        <th>Edit Administrative Units</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (Role role in roles)
-                    {
+            @if (roles.Count > 0)
+            {
+                <table class="table table-striped">
+                    <thead>
                         <tr>
-                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>@role.Name</td>
-                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                @foreach (AllowedAttributes attr in role.Attributes.OrderBy(a => a))
-                                {
-                                    <p>@attr</p>
-                                }
-                            </td>
-                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                @if (role.SecurityGroups)
-                                {
-                                    <span>Yes</span>
-                                }
-                                else
-                                {
-                                    <span>No</span>
-                                }
-                            </td>
-                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                @if (role.AdministrativeUnits)
-                                {
-                                    <span>Yes</span>
-                                }
-                                else
-                                {
-                                    <span>No</span>
-                                }
-                            </td>
-                            <td class="align-middle">
-                                <button type="button" class="btn btn-danger text-nowrap" @onclick=@(() => RemoveRole(role))><span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section></button>
-                            </td>
+                            <th>Name</th>
+                            <th>Editable Attributes</th>
+                            <th>Edit Security Groups</th>
+                            <th>Edit Administrative Units</th>
+                            <th></th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (Role role in roles)
+                        {
+                            <tr>
+                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>@role.Name</td>
+                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                    @foreach (AllowedAttributes attr in role.Attributes.OrderBy(a => a))
+                                    {
+                                        <p>@attr</p>
+                                    }
+                                </td>
+                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                    @if (role.SecurityGroups)
+                                    {
+                                        <span>Yes</span>
+                                    }
+                                    else
+                                    {
+                                        <span>No</span>
+                                    }
+                                </td>
+                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                    @if (role.AdministrativeUnits)
+                                    {
+                                        <span>Yes</span>
+                                    }
+                                    else
+                                    {
+                                        <span>No</span>
+                                    }
+                                </td>
+                                <td class="align-middle">
+                                    <button type="button" class="btn btn-danger text-nowrap" @onclick=@(() => RemoveRole(role))><span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section></button>
+                                </td>
+                            </tr>
 
-                    }
-                </tbody>
-            </table>
-        }
-        else if (loading)
-        {
-            <p>Loading...</p>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (loading)
+            {
+                <p>Loading...</p>
+            }
+            else
+            {
+                <p>No roles found</p>
+            }
         }
         else
         {
-            <p>No roles found</p>
+            <p>You are not a member of the default admin group.  You will not be able to create or edit roles.</p>
         }
+        
         <button class="btn btn-secondary" type="button" @onclick="@(() => nav.NavigateTo("/Role/" + Guid.Empty.ToString()))">New Role</button>
     </Authorized>
     <NotAuthorized>
@@ -148,7 +156,7 @@
         UpdateClaims();
         UpdateUserRole();
 
-        if (userRole.IsAdminRole() && Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
+        if (groups.Contains(defaultGroup))
         {
             Guid c = Guid.NewGuid();
             try
@@ -209,8 +217,7 @@
 
     private void DeleteRole()
     {
-        Close();
-        
+        Close();        
 
         if(deleteRole.Id == Guid.Empty)
         {
