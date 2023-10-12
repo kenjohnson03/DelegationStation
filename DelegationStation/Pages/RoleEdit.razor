@@ -5,12 +5,14 @@
 @inject NavigationManager nav
 @inject ILogger<RoleEdit> logger
 @inject IHttpContextAccessor httpContextAccessor
+@inject IConfiguration config
+
 
 
 @attribute [Authorize]
 
 <h3>Role Edit</h3>
-<AuthorizeView Context="userContext">
+<AuthorizeView Context="userContext" Roles="@defaultGroup">
     <Authorized>
         @if(role != null)
         {
@@ -106,7 +108,6 @@
 
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
-    private List<Role> roles = new List<Role>();
     private Role userRole = (new Role()).GetDefaultRole();
     private string defaultGroup = "";
     private DeviceTag tag = new DeviceTag();
@@ -117,6 +118,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         Guid g = Guid.NewGuid();
 
         if(Id == null)
@@ -127,30 +129,6 @@
         if(Id == Guid.Empty.ToString())
         {
             return;
-        }
-
-        if (userRole.IsAdminRole() && Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
-        {
-            Guid c = Guid.NewGuid();
-            try
-            {
-                roles = await roleDBService.GetRolesAsync();
-            }
-            catch (Exception ex)
-            {
-                string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
-                logger.LogError(ex, message);
-                userMessage = message;
-            }
-        }
-        else
-        {
-            if (Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
-            {
-                logger.LogWarning($"Unauthorized access attempt.");
-            }
-
-            userMessage = "Error: Not Authorized";
         }
 
         try

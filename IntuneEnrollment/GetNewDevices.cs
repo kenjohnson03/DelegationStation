@@ -46,7 +46,7 @@ namespace IntuneEnrollment
 
 
             FunctionSettings settings = await GetFunctionSettings();
-            DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-30) : ((DateTime)settings.LastRun).AddHours(-2);
+            DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-30) : ((DateTime)settings.LastRun).AddHours(-1);
             List<DelegationSharedLibrary.Models.Graph.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
             if (devices == null)
             {
