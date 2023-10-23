@@ -42,15 +42,7 @@ a, .btn-link {
     display: none;
 }
 
-.modalBackdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    width: 100vw;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1;
-}
+
 .clickable:hover {
     cursor: pointer;
 }

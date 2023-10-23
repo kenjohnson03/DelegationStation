@@ -44,8 +44,8 @@
                     @foreach (DeviceTag tag in deviceTags)
                     {
                         <tr>
-                            <td>@tag.Name</td>
-                            <td>@tag.Description</td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>@tag.Name</td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>@tag.Description</td>
                             <td>
                                 <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
                                     <span class="oi oi-pencil" aria-hidden="true"></span> Edit
@@ -125,6 +125,7 @@
     private bool tagsLoading = true;
 
 
+
     protected override async Task OnInitializedAsync()
     {
         defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
@@ -187,6 +188,12 @@
     private async Task AddTag()
     {
         userMessage = "";
+        if (string.IsNullOrEmpty(newTag.Name))
+        {
+            userMessage = "Tag name is required.";
+            return;
+        }        
+
         try
         {
             DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
@@ -201,4 +208,6 @@
             return;
         }
     }    
+
+    
 }

@@ -1,6 +1,7 @@
 ﻿@page "/TagEdit/{Id}"
 @using DelegationStationShared.Models;
 @using DelegationStation.Services;
+@using Microsoft.Graph.Models;
 
 @inject ILogger<TagEdit> logger
 @inject IDeviceTagDBService deviceTagDBService
@@ -62,32 +63,71 @@
             </div>
             @if (userRole.IsAdminRole())
             {
+                <DisplayMessage Message="@addRoleMessage" />
                 <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
                     <DataAnnotationsValidator />
                     <ValidationSummary />
                     Role:
-                    <select @onchange=@((e) => UpdateRole(e)) class="form-select">
+                    <select value="@roleDelegation.Role.Id" @onchange=@((e) => UpdateRole(e)) class="form-select">
                         <option></option>
                         @foreach (Role r in roles)
                         {
                             <option value="@r.Id">@r.Name</option>
                         }
                     </select>
-                    <ValidationMessage For=@(() => roleDelegation.Role) />
-
-                    <label class="form-label">Security Group Id:</label>
-                    <InputText @bind-Value=roleDelegation.SecurityGroupId class="form-control mb-3" @onfocusout=@((e) => GetRoleDelegationName(e))></InputText>
-                    <ValidationMessage For=@(() => roleDelegation.SecurityGroupId) />
+                    
                     @if (!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
                     {
                         <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
+                        <p class="mt-2 mb-2">@roleDelegation.SecurityGroupId</p>
+                    }
+                    else if (string.IsNullOrEmpty(roleDelegation.Role.Name))
+                    {
+                        <p class="mt-2 mb-2">Select a role</p>
                     }
                     else
                     {
-                        <p class="mt-2 mb-2">Input a valid security group Id</p>
+                        <p class="mt-2 mb-2">Select a security group</p>
                     }
 
-                    <input type="submit" class="btn btn-primary mb-3 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) ? "disabled" : "")" value="Add Role" />
+                    <DisplayMessage Message=@roleSecurityGroupSearchMessage />
+                    <InputText class="form-control" @bind-Value=roleSecurityGroupSearchString placeholder="Search for a group"></InputText>
+                    <button type="button" class="btn btn-secondary mt-2 @(roleSecurityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => RoleSearchSecurityGroups()) @onkeyup=@RoleSearchSecurityGroupsKeyUp>Search</button>
+                    @if (roleSecurityGroupSearchResults.Count > 0)
+                    {
+                        <table class="table table-responsive">
+                            <thead>
+                                <tr>
+                                    <th>Display Name</th>
+                                    <th>Description</th>
+                                    <th>Object Id</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (Group g in roleSecurityGroupSearchResults)
+                                {
+                                    <tr class="">
+
+                                        <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.DisplayName</td>
+                                        <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Description</td>
+                                        <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Id</td>
+                                        <td><button type="button" class="btn btn-primary" @onclick=@(() => RoleSelectSecurityGroup(g))>Select</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else if (roleSecurityGroupSearchInProgress)
+                    {
+                        <p class="mt-2 mb-2">Searching...</p>
+                    }
+                    else if (roleSecurityGroupSearchResults.Count == 0 && roleSecurityGroupSearchExecuted)
+                    {
+                        <p class="mt-2 mb-2">No results found</p>
+                    }
+                    <br/>
+                    <input type="submit" class="btn btn-primary mt-2 mb-2 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) || string.IsNullOrEmpty(roleDelegation.Role.Name) ? "disabled" : "")" value="Add Role" />
                 </EditForm>
             }
 
@@ -109,7 +149,7 @@
                                 <td>@a.ActionType</td>
                                 <td>@a.Name</td>
                                 <td>@a.Value</td>
-                                <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(() => tag.UpdateActions.Remove(a))><span class="oi oi-trash"></span> Delete</button></td>
+                                <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => { }))><span class="oi oi-trash"></span> Delete</button></td>                                    
                             </tr>
                         }
                     </tbody>
@@ -118,13 +158,13 @@
 
             @if (!userRole.IsDefaultRole())
             {
+                <DisplayMessage Message="@deviceUpdateActionsValidationMessage" />
                 <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
                     <DataAnnotationsValidator />
                     <ValidationSummary />
 
-                    Update Action:
-                    <InputSelect @bind-Value=deviceUpdateAction.ActionType
-                                 class="form-select">
+                    Update Action: 
+                    <select value="@deviceUpdateAction.ActionType" @onchange="DeviceUpdateActionChanged" class="form-select">
 
                         @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
                         {
@@ -135,7 +175,7 @@
                                 <option value="@t">@t</option>
                             }
                         }
-                    </InputSelect>
+                    </select>
                     <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
                     @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
                     {
@@ -144,12 +184,14 @@
                             @{
                                 foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
                                 {
-                                    if (t == AllowedAttributes.All)
+                                    if(tag.UpdateActions.Where(u => u.Name == t.ToString()).Count() > 0)
                                     {
+                                        // Attribute already exists in tag
                                         continue;
-                                    }
-                                    if (AttributeAllowed(t))
-                                    {
+                                    } else if (t == AllowedAttributes.All) {
+                                        // Don't show the All attribute
+                                        continue;
+                                    } else if (AttributeAllowed(t)) {
                                         <option value="@t">@t</option>
                                     }
                                 }
@@ -159,29 +201,108 @@
                         <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
                     }
                     else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
-                    {
-                        <br />
-                        <label class="form-label">Administrative Unit Id:</label>
-                        <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
-                    }
-                    else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
-                    {
-
-                        <br />
-                        <label class="form-label">Security Group Id: </label>
-                        <InputText class="form-control" @bind-Value=deviceUpdateAction.Value @onfocusout=@((e) => GetActionSecurityGroupName(e))></InputText>
+                    {             
                         @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
                         {
                             <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
+                            <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
                         }
                         else
                         {
-                            <p class="mt-2 mb-2">Input a valid security group Id</p>
+                            <p class="mt-2 mb-2">Select an Administrative Unit</p>
                         }
+
+                        <DisplayMessage Message=@administrativeUnitSearchMessage />
+                        <InputText class="form-control" @bind-Value=administrativeUnitSearchString placeholder="Search for an Administrative Unit"></InputText>
+                        <button type="button" class="btn btn-secondary mt-2 @(administrativeUnitSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchAdministrativeUnits()) @onkeyup=@SearchAdministrativeUnitsKeyUp>Search</button>
+                        @if (administrativeUnitSearchResults.Count > 0)
+                        {
+                            <table class="table table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th>Display Name</th>
+                                        <th>Description</th>
+                                        <th>Object Id</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (AdministrativeUnit a in administrativeUnitSearchResults)
+                                    {
+                                        <tr class="">
+
+                                            <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.DisplayName</td>
+                                            <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Description</td>
+                                            <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Id</td>
+                                            <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectAdministrativeUnit(a))>Select</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        else if (administrativeUnitSearchInProgress)
+                        {
+                            <p class="mt-2 mb-2">Searching...</p>
+                        }
+                        else if (administrativeUnitSearchResults.Count == 0 && administrativeUnitSearchExecuted)
+                        {
+                            <p class="mt-2 mb-2">No results found</p>
+                        }
+                    }
+                    else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+                    {
+             
+                        @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+                        {
+                            <p class="mt-2 mb-2">@deviceUpdateAction.Name</p> 
+                            <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
+                        }
+                        else
+                        {
+                            <p class="mt-2 mb-2">Select a security group</p>
+                        }
+
+                        <DisplayMessage Message=@securityGroupSearchMessage />
+                        <InputText class="form-control" @bind-Value=securityGroupSearchString placeholder="Search for a group"></InputText>
+                        <button type="button" class="btn btn-secondary mt-2 @(securityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchSecurityGroups()) @onkeyup=@SearchSecurityGroupsKeyUp>Search</button>
+                        @if(securityGroupSearchResults.Count > 0)
+                        {
+                            <table class="table table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th>Display Name</th>
+                                        <th>Description</th>
+                                        <th>Object Id</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (Group g in securityGroupSearchResults)
+                                    {
+                                        <tr class="">
+
+                                            <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.DisplayName</td>
+                                            <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Description</td>
+                                            <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Id</td>
+                                            <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectSecurityGroup(g))>Select</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }                        
+                        else if(securityGroupSearchInProgress)
+                        {
+                            <p class="mt-2 mb-2">Searching...</p>
+                        }
+                        else if (securityGroupSearchResults.Count == 0 && securityGroupSearchExecuted)
+                        {
+                            <p class="mt-2 mb-2">No results found</p>
+                        }
+
                     }
                     <br />
 
-                    <input type="submit" class="btn btn-primary mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
+                    <input type="submit" class="btn btn-primary mt-2 mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
                 </EditForm>
 
             }
@@ -195,7 +316,7 @@
                 <p class="text-success">@tagSuccessMessage</p>
             }
             <button type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
-            <button type="button" class="btn btn-danger" @onclick=@(() => Delete())>Delete</button>
+            <button type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
         }
     </Authorized>
         
@@ -204,13 +325,16 @@
     </NotAuthorized>
 </AuthorizeView>
 
-
+<ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
 
 
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
     [Parameter] public string? Id { get; set; }
+
+    private ConfirmMessage? ConfirmDelete;
+
 
     public List<string> pGroups
     {
@@ -238,6 +362,24 @@
     private EditContext? deviceUpdateActionEditContext;
     private string userMessage = "";
 
+    private string securityGroupSearchString = "";
+    private List<Group> securityGroupSearchResults = new List<Group>();
+    private string securityGroupSearchMessage = "";
+    private bool securityGroupSearchInProgress = false;
+    private bool securityGroupSearchExecuted = false;
+
+    private string administrativeUnitSearchString = "";
+    private List<AdministrativeUnit> administrativeUnitSearchResults = new List<AdministrativeUnit>();
+    private string administrativeUnitSearchMessage = "";
+    private bool administrativeUnitSearchInProgress = false;
+    private bool administrativeUnitSearchExecuted = false;
+
+    private string roleSecurityGroupSearchString = "";
+    private List<Group> roleSecurityGroupSearchResults = new List<Group>();
+    private string roleSecurityGroupSearchMessage = "";
+    private bool roleSecurityGroupSearchInProgress = false;
+    private bool roleSecurityGroupSearchExecuted = false;
+    private string addRoleMessage = "";
 
 
     protected override async Task OnInitializedAsync()
@@ -399,6 +541,7 @@
 
     private async Task GetActionSecurityGroupName(EventArgs? e)
     {
+        Guid g = Guid.NewGuid();
         if (string.IsNullOrEmpty(deviceUpdateAction.Value))
         {
             return;
@@ -416,7 +559,9 @@
         }
         catch (Exception ex)
         {
-            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\n{ex.Message}";
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\nCorrelation ID: {g.ToString()}\nTime: {DateTime.UtcNow.ToString()} ";
+            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\n{ex.Message}\nCorrelation ID: {g.ToString()}\nTime: {DateTime.UtcNow.ToString()}";
             logger.LogWarning(deviceUpdateActionsValidationMessage);
             return;
         }
@@ -424,12 +569,37 @@
 
     private void AddRoleDelegation()
     {
+        addRoleMessage = "";
         if (userRole.IsAdminRole() == false)
         {
-            deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
+            addRoleMessage = $"Error: '{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
             logger.LogWarning(deviceUpdateActionsValidationMessage);
             return;
         } 
+
+        if (string.IsNullOrEmpty(roleDelegation.SecurityGroupId))
+        {
+            addRoleMessage = $"Error: Security Group ID is required";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
+        {
+            addRoleMessage = $"Error: Security Group Name is required";
+            return;
+        }
+
+        if (roleDelegation.Role.Name == "")
+        {
+            addRoleMessage = $"Error: Role is required";
+            return;
+        }
+
+        if (tag.RoleDelegations.Where(r => r.SecurityGroupId == roleDelegation.SecurityGroupId).Count() != 0 && tag.RoleDelegations.Where(r => r.Role.Id == roleDelegation.Role.Id).Count() != 0)
+        {
+            addRoleMessage = $"Error: Security Group '{roleDelegation.SecurityGroupName}' is already added as '{roleDelegation.Role.Name}'";
+            return;
+        }
 
         try
         {
@@ -438,14 +608,15 @@
         }
         catch (Exception ex)
         {
-            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
-            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            addRoleMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
+            logger.LogWarning(addRoleMessage);
             return;
         }
     }
 
     private async void AddDeviceUpdateAction(EditContext editContext)
     {
+        deviceUpdateActionsValidationMessage = "";
         addDeviceUpdateState = "disabled";
         deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
         deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
@@ -469,14 +640,13 @@
         {
             try
             {
-                string groupName = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
-                if(string.IsNullOrEmpty(groupName))
+                if (string.IsNullOrEmpty(deviceUpdateAction.Name))
                 {
+                    deviceUpdateAction.Name = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
                     deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
                     addDeviceUpdateState = "";
                     return;
                 }
-                deviceUpdateAction.Name = groupName;
             }
             catch (Exception ex)
             {
@@ -488,8 +658,31 @@
             }
         }
 
+        if(deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+        {
+            if(string.IsNullOrEmpty(deviceUpdateAction.Name))
+            {
+                deviceUpdateActionsValidationMessage = $"Administrative Unit Name is required";
+                addDeviceUpdateState = "";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(deviceUpdateAction.Value))
+            {
+                deviceUpdateActionsValidationMessage = $"Administrative Unit Id is required";
+                addDeviceUpdateState = "";
+                return;
+            }
+        }
+
 
         deviceUpdateActionsValidationMessage = "";
+        if(tag.UpdateActions.Where(u => u.ActionType == deviceUpdateAction.ActionType && u.Name == deviceUpdateAction.Name).Count() > 0)
+        {
+            deviceUpdateActionsValidationMessage = $"Duplicate update action {deviceUpdateAction.ActionType} {deviceUpdateAction.Value}";
+            addDeviceUpdateState = "";
+            return;
+        }
         tag.UpdateActions.Add(deviceUpdateAction);
         deviceUpdateAction = new DeviceUpdateAction();        
         addDeviceUpdateState = "";
@@ -544,6 +737,9 @@
 
     private async Task GetGroupForNewUpdateAction(KeyboardEventArgs e)
     {
+        Guid g = Guid.NewGuid();
+        deviceUpdateAction.Name = "Querying for name";
+        StateHasChanged();
         try
         {
             if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value.Trim(), "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
@@ -554,11 +750,15 @@
             {
                 deviceUpdateAction.Name = "Not valid security group Id";
             }
+            return;
         }
         catch(Exception ex)
         {
-            logger.LogError($"Unable to get groups for update actions.\n{ex.Message}");
-        }                
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Unable to get group name. Correlation Id:{g.ToString()}";
+            logger.LogError($"Unable to get groups for update actions.\n{ex.Message}\nCorrelation Id:{g.ToString()}");
+        }
+        deviceUpdateAction.Name = "";
     }
 
     private async Task UpdateRoleDelegationGroups()
@@ -608,5 +808,176 @@
                 roleDelegation.Role = r;
             }
         }
+    }
+
+    private void DeviceUpdateActionChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            if(e.Value != null)
+            {                
+                deviceUpdateAction.ActionType = (DeviceUpdateActionType)Enum.Parse(typeof(DeviceUpdateActionType), e.Value.ToString());
+            }
+        }
+        catch(Exception ex)
+        {
+            deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
+            logger.LogError($"Unable to parse DeviceUpdateActionType {e.ToString()}.\n{ex.Message}");
+        }
+        deviceUpdateAction.Name = "";
+        deviceUpdateAction.Value = "";
+    }
+
+    private void SelectSecurityGroup(Group g)
+    {
+        deviceUpdateAction.Name = g.DisplayName ?? "";
+        deviceUpdateAction.Value = g.Id ?? "";
+    }
+
+    private async void SearchSecurityGroups()
+    {
+        if(securityGroupSearchInProgress)
+        {
+            return;
+        }
+        securityGroupSearchInProgress = true;
+        securityGroupSearchExecuted = true;
+        Guid c = Guid.NewGuid();
+        StateHasChanged();
+
+
+        if (string.IsNullOrEmpty(securityGroupSearchString))
+        {
+            securityGroupSearchMessage = "Error: Search string is empty";
+            return;
+        }
+
+        try
+        {
+            securityGroupSearchResults = await graphService.SearchGroupAsync(securityGroupSearchString);
+        }
+        catch (Exception ex)
+        {
+            securityGroupSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+
+            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+        }
+        finally
+        {
+            securityGroupSearchInProgress = false;
+            StateHasChanged();
+        }    
+    }
+
+    private void SearchSecurityGroupsKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchSecurityGroups();
+        }
+    }
+
+    private void SelectAdministrativeUnit(AdministrativeUnit a)
+    {
+        deviceUpdateAction.Name = a.DisplayName ?? "";
+        deviceUpdateAction.Value = a.Id ?? "";
+    }
+
+    private async void SearchAdministrativeUnits()
+    {
+        if (administrativeUnitSearchInProgress)
+        {
+            return;
+        }
+        administrativeUnitSearchInProgress = true;
+        administrativeUnitSearchExecuted = true;
+        Guid c = Guid.NewGuid();
+        StateHasChanged();
+
+
+        if (string.IsNullOrEmpty(administrativeUnitSearchString))
+        {
+            administrativeUnitSearchMessage = "Error: Search string is empty";
+            return;
+        }
+
+        try
+        {
+            administrativeUnitSearchResults = await graphService.SearchAdministrativeUnitAsync(administrativeUnitSearchString);
+        }
+        catch (Exception ex)
+        {
+            administrativeUnitSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+
+            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+        }
+        finally
+        {
+            administrativeUnitSearchInProgress = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchAdministrativeUnitsKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchAdministrativeUnits();
+        }
+    }
+
+    private async void RoleSearchSecurityGroups()
+    {
+        if (roleSecurityGroupSearchInProgress)
+        {
+            return;
+        }
+        roleSecurityGroupSearchInProgress = true;
+        roleSecurityGroupSearchExecuted = true;
+        Guid c = Guid.NewGuid();
+        StateHasChanged();
+
+
+        if (string.IsNullOrEmpty(roleSecurityGroupSearchString))
+        {
+            roleSecurityGroupSearchMessage = "Error: Search string is empty";
+            roleSecurityGroupSearchInProgress = false;
+            return;
+        }
+
+        try
+        {
+            roleSecurityGroupSearchResults = await graphService.SearchGroupAsync(roleSecurityGroupSearchString);
+        }
+        catch (Exception ex)
+        {
+            roleSecurityGroupSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+
+            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+        }
+        finally
+        {
+            roleSecurityGroupSearchInProgress = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RoleSearchSecurityGroupsKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            RoleSearchSecurityGroups();
+        }
+    }
+
+    private void RoleSelectSecurityGroup(Group g)
+    {
+        roleDelegation.SecurityGroupName = g.DisplayName ?? "";
+        roleDelegation.SecurityGroupId = g.Id ?? "";
+    }
+
+    private void ConfirmDeleteTag()
+    {
+        ConfirmDelete?.Show();
     }
 }

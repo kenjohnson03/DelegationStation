@@ -314,10 +314,12 @@ namespace DelegationStationTests.Pages
                 var cut = RenderComponent<TagEdit>();
 
                 // Assert
-                cut.MarkupMatches(@"
-<h3>Tag Edit</h3>
-
-<p>Not Authorized</p>");
+                string match = @"<h3>Tag Edit</h3>.*";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+                match = @"<p>Not Authorized</p>";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+                match = @"<table";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected to not Match:\n{match}\nActual:\n{cut.Markup}");
             }
         }
 
@@ -336,11 +338,13 @@ namespace DelegationStationTests.Pages
 
             // Act
             var cut = RenderComponent<TagEdit>();
-            
+
 
             // Assert
-            cut.MarkupMatches(@"<h3>Tag Edit</h3>
-<h3>Error in navigation path</h3>");
+            string match = @"<h3>Tag Edit</h3>.*";
+            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            match = @"<h3>Error in navigation path</h3>";
+            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
         }
 
         private void AddDefaultServices(string defaultId = "")

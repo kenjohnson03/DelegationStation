@@ -91,22 +91,7 @@
     </NotAuthorized>
 </AuthorizeView>
 
-@if(!string.IsNullOrEmpty(userMessage))
-{
-    @if(userMessage.ToLower().Contains("error"))
-    {
-        <div class="alert alert-danger" role="alert">
-          @userMessage
-        </div>
-    }
-    else
-    {
-        <div class="alert alert-success" role="alert">
-          @userMessage
-        </div>
-    }
-}
-
+<ErrorDisplay Message=@userMessage />
 
 @code {
     [Parameter]

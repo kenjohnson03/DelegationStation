@@ -92,39 +92,10 @@
 </AuthorizeView>
 <br/>
 <br/>
-@if (!string.IsNullOrEmpty(userMessage))
-{
-    @if (userMessage.ToLower().Contains("error"))
-    {
-        <div class="alert alert-danger" role="alert">
-            @userMessage
-        </div>
-    }
-    else
-    {
-        <div class="alert alert-success" role="alert">
-            @userMessage
-        </div>
-    }
-}
-<div class="modalBackdrop @showClass"></div>
-<div class="modal-dialog modal-dialog-centered @showClass" id="AreYouSure" tabindex="-1" aria-labelledby="AreYouSure" aria-modal="true" role="dialog">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Are you sure?</h5>
-                <button type="button" class="btn-close" aria-label="Close" @onclick="(() => Close())"></button>
-            </div>
-            <div class="modal-body">
-                Role and access will be permanently deleted.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="(() => Close())">Cancel</button>
-                <button type="button" class="btn btn-danger" @onclick="(() => DeleteRole())">Delete</button>
-            </div>
-        </div>
-    </div>
-</div>
+
+<DisplayMessage Message="@userMessage" />
+
+<ConfirmMessage MessageBody="This will permanently delete the role and any delegations." ConfirmAction="@(() => DeleteRole())" @ref="ConfirmDelete" />
 
 @code {
     [CascadingParameter]
@@ -138,6 +109,7 @@
     private DeviceTag tag = new DeviceTag();
     private bool loading = true;
 
+    private ConfirmMessage? ConfirmDelete;
 
     private string userMessage = "";
     private bool popupIsVisible = false;
@@ -216,8 +188,7 @@
     }
 
     private void DeleteRole()
-    {
-        Close();        
+    {      
 
         if(deleteRole.Id == Guid.Empty)
         {
@@ -230,25 +201,21 @@
             roleDBService.DeleteRoleAsync(deleteRole);
             roles.Remove(deleteRole);
             string message = $"Correlation Id: {c.ToString()}\nRole {deleteRole.Name} deleted successfully";
-            userMessage = message;
+            userMessage = "";
             logger.LogInformation(message);
         }
         catch (Exception ex)
         {
-            string message = $"Error deleting role {deleteRole.Name}.";
+            string message = $"Error deleting role {deleteRole.Name}.\nCorrelation Id: {c.ToString()}";
             logger.LogError(ex, message);
             userMessage = message;
         }
         deleteRole = new Role() { Id = Guid.Empty };
+        StateHasChanged();
     }
 
     private void Show()
     {
-        showClass = "showModal show";
-    }
-
-    private void Close()
-    {
-        showClass = "hideModal";
+        ConfirmDelete?.Show();
     }
 }
