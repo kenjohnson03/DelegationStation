@@ -347,6 +347,55 @@ namespace DelegationStationTests.Pages
             Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
         }
 
+        [TestMethod]
+        [ExpectedException(typeof(Bunit.ElementNotFoundException))]
+        public void SaveButtonShouldNotRender()
+        {
+            // Arrange
+            Guid defaultId = Guid.NewGuid();
+            Guid userGroup = Guid.NewGuid();
+            var authContext = this.AddTestAuthorization();
+            authContext.SetAuthorized("TEST USER");
+            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+
+            AddDefaultServices(defaultId.ToString());
+
+            // Act
+            var cut = RenderComponent<TagEdit>();
+            var buttonElement = cut.Find("#SaveButton");
+            
+            // Assert
+            Assert.IsNull(buttonElement);
+        }
+
+        [TestMethod]
+        public void SaveButtonShouldRender()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+
+                // Act
+                var cut = RenderComponent<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
+                var buttonElement = cut.Find("#SaveButton");
+                buttonElement.Click();
+
+                // Assert
+                Assert.IsNotNull(buttonElement);
+            }
+        }
+
         private void AddDefaultServices(string defaultId = "")
         {
 

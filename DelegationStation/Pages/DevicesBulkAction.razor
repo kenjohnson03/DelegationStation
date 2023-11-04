@@ -179,7 +179,6 @@ else
     private string tagSearch = "";
     private List<string> appliedTags = new();
 
-    private string percentComplete = "0";
     private List<IBrowserFile> loadedFiles = new();
     private long maxFileSize = 1024 * 100;
     private int maxAllowedFiles = 1;
@@ -427,6 +426,21 @@ else
 
         foreach(DeviceBulk device in devices)
         {
+            System.Security.Claims.Claim userId = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").FirstOrDefault() ?? new System.Security.Claims.Claim("no", "No user ID");
+            if(userId.Value == "No user ID")
+            {
+                updateErrors.Add("Error: User ID not found.");
+                logger.LogError("Error: User ID not found.");
+                return;
+            }
+
+            if(deviceTags.Any(t => t.Name == tagToApply) == false)
+            {
+                updateErrors.Add($"Error: Tag {tagToApply} not found.");
+                logger.LogError($"Error: Tag {tagToApply} not found.");
+                return;
+            }
+
             try
             {
                 if (device.Action == DeviceBulkAction.add)
@@ -436,7 +450,6 @@ else
                     d.Model = device.Model;
                     d.SerialNumber = device.SerialNumber;
                     d.ModifiedUTC = DateTime.UtcNow;
-                    System.Security.Claims.Claim userId = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").FirstOrDefault() ?? new System.Security.Claims.Claim("no","No user ID");
                     d.AddedBy = userId.Value;
                     d.Tags.Add(tagToApply);
                     var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);

@@ -1,5 +1,6 @@
 ﻿@page "/Role/{Id}"
 @using DelegationStationShared.Models;
+@using DelegationStation.Shared;
 
 @inject Services.IRoleDBService roleDBService
 @inject NavigationManager nav
@@ -91,7 +92,7 @@
     </NotAuthorized>
 </AuthorizeView>
 
-<ErrorDisplay Message=@userMessage />
+<DisplayMessage Message=@userMessage />
 
 @code {
     [Parameter]
@@ -172,6 +173,15 @@
     private async Task SaveRole()
     {
         Guid g = Guid.NewGuid();
+
+        if(userRole.IsAdminRole() == false)
+        {
+            var message = $"Correlation Id: {g.ToString()}\nUser is not authorized to save roles.";
+            logger.LogInformation(message);
+            Console.WriteLine(message);
+            nav.NavigateTo("/Roles");
+            return;
+        }
 
         try
         {

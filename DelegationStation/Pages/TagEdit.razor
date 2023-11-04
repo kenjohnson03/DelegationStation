@@ -2,6 +2,7 @@
 @using DelegationStationShared.Models;
 @using DelegationStation.Services;
 @using Microsoft.Graph.Models;
+@using DelegationStation.Shared;
 
 @inject ILogger<TagEdit> logger
 @inject IDeviceTagDBService deviceTagDBService
@@ -315,8 +316,9 @@
             {
                 <p class="text-success">@tagSuccessMessage</p>
             }
-            <button type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
-            <button type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+            <DisplayMessage Message=@securityGroupSearchMessage />
+            <button id="SaveButton" type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
+            <button id="DeleteButton" type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
         }
     </Authorized>
         
@@ -345,6 +347,7 @@
         }
     }
 
+    private DeviceTag _tag = new DeviceTag();
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();
@@ -438,6 +441,11 @@
             if (Id != null)
             {
                 tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+
+                if (tag != null)
+                {
+                    _tag = tag;
+                }
             }
         }
         catch (Exception ex)
@@ -691,27 +699,80 @@
     private async Task Save()
     {
         Guid g = Guid.NewGuid();
+
+        // If the user is default
+        if (userRole.IsDefaultRole())
+        {
+            tag = _tag;
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: '{userName}' {userId} is not an admin for Tag {tag.Id}. Correlation Id:{g.ToString()}";
+            logger.LogWarning($"Error: '{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id} without Admin rights");
+            return;
+        }
+
+        // Update everything if user is an admin
         if (userRole.IsAdminRole())
         {
             try
             {
-                await deviceTagDBService.AddOrUpdateDeviceTagAsync(tag);                
-                tagSuccessMessage = $"Saved tag. Correlation Id:{g.ToString()}";
+                _tag = tag;
+                await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);                
+                tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
                 tagErrorMessage = "";
-                logger.LogInformation($"'{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
+                logger.LogInformation($"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
             }
             catch(Exception ex)
             {
                 tagSuccessMessage = "";
-                tagErrorMessage = $"'{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
-                logger.LogError($"'{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
-            }            
+                tagErrorMessage = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
+                logger.LogError($"Error: '{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
+            }
+            tag = _tag;
+            return;
         }
-        else
+
+        // Parse the user role to identify the activities they can perform
+        // No updates to _tag delegation
+
+        // User can update Attributes
+        if (userRole.Attributes.Count > 0)
+        {
+            foreach (var attribute in userRole.Attributes)
+            {
+                if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                {
+                    _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value = tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value;
+                }
+            }
+        }
+
+        // User can update Groups
+        if (userRole.SecurityGroups)
+        {
+            _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
+            _tag.UpdateActions.AddRange(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group));
+        }
+
+        // User can update Administrative Units
+        if (userRole.AdministrativeUnits)
+        {
+            _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
+            _tag.UpdateActions.AddRange(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit));
+        }
+
+        try
+        {
+            await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
+            tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
+            tagErrorMessage = "";
+            logger.LogInformation($"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
+            tag = _tag;
+        }
+        catch (Exception ex)
         {
             tagSuccessMessage = "";
-            tagErrorMessage = $"'{userName}' {userId} is not an admin for Tag {tag.Id}. Correlation Id:{g.ToString()}";
-            logger.LogWarning($"'{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id} without Admin rights");
+            tagErrorMessage = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
+            logger.LogError($"Error: '{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
         }
     }
 
@@ -726,12 +787,12 @@
             }
             catch (Exception ex)
             {
-                logger.LogError($"Unable to delete Tag {tag.Id}.\n{ex.Message}");
+                logger.LogError($"Error: Unable to delete Tag {tag.Id}.\n{ex.Message}");
             }
         }
         else
         {
-            logger.LogWarning($"'{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id}");
+            logger.LogWarning($"Error: '{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id}");
         }
     }
 
@@ -812,17 +873,21 @@
 
     private void DeviceUpdateActionChanged(ChangeEventArgs e)
     {
+
+
         try
         {
-            if(e.Value != null)
-            {                
-                deviceUpdateAction.ActionType = (DeviceUpdateActionType)Enum.Parse(typeof(DeviceUpdateActionType), e.Value.ToString());
+            if (e.Value == null)
+            {
+                return;
             }
+            #pragma warning disable CS8604 // Possible null reference argument. Handled in line 880-883 with null check
+            deviceUpdateAction.ActionType = (DeviceUpdateActionType)Enum.Parse(typeof(DeviceUpdateActionType), e.Value.ToString());
         }
         catch(Exception ex)
         {
             deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
-            logger.LogError($"Unable to parse DeviceUpdateActionType {e.ToString()}.\n{ex.Message}");
+            logger.LogError($"Error: Unable to parse DeviceUpdateActionType {e.ToString()}.\n{ex.Message}");
         }
         deviceUpdateAction.Name = "";
         deviceUpdateAction.Value = "";

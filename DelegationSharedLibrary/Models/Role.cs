@@ -83,13 +83,24 @@ namespace DelegationStationShared.Models
         }
         public Role GetRole(List<string> userGroups, string defaultAdminGroup, DeviceTag tag)
         {
-            Role userRole = GetDefaultRole();
-            if (tag == null || userGroups == null || userGroups?.Count == 0)
+            Role userRole = GetDefaultRole();            
+
+            if (tag == null)
             {
                 return userRole;
             }
 
-            if((bool)userGroups.Where(g => g == defaultAdminGroup).Any())
+            if (userGroups?.Count == 0)
+            {
+                return userRole;
+            }
+
+            if (userGroups == null)
+            {
+                return userRole;
+            }            
+
+            if (userGroups.Any(g => g == defaultAdminGroup))
             {
                 return userRole.GetAdminRole();
             }
