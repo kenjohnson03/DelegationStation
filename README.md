@@ -75,7 +75,7 @@ DeviceManagementManagedDevices.Read.All<br/>
 For updates to Administrative Units the service principal must have the following role assignments:
 
 <b>
-Privileged Role Administrator<br/>
+AdministrativeUnit.ReadWrite.All<br/>
 </b>
 
 To update Security Groups the service principal must have the following role assignments:
