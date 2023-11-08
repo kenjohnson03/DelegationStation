@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace DelegationStation.Models
+namespace DelegationStationShared.Models
 {
     public class DeviceUpdateAction
     {
@@ -10,13 +10,6 @@ namespace DelegationStation.Models
         public string Name { get; set; }
         public string Value { get; set; }
 
-        public DeviceUpdateAction() 
-        { 
-            this.Id = Guid.NewGuid();
-            this.ActionType = DeviceUpdateActionType.Attribute;
-            this.Name = "";
-            this.Value = "";
-        }
         public DeviceUpdateAction(Guid id, DeviceUpdateActionType actionType, string name, string value)
         {
             Id = id;
@@ -24,11 +17,28 @@ namespace DelegationStation.Models
             Name = name;
             Value = value;
         }
+
+        public DeviceUpdateAction(DeviceUpdateActionType actionType)
+        {
+            Id = Guid.NewGuid();
+            ActionType = actionType;
+            Name = string.Empty;
+            Value = string.Empty;
+        }
+
+        public DeviceUpdateAction()
+        {
+            Id = Guid.NewGuid();
+            ActionType = DeviceUpdateActionType.Attribute;
+            Name = string.Empty;
+            Value = string.Empty;
+        }
     }
 
     public enum DeviceUpdateActionType
     {
         Attribute,
-        Group
+        Group,
+        AdministrativeUnit
     }
 }

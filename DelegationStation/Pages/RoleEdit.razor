@@ -1,0 +1,222 @@
+﻿@page "/Role/{Id}"
+@using DelegationStationShared.Models;
+@using DelegationStation.Shared;
+
+@inject Services.IRoleDBService roleDBService
+@inject NavigationManager nav
+@inject ILogger<RoleEdit> logger
+@inject IHttpContextAccessor httpContextAccessor
+@inject IConfiguration config
+
+
+
+@attribute [Authorize]
+
+<h3>Role Edit</h3>
+<AuthorizeView Context="userContext">
+    <Authorized>
+        @if(groups.Contains(defaultGroup))
+        {
+            @if (role != null)
+            {
+                <EditForm Model="@role" OnSubmit="SaveRole">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="mb-3">
+                        <label for="Name" class="form-label">Name</label>
+                        <InputText @bind-Value=role.Name class="form-control" id="Name"></InputText>
+                    </div>
+                    <h4>Editable Attributes</h4>
+                    <div class="container p-0">
+                        @{
+                            foreach (var attr in Enum.GetValues(typeof(AllowedAttributes)))
+                            {
+                                if ((AllowedAttributes)attr == AllowedAttributes.All)
+                                {
+                                    continue;
+                                }
+
+                                bool isChecked = role.Attributes.Contains((AllowedAttributes)attr);
+
+                                <div class="row mb-2">
+                                    <div class="col">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" checked="@isChecked" @oninput=@((e) => AttributesChanged((AllowedAttributes)attr, e))>
+                                            <label class="form-check-label" for="flexSwitchCheckDefault">@((AllowedAttributes)attr)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                </div>
+                            }
+                        }
+                    </div>
+
+
+                    <div class="mb-3">
+                        <label for="SecurityGroups" class="form-label">Allowed to edit Security Groups</label>
+                        <span>Delegation Station must have access to the security group to make changes.</span>
+                        <div class="form-check form-switch">
+                            <InputCheckbox @bind-Value=role.SecurityGroups class="form-check-input" id="SecurityGroups"></InputCheckbox>
+                            <ValidationMessage For=@(() => role.SecurityGroups) />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="AdministrativeUnits" class="form-label">Allowed to edit Administrative Units</label>
+                        <span>Delegation Station must have access to the administrative unit to make changes.</span>
+                        <div class="form-check form-switch">
+                            <InputCheckbox @bind-Value=role.AdministrativeUnits class="form-check-input" id="AdministrativeUnits"></InputCheckbox>
+                            <ValidationMessage For=@(() => role.AdministrativeUnits) />
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" type="button" @onclick=@(() => nav.NavigateTo("/Roles"))>Cancel</button>
+                    <button class="btn btn-success" type="submit">Save</button>
+
+                </EditForm>
+            }
+            else
+            {
+                <p>Role not found</p>
+            }
+        }
+        else
+        {
+            <p>You are not a member of the default admin group.  You will not be able to create or edit roles.</p>
+        }
+        
+    </Authorized>
+    <NotAuthorized>
+        <p>Not Authorized</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+<DisplayMessage Message=@userMessage />
+
+@code {
+    [Parameter]
+    public string? Id { get; set; }
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthState { get; set; }
+
+    private AuthenticationState? authState;
+    private List<string> groups = new List<string>();
+    private Role userRole = (new Role()).GetDefaultRole();
+    private string defaultGroup = "";
+    private DeviceTag tag = new DeviceTag();
+
+    public Role role { get; set; } = new Role();
+    private string attributeToAdd = "";
+    private string userMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+
+        if (AuthState != null)
+        {
+            authState = await AuthState;
+        }
+
+        UpdateClaims();
+        UpdateUserRole();
+
+        Guid g = Guid.NewGuid();
+
+        if(Id == null)
+        {
+            return;
+        }
+
+        if(Id == Guid.Empty.ToString())
+        {
+            return;
+        }
+
+        try
+        {
+            role = await roleDBService.GetRoleAsync(Id);
+        }
+        catch(Exception e)
+        {
+            var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
+            logger.LogError(e, erMessage);
+            Console.WriteLine(erMessage);
+            userMessage = erMessage;
+        }    
+    }
+
+    private void UpdateUserRole()
+    {
+        if (string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = userRole.GetDefaultRole();
+        }
+        else if (groups.Contains(defaultGroup))
+        {
+            userRole = userRole.GetAdminRole();
+        }
+        else
+        {
+            userRole = userRole.GetRole(groups, tag);
+        }
+        StateHasChanged();
+    }
+
+    private void UpdateClaims()
+    {
+        groups = new List<string>();
+        groups = Models.ClaimsManager.GetRoles(authState?.User.Claims);
+    }
+
+    private async Task SaveRole()
+    {
+        Guid g = Guid.NewGuid();
+
+        if(userRole.IsAdminRole() == false)
+        {
+            var message = $"Correlation Id: {g.ToString()}\nUser is not authorized to save roles.";
+            logger.LogInformation(message);
+            Console.WriteLine(message);
+            nav.NavigateTo("/Roles");
+            return;
+        }
+
+        try
+        {
+            role.Attributes.Where(a => a == AllowedAttributes.All ).ToList().ForEach(a => role.Attributes.Remove(a));
+            role = await roleDBService.AddOrUpdateRoleAsync(role);
+            var message = $"Correlation Id: {g.ToString()}\nSaved role.";
+            logger.LogInformation(message);
+            Console.WriteLine(message);
+            nav.NavigateTo("/Roles");
+        }
+        catch(Exception e)
+        {
+            var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
+            logger.LogError(e, erMessage);
+            Console.WriteLine(erMessage);
+            userMessage = erMessage;
+        }          
+    }
+
+    private void AttributesChanged(AllowedAttributes attr, ChangeEventArgs e)
+    {
+        var value = e?.Value?.ToString();
+
+        if(string.IsNullOrEmpty(value))
+        {
+            return;
+        }
+
+        if(Convert.ToBoolean(value) && !role.Attributes.Contains(attr))
+        {
+            role.Attributes.Add(attr);
+        }
+        else
+        {
+            role.Attributes.Remove(attr);
+        }
+    }
+}

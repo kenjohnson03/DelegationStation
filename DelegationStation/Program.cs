@@ -16,6 +16,7 @@ builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();
+builder.Services.AddControllers();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -29,6 +30,7 @@ builder.Services.AddServerSideBlazor()
 builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
+builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
 
 builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 

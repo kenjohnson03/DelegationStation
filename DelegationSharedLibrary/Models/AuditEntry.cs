@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
 
-namespace DelegationStation.Models
+namespace DelegationStationShared.Models
 {
     public class AuditEntry
     {
@@ -33,7 +33,7 @@ namespace DelegationStation.Models
             CorrelationId = Guid.Empty;
             Identity = Guid.Empty;
             Properties = string.Empty;
-            PartitionKey = "Audit";
+            PartitionKey = this.Id.ToString();
             Type = typeof(AuditEntry).Name;
         }
     }

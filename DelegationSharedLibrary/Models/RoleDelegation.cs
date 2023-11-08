@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
 
-namespace DelegationStation.Models
+namespace DelegationStationShared.Models
 {
     public class RoleDelegation
     {
@@ -19,20 +19,10 @@ namespace DelegationStation.Models
         public RoleDelegation()
         {
             Id = Guid.NewGuid();
-            Role = Role.Read;
+            Role = new Role();
             SecurityGroupId = string.Empty;
             SecurityGroupName = string.Empty;
             PartitionKey = this.Id.ToString();
         }
-    }
-
-
-
-    public enum Role
-    {
-        None,
-        Read,
-        Edit,
-        Admin        
     }
 }

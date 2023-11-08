@@ -4,12 +4,10 @@
 @attribute [Authorize]
 
 @inject IDeviceTagDBService deviceTagDBService
+@inject IConfiguration config
 
-<PageTitle>Index</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+<PageTitle>Claims</PageTitle>
 
 <AuthorizeView>
     <Authorized>
@@ -23,21 +21,25 @@ Welcome to your new app.
     </NotAuthorized>
 </AuthorizeView>
 
-<SurveyPrompt Title="How is Blazor working for you?" />
-
+<h2>Roles</h2>
 @foreach(var group in roles)
 {
     <p>@group</p>
 }
 
+<h3>Default Group</h3>
+<p>@defaultGroup</p>
+
 @code {
     [CascadingParameter]
-    public Task<AuthenticationState> AuthState { get; set; }
+    public Task<AuthenticationState>? AuthState { get; set; }
     private AuthenticationState? authState;
     private List<string> roles = new List<string>();
+    private string defaultGroup = "";
 
     protected override async Task OnInitializedAsync()
     {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if(AuthState != null)
         {
             authState = await AuthState;
@@ -47,8 +49,13 @@ Welcome to your new app.
 
     private void UpdateClaims()
     {
+        if(authState == null)
+        {
+            return;
+        }
+
         roles = new List<string>();
-        foreach(var c in authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"))
+        foreach (var c in authState.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles"))
         {
             roles.Add(c.Value);
         }

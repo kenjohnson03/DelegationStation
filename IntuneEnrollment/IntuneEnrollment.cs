@@ -21,6 +21,10 @@ using System.Linq;
 using Microsoft.Graph.Chats.Item.SendActivityNotification;
 using Microsoft.Graph.Models;
 using System.Reflection;
+using DelegationStationShared.Models;
+using Microsoft.Graph.Models.TermStore;
+using System.Text;
+using Microsoft.Azure.Cosmos.Serialization.HybridRow.Layouts;
 
 namespace DelegationStation.Function
 {
@@ -29,6 +33,7 @@ namespace DelegationStation.Function
         private static GraphServiceClient _graphClient;
         private static ILogger _logger;
         private static HttpClient _graphHttpClient;
+        private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
 
         [FunctionName("IntuneEnrollmentTrigger")]
         public static async Task<IActionResult> Run(
@@ -41,37 +46,59 @@ namespace DelegationStation.Function
 
             string response = "Completed execution";
 
-            try
+            string logUri = GetLogAnalyticsUri(requestBody);
+            List<string> deviceIds = await GetDeviceIdsFromLogAnalyticsAsync(logUri);
+            if(deviceIds == null || deviceIds.Count < 1)
             {
-                string logUri = GetLogAnalyticsUri(requestBody);
-                List<string> deviceIds = await GetDeviceIdsFromLogAnalyticsAsync(logUri);
-                List<DeviceResponse> devices = await GetDeviceManagementObjectsAsync(deviceIds.ToArray());
+                response = "No devices found in log analytics";
+                _logger.LogWarning(response);
+                return new BadRequestObjectResult(response);
+            }
 
-                //Query Cosmos DB
-                foreach (DeviceResponse device in devices)
-                {
-                    await RunDeviceUpdateActionsAsync(device);
-                }
-            }
-            catch (Exception ex)
+            List<DeviceResponse> devices = await GetDeviceManagementObjectsAsync(deviceIds.ToArray());
+            if (devices == null || devices.Count < 1)
             {
-                _logger.LogError($"Error: {ex}", ex);
+                response = "No devices found in Intune";
+                _logger.LogWarning(response);
+                return new BadRequestObjectResult(response);
             }
+
+            foreach (DeviceResponse device in devices)
+            {
+                await RunDeviceUpdateActionsAsync(device);
+            }
+
             return new OkObjectResult(response);
         }
 
-
+        
         private static async Task RunDeviceUpdateActionsAsync(DeviceResponse device)
         {
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
             var databaseName = "DelegationStation";
             var containerName = "Device";
-            var account = Environment.GetEnvironmentVariable("CosmosDb:account", EnvironmentVariableTarget.Process);
-            var key = Environment.GetEnvironmentVariable("CosmosDb:key", EnvironmentVariableTarget.Process);
+            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
+            var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
-            //Microsoft.Azure.Cosmos.CosmosClient client = new Microsoft.Azure.Cosmos.CosmosClient(account, key);
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (String.IsNullOrEmpty(connectionString) || String.IsNullOrEmpty(defaultActionDisable))
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"{fullMethodName} Error: Missing required environment variables. Please check the following environment variables are set:");
+                sb.Append(String.IsNullOrEmpty(connectionString) ? "COSMOS_CONNECTION_STRING\n" : "");
+                sb.Append(String.IsNullOrEmpty(defaultActionDisable) ? "DefaultActionDisable\n" : "");
+                _logger.LogError(sb.ToString());
+                return;
+            }
+
+
+
             CosmosClient client = new(
-                connectionString: Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process)!
+                connectionString: connectionString
             );
             Microsoft.Azure.Cosmos.Container container = client.GetContainer(databaseName, containerName);
 
@@ -81,25 +108,36 @@ namespace DelegationStation.Function
                 .WithParameter("@manufacturer", device.Manufacturer.Trim())
                 .WithParameter("@model", device.Model.Trim())
                 .WithParameter("@serialNumber", device.SerialNumber.Trim());
-            var queryIterator = container.GetItemQueryIterator<Device>(query);
+            var queryIterator = container.GetItemQueryIterator<DelegationStationShared.Models.Device>(query);
 
-            List<Device> deviceResults = new List<Device>();
-            while(queryIterator.HasMoreResults)
+            List<DelegationStationShared.Models.Device> deviceResults = new List<DelegationStationShared.Models.Device>();
+            try
             {
-                var response = await queryIterator.ReadNextAsync();
-                deviceResults.AddRange(response.ToList());
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    deviceResults.AddRange(response.ToList());
+                }
+                _logger.LogInformation($"{fullMethodName} Found {deviceResults.Count}", deviceResults);
             }
-            _logger.LogInformation($"Found {deviceResults.Count}", deviceResults);
+            catch (Exception ex)
+            {
+                _logger.LogError($"{fullMethodName} Error: querying Cosmos DB for device {device.Manufacturer} {device.Model} {device.SerialNumber}.\n {ex.Message}", ex);
+            }
 
             if(deviceResults.Count < 1) 
             {
                 // TODO make personal / add to group / update attribute
-                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction { Name = "AccountEnabled", Value = "false" } }); 
-                _logger.LogWarning("Did not find any devices matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'");
+                if(defaultActionDisable == "true")
+                {
+                    _logger.LogInformation($"{fullMethodName} Information: DefaultActionDisable is true. Disabling device {device.AzureADDeviceId} {device.Manufacturer} {device.Model} {device.SerialNumber}");
+                    await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction() { ActionType = DeviceUpdateActionType.Attribute, Name = "AccountEnabled", Value = "false" } });
+                }
+                _logger.LogWarning($"{fullMethodName} Warning: Did not find any devices matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'");
                 return;
             }
 
-            Device d = deviceResults.FirstOrDefault();
+            DelegationStationShared.Models.Device d = deviceResults.FirstOrDefault();
             foreach(string tagId in d.Tags)
             {
                 DeviceTag tag = new DeviceTag();
@@ -107,11 +145,11 @@ namespace DelegationStation.Function
                 {
                     ItemResponse<DeviceTag> tagResponse = await container.ReadItemAsync<DeviceTag>(tagId, new PartitionKey("DeviceTag"));
                     tag = tagResponse.Resource;
-                    _logger.LogInformation($"Found tag {tag.Name}", tag);
+                    _logger.LogInformation($"{fullMethodName} Information: Found tag {tag.Name}", tag);
                 } 
                 catch(Exception ex)
                 {
-                    _logger.LogError($"Get tag {tagId} failed.\n {ex.Message}", ex);
+                    _logger.LogError($"{fullMethodName} Error: Get tag {tagId} failed.\n {ex.Message}", ex);
                 }
                 
                 foreach(DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Group))
@@ -120,7 +158,6 @@ namespace DelegationStation.Function
                 }
 
                 await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
-                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction { Name = "AccountEnabled", Value = "false" } });
             }
 
             return;
@@ -128,8 +165,29 @@ namespace DelegationStation.Function
 
         private static async Task UpdateAttributesOnDeviceAsync(string deviceId, List<DeviceUpdateAction> updateActions)
         {
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (string.IsNullOrEmpty(deviceId) || updateActions == null)
+            {
+                _logger.LogError($"{fullMethodName} Error: DeviceId or updateActions is null or empty. DeviceId: {deviceId};");
+                return;
+            }
+            if (Regex.IsMatch(deviceId, _guidRegex) == false)
+            {
+                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                return;
+            }
+            if (updateActions.Count < 1)
+            {
+                _logger.LogWarning($"{fullMethodName} Warning: No update actions configured for {deviceId}");
+                return;
+            }
+
             var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
-            _logger.LogInformation($"Updating attributes on {deviceId}");
+            _logger.LogInformation($"{fullMethodName} Information: Updating attributes on {deviceId}");
             string tokenUri = "";
             if (TargetCloud == "AzurePublicCloud")
             {
@@ -142,6 +200,11 @@ namespace DelegationStation.Function
             }
 
             var graphAccessToken = await GetAccessTokenAsync(tokenUri);
+            if (string.IsNullOrEmpty(graphAccessToken))
+            {
+                _logger.LogError($"{fullMethodName} Error: Failed to get Graph access token for Device Id {deviceId}");
+                return;
+            }
 
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
@@ -150,7 +213,7 @@ namespace DelegationStation.Function
             foreach (var action in updateActions)
             {
                 string attributeContent = "";
-                _logger.LogDebug($"UpdateAttributesOnDeviceAsync Device: {deviceId}\nAction: {action.Name}\nValue: {action.Value}");
+                _logger.LogDebug($"{fullMethodName} Debug:\nDevice: {deviceId}\nAction: {action.Name}\nValue: {action.Value}",action);
 
                 switch (action.Name)
                 {
@@ -327,7 +390,7 @@ namespace DelegationStation.Function
                         });
                         break;
                     default:
-                        _logger.LogWarning($"Property update called on a property not implemented. Property - {action.Name}");
+                        _logger.LogWarning($"{fullMethodName} Warning: Property update called on a property not implemented. Property - {action.Name}");
                         
                         break;
                 }
@@ -338,14 +401,22 @@ namespace DelegationStation.Function
                     Content = new StringContent(attributeContent, System.Text.Encoding.UTF8, "application/json")
                 };
                 deviceADRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
-                HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
-                if(deviceADResponse.IsSuccessStatusCode)
+                try
                 {
-                    _logger.LogInformation($"Graph Response Success: {deviceADResponse.IsSuccessStatusCode}\nStatus Code: {deviceADResponse.StatusCode}\nReason: {deviceADResponse.ReasonPhrase}\nRequest URI: {deviceADRequestUri}\nAttributeContent: {attributeContent}");
-                }
-                else
+                    HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
+                    if (deviceADResponse.IsSuccessStatusCode)
+                    {
+                        _logger.LogInformation($"{fullMethodName} Graph Response Success: {deviceADResponse.IsSuccessStatusCode}\nStatus Code: {deviceADResponse.StatusCode}\nReason: {deviceADResponse.ReasonPhrase}\nRequest URI: {deviceADRequestUri}\nAttributeContent: {attributeContent}");
+                    }
+                    else
+                    {
+                        _logger.LogError($"{fullMethodName} Graph Response Error: {deviceADResponse.IsSuccessStatusCode}\nStatus Code: {deviceADResponse.StatusCode}\nReason: {deviceADResponse.ReasonPhrase}\nRequest URI: {deviceADRequestUri}\nAttributeContent: {attributeContent}");
+                    }
+                } 
+                catch (Exception ex)
                 {
-                    _logger.LogError($"Graph Response Error: {deviceADResponse.IsSuccessStatusCode}\nStatus Code: {deviceADResponse.StatusCode}\nReason: {deviceADResponse.ReasonPhrase}\nRequest URI: {deviceADRequestUri}\nAttributeContent: {attributeContent}");
+                    _logger.LogError($"{fullMethodName} Graph Response Error: {ex.Message}\nRequest URI: {deviceADRequestUri}\nAttributeContent: {attributeContent}");
+                    return;
                 }
             }           
 
@@ -371,8 +442,21 @@ namespace DelegationStation.Function
 
         private static async Task<List<String>> GetDeviceIdsFromLogAnalyticsAsync(string logUri)
         {
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
             var httpClient = new HttpClient();
+
+            // TODO update for Azure Government
             var accessToken = await GetAccessTokenAsync("https://api.loganalytics.io");
+            if(accessToken == null)
+            {
+                _logger.LogError($"{fullMethodName} Error: Unable to get access token for Log Analytics");
+                return null;
+            }
+
             List<String> deviceIds = new List<String>();
 
             var logAnalyticsRequest = new HttpRequestMessage(HttpMethod.Get, logUri);
@@ -392,50 +476,114 @@ namespace DelegationStation.Function
 
         private static async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
         {
-            var graphAccessToken = await GetAccessTokenAsync("https://graph.microsoft.com");
-            var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
 
-
-            string deviceADRequestUri = String.Format("https://graph.microsoft.com/v1.0/devices?$filter=deviceId eq '{0}'", deviceId);
-            var deviceADRequest = new HttpRequestMessage(HttpMethod.Get, deviceADRequestUri);
-            deviceADRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
-            HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
-            deviceADResponse.EnsureSuccessStatusCode();
-            string deviceADResponseContent = await deviceADResponse.Content.ReadAsStringAsync();
-            Regex regex = new Regex(@"\b[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}\b");
-            string deviceAzureAdId = "";
-            Match deviceMatch = regex.Match(deviceADResponseContent);
-            if (deviceMatch.Success)
+            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(groupId))
             {
-                deviceAzureAdId = deviceMatch.Value;
+                _logger.LogError($"{fullMethodName} Error: DeviceId or GroupId is null or empty. DeviceId: {deviceId} GroupId: {groupId}");
+                return;
+            }
+            if (Regex.IsMatch(deviceId, _guidRegex) == false)
+            {
+                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                return;
+            }
+            if (Regex.IsMatch(groupId, _guidRegex) == false)
+            {
+                _logger.LogError($"{fullMethodName} Error: GroupId is not a valid GUID. GroupId: {groupId}");
+                return;
             }
 
-            var groupRequest = new HttpRequestMessage(HttpMethod.Post, $"https://graph.microsoft.com/v1.0/groups/{groupId}/members/$ref");
-            groupRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+            var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
+            
+            string tokenUri = "";
+            if (TargetCloud == "AzurePublicCloud")
+            {
+                tokenUri = "https://graph.microsoft.com";
+            }
+            else
+            {
+                // TODO update URI
+                tokenUri = "https://graph.microsoft.us";
+            }
 
-            var values = new Dictionary<string, string>{
-                { "@odata.id", $"https://graph.microsoft.com/v1.0/directoryObjects/{deviceAzureAdId}" }
-            };
 
-            var json = JsonConvert.SerializeObject(values, Formatting.Indented);
+            try
+            {
 
-            var stringContent = new StringContent(json, System.Text.Encoding.UTF8, "text/plain");
+                var graphAccessToken = await GetAccessTokenAsync(tokenUri);
+                var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
 
-            _logger.LogInformation($"Adding Device:{deviceId} to Group:{groupId}");
 
-            stringContent.Headers.Remove("Content-Type");
-            stringContent.Headers.Add("Content-Type", "application/json");
-            groupRequest.Content = stringContent;
+                string deviceADRequestUri = $"{tokenUri}/v1.0/devices?$filter=deviceId eq '{deviceId}'";
+                var deviceADRequest = new HttpRequestMessage(HttpMethod.Get, deviceADRequestUri);
+                deviceADRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+                HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
+                deviceADResponse.EnsureSuccessStatusCode();
+                string deviceADResponseContent = await deviceADResponse.Content.ReadAsStringAsync();
+                Regex regex = new Regex(@"\b[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}\b");
+                string deviceAzureAdId = "";
+                Match deviceMatch = regex.Match(deviceADResponseContent);
+                if (deviceMatch.Success)
+                {
+                    deviceAzureAdId = deviceMatch.Value;
+                }
 
-            var groupResponse = await httpClient.SendAsync(groupRequest);
-            string response = await groupResponse.Content.ReadAsStringAsync();
-            response = String.IsNullOrEmpty(response) ? "Success" : response;
-            _logger.LogInformation($"Group Add Response: {response}");
+                var groupRequest = new HttpRequestMessage(HttpMethod.Post, $"{tokenUri}/v1.0/groups/{groupId}/members/$ref");
+                groupRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+
+                var values = new Dictionary<string, string>{
+                    { "@odata.id", $"{tokenUri}/v1.0/directoryObjects/{deviceAzureAdId}" }
+                };
+
+                var json = JsonConvert.SerializeObject(values, Formatting.Indented);
+
+                var stringContent = new StringContent(json, System.Text.Encoding.UTF8, "text/plain");
+
+                _logger.LogInformation($"{fullMethodName} Adding Device:{deviceId} to Group:{groupId}");
+
+                stringContent.Headers.Remove("Content-Type");
+                stringContent.Headers.Add("Content-Type", "application/json");
+                groupRequest.Content = stringContent;
+                            
+                var groupResponse = await httpClient.SendAsync(groupRequest);
+                string response = await groupResponse.Content.ReadAsStringAsync();
+                response = String.IsNullOrEmpty(response) ? "Success" : response;
+                _logger.LogInformation($"{fullMethodName} Group Add Response: {response}");
+            } 
+            catch (Exception ex)
+            {
+                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+            }            
         }
 
-        private static async Task<List<DeviceResponse>> GetDeviceManagementObjectsAsync(string[] deviceIds)
+        private static async Task AddDeviceToAzureAdministrativeUnit (string deviceId, string auId)
         {
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(auId))
+            {
+                _logger.LogError($"{fullMethodName} Error: DeviceId or AU Id is null or empty. DeviceId: {deviceId} AU Id: {auId}");
+                return;
+            }
+            if (Regex.IsMatch(deviceId, _guidRegex) == false)
+            {
+                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                return;
+            }
+            if (Regex.IsMatch(auId, _guidRegex) == false)
+            {
+                _logger.LogError($"{fullMethodName} Error: AU Id is not a valid GUID. AU Id: {auId}");
+                return;
+            }
+
             var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
 
             string tokenUri = "";
@@ -450,31 +598,127 @@ namespace DelegationStation.Function
             }
 
             var graphAccessToken = await GetAccessTokenAsync(tokenUri);
+            if(graphAccessToken == null)
+            {
+                _logger.LogError($"{fullMethodName} Error: Failed to get Graph Access Token");
+                return;
+            }
+
+            var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+
+
+            string deviceADRequestUri = $"{tokenUri}/v1.0/devices?$filter=deviceId eq '{deviceId}'";
+            var deviceADRequest = new HttpRequestMessage(HttpMethod.Get, deviceADRequestUri);
+            deviceADRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+            HttpResponseMessage deviceADResponse = await httpClient.SendAsync(deviceADRequest);
+            deviceADResponse.EnsureSuccessStatusCode();
+            string deviceADResponseContent = await deviceADResponse.Content.ReadAsStringAsync();
+            Regex regex = new Regex(@"\b[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}\b");
+            string deviceAzureAdId = "";
+            Match deviceMatch = regex.Match(deviceADResponseContent);
+            if (deviceMatch.Success)
+            {
+                deviceAzureAdId = deviceMatch.Value;
+            }
+
+            var groupRequest = new HttpRequestMessage(HttpMethod.Post, $"{tokenUri}/v1.0/directory/administrativeUnits/{auId}/members/$ref");
+            groupRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
+
+            var values = new Dictionary<string, string>{
+                { "@odata.id", $"{tokenUri}/v1.0/devices/{deviceAzureAdId}" }
+            };
+
+            var json = JsonConvert.SerializeObject(values, Formatting.Indented);
+
+            var stringContent = new StringContent(json, System.Text.Encoding.UTF8, "text/plain");
+
+            _logger.LogInformation($"Adding Device:{deviceId} to Administrative Unit:{auId}");
+
+            stringContent.Headers.Remove("Content-Type");
+            stringContent.Headers.Add("Content-Type", "application/json");
+            groupRequest.Content = stringContent;
+
+            var groupResponse = await httpClient.SendAsync(groupRequest);
+            string response = await groupResponse.Content.ReadAsStringAsync();
+            response = String.IsNullOrEmpty(response) ? "Success" : response;
+            _logger.LogInformation($"Administrative Unit Add Response: {response}");
+        }
+
+        private static async Task<List<DeviceResponse>> GetDeviceManagementObjectsAsync(string[] deviceIds)
+        {
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
+            var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
+
+            string tokenUri = "";
+            if (TargetCloud == "AzurePublicCloud")
+            {
+                tokenUri = "https://graph.microsoft.com";
+            }
+            else
+            {
+                // TODO update URI
+                tokenUri = "https://graph.microsoft.us";
+            }
+
+            var graphAccessToken = await GetAccessTokenAsync(tokenUri);
+            if(graphAccessToken == null)
+            {
+                _logger.LogError($"{fullMethodName} Error: Failed to get access token");
+                return null;
+            }
+
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
             List<DeviceResponse> devices = new List<DeviceResponse>();
 
-
             foreach (string d in deviceIds)
             {
-                var graphResponse = await httpClient.GetAsync($"{tokenUri}/v1.0/deviceManagement/managedDevices/{d}?$select=id,manufacturer,model,serialNumber,azureADDeviceId");
-                graphResponse.EnsureSuccessStatusCode();
+                try
+                {
+                    var graphResponse = await httpClient.GetAsync($"{tokenUri}/v1.0/deviceManagement/managedDevices/{d}?$select=id,manufacturer,model,serialNumber,azureADDeviceId");
+                    graphResponse.EnsureSuccessStatusCode();
 
-                var graphContent = await graphResponse.Content.ReadAsStringAsync();
-                DeviceResponse device = JsonConvert.DeserializeObject<DeviceResponse>(graphContent);
-                devices.Add(device);
-                _logger.LogInformation($"Intune device information\nDeviceId: {device.Id}\nMake: {device.Manufacturer}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nAzureADId: {device.AzureADDeviceId}");
-
+                    var graphContent = await graphResponse.Content.ReadAsStringAsync();
+                    DeviceResponse device = JsonConvert.DeserializeObject<DeviceResponse>(graphContent);
+                    devices.Add(device);
+                    _logger.LogInformation($"{fullMethodName} Intune device information\nDeviceId: {device.Id}\nMake: {device.Manufacturer}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nAzureADId: {device.AzureADDeviceId}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+                }
             }
             return devices;
         }
 
         private static async Task<String> GetAccessTokenAsync(string uri)
         {
+            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
+            string methodName = method.Name;
+            string className = method.ReflectedType.Name;
+            string fullMethodName = className + "." + methodName;
+
             var AppSecret = Environment.GetEnvironmentVariable("AzureApp:ClientSecret", EnvironmentVariableTarget.Process);
             var AppId = Environment.GetEnvironmentVariable("AzureAd:ClientId", EnvironmentVariableTarget.Process);
             var TenantId = Environment.GetEnvironmentVariable("AzureAd:TenantId", EnvironmentVariableTarget.Process);
             var TargetCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
+
+            if(String.IsNullOrEmpty(AppSecret) || String.IsNullOrEmpty(AppId) || String.IsNullOrEmpty(TenantId) || String.IsNullOrEmpty(TargetCloud))
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"{fullMethodName} Error: Missing required environment variables. Please check the following environment variables are set:");
+                sb.Append(String.IsNullOrEmpty(AppSecret) ? "AzureApp:ClientSecret\n" : "");
+                sb.Append(String.IsNullOrEmpty(AppId) ? "AzureAd:ClientId\n" : "");
+                sb.Append(String.IsNullOrEmpty(TenantId) ? "AzureAd:TenantId\n" : "");
+                sb.Append(String.IsNullOrEmpty(TargetCloud) ? "AzureEnvironment\n" : "");
+                _logger.LogError(sb.ToString());
+                return null;
+            }
 
             string tokenUri = "";
             if (TargetCloud == "AzurePublicCloud")
@@ -483,7 +727,6 @@ namespace DelegationStation.Function
             }
             else
             {
-                // TODO update URI
                 tokenUri = $"https://login.microsoftonline.us/{TenantId}/oauth2/token";
             }
 
@@ -498,13 +741,19 @@ namespace DelegationStation.Function
                 new KeyValuePair<string, string>("resource", uri)
             });
 
-            var httpClient = new HttpClient();
-            var tokenResponse = await httpClient.SendAsync(tokenRequest);
-
-            var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
-            var tokenData = JsonConvert.DeserializeObject<dynamic>(tokenContent);
-
-            return tokenData.access_token;
+            try
+            {
+                var httpClient = new HttpClient();
+                var tokenResponse = await httpClient.SendAsync(tokenRequest);
+                var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
+                var tokenData = JsonConvert.DeserializeObject<dynamic>(tokenContent);
+                return tokenData.access_token;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"{fullMethodName} Error: getting access token for URI {tokenUri}: {ex.Message}");
+                return null;
+            }
         }
 
         private class DeviceResponse

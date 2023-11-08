@@ -1,62 +1,112 @@
 ﻿@page "/Tags"
 @using DelegationStation.Services;
-@using DelegationStation.Models;
+@using DelegationStationShared.Models;
 
 @inject IDeviceTagDBService deviceTagDBService
 @inject ILogger<Tags> logger
 @inject NavigationManager nav
 @inject IConfiguration config
 
+
 @attribute [Authorize]
 
 <h3>Tags</h3>
-<table class="table table-responsive">
-    <thead>
-        <tr>
-            <th>Tag Name</th>
-            <th>Tag Description</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (DeviceTag tag in deviceTags)
+
+<AuthorizeView Context="authContext">
+    <Authorized>
+        <table class="table table-responsive">
+            <thead>
+                <tr>
+                    <th>Tag Name</th>
+                    <th>Tag Description</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (tagsLoading)
+                {                    
+                    <tr>
+                        <td colspan="3">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else if (deviceTags.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3">No tags found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (DeviceTag tag in deviceTags)
+                    {
+                        <tr>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>@tag.Name</td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>@tag.Description</td>
+                            <td>
+                                <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
+                                    <span class="oi oi-pencil" aria-hidden="true"></span> Edit
+                                </button> 
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <AuthorizeView Context="adminAuthContext">
+            <Authorized>
+                @if(groups.Contains(defaultGroup))
+                {
+                    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="mb-3">
+                            <label for="TagName" class="form-label">Tag name</label>
+                            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
+                        </div>
+                        <div class="mb-3">
+                            <label for="TagDescription" class="form-label">Tag description</label>
+                            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
+                        </div>
+                        <input type="submit" class="btn btn-primary mb-3" value="Add" />
+                    </EditForm>
+                }
+                else
+                {
+                    <p>You are not a member of the default admin group.  You will not be able to create or edit roles.</p>
+                }
+                
+            </Authorized>
+            <NotAuthorized>
+                Not Authorized to create Tags
+            </NotAuthorized>
+        </AuthorizeView>
+        
+        @if (!string.IsNullOrEmpty(userMessage))
         {
-            <tr>
-                <td>@tag.Name</td>
-                <td>@tag.Description</td>
-                <td>
-                    <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
-                        <span class="oi oi-pencil" aria-hidden="true"></span> Edit
-                    </button> 
-                </td>
-            </tr>
+            @if (userMessage.ToLower().Contains("error"))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @userMessage
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" role="alert">
+                    @userMessage
+                </div>
+            }
         }
-    </tbody>
-</table>
-@if(userRole == Role.Admin)
-{
-    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-        @if (!string.IsNullOrEmpty(tagAddValidationMessage))
-        {
-            <p class="error-text">@tagAddValidationMessage</p>
-        }
-        <div class="mb-3">
-            <label for="TagName" class="form-label">Tag name</label>
-            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>            
-        </div>
-        <div class="mb-3">
-            <label for="TagDescription" class="form-label">Tag description</label>
-            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>            
-        </div>
-        <input type="submit" class="btn btn-primary mb-3" value="Add" />
-    </EditForm>
-}
-else
-{
-    <p>Role: @userRole</p>
-}
+    </Authorized>
+    <NotAuthorized>
+        <p>Not Authorized</p>
+    </NotAuthorized>
+</AuthorizeView>
+
 
 
 
@@ -69,36 +119,47 @@ else
     private List<string> groups = new List<string>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private DeviceTag newTag = new DeviceTag();
-    private Role userRole = Role.None;
-    private string tagAddValidationMessage = "";
+    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
+    private string userMessage = string.Empty;
+    private string defaultGroup = "";
+    private bool tagsLoading = true;
+
 
 
     protected override async Task OnInitializedAsync()
     {
+        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if (AuthState != null)
         {
             authState = await AuthState;
         }
         UpdateClaims();
+        UpdateUserRole();   
         await GetTags();
-        UpdateUserRole();
     }
 
     private void UpdateUserRole()
     {
-        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        Role[] roleOrder = { Role.Read, Role.Edit, Role.Admin };
-        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+        if (string.IsNullOrEmpty(defaultGroup))
         {
-            userRole = Role.Admin;
+            userRole = userRole.GetDefaultRole();
         }
+        else if (groups.Contains(defaultGroup))
+        {
+            userRole = userRole.GetAdminRole();
+        }
+        else
+        {
+            userRole = userRole.GetDefaultRole();
+        }
+        StateHasChanged();
     }
 
     private void UpdateClaims()
     {
         groups = new List<string>(); 
 
-        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
         roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
         foreach (var c in roleClaims)
         {
@@ -108,18 +169,31 @@ else
 
     private async Task GetTags()
     {
+        userMessage = "";
         try
         {
             deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
         }
         catch(Exception ex)
         {
-            logger.LogError($"Error retreiving tags.\n{ex.Message}");
+            userMessage = "Error: retreiving tags.";
+            logger.LogError($"{userMessage}\n{ex.Message}");
+        }
+        finally
+        {
+            tagsLoading = false;
         }
     }
 
     private async Task AddTag()
     {
+        userMessage = "";
+        if (string.IsNullOrEmpty(newTag.Name))
+        {
+            userMessage = "Tag name is required.";
+            return;
+        }        
+
         try
         {
             DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
@@ -129,10 +203,11 @@ else
         catch (Exception ex)
         {
             Guid g = Guid.NewGuid();
-            tagAddValidationMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
-            logger.LogError($"Error adding tags.\nCorrelation Id: {g.ToString()}\n{ex.Message}");
+            userMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}");
             return;
         }
-        tagAddValidationMessage = "";
     }    
+
+    
 }

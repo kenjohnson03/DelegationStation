@@ -1,0 +1,24 @@
+﻿@namespace DelegationStation.Shared
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    @if (Message.ToLower().Contains("error"))
+    {
+        <div class="alert alert-danger mt-2" role="alert">
+            @Message
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-success mt-2" role="alert">
+            @Message
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Message { get; set; } = "";
+    [Parameter]
+    public EventCallback<string> MessageChanged { get; set; }
+}
