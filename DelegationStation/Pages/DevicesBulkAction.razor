@@ -421,6 +421,7 @@ else
         if(string.IsNullOrEmpty(tagToApply))
         {
             updateErrors.Add("Must select at least one tag.");
+            isUpdating = false;
             return;
         }
 
@@ -431,13 +432,15 @@ else
             {
                 updateErrors.Add("Error: User ID not found.");
                 logger.LogError("Error: User ID not found.");
+                isUpdating = false;
                 return;
             }
 
-            if(deviceTags.Any(t => t.Name == tagToApply) == false)
+            if(deviceTags.Any(t => t.Id.ToString() == tagToApply) == false)
             {
                 updateErrors.Add($"Error: Tag {tagToApply} not found.");
                 logger.LogError($"Error: Tag {tagToApply} not found.");
+                isUpdating = false;
                 return;
             }
 
