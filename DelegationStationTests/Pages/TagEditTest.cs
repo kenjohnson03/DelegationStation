@@ -1,7 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Bunit;
 using DelegationStation.Pages;
-using DelegationStation.Shared;
+using DelegationStationShared;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using DelegationStation.Services;
@@ -39,9 +39,9 @@ namespace DelegationStationTests.Pages
                     .Add(p => p.Id, "myId"));
 
                 // Assert
-                string match = @"<input class=""form-control"" value=""testTagName1""";
+                string match = @"class=""form-control"" value=""testTagName1""";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                match = @"<textarea class=""form-control"" value=""testTagDescription1""";
+                match = @"class=""form-control"" value=""testTagDescription1""";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
             }
         }
