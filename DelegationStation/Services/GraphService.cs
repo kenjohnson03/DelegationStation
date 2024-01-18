@@ -1,6 +1,7 @@
 ﻿using Azure.Identity;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
 {
@@ -23,15 +24,40 @@ namespace DelegationStation.Services
             {
                 AuthorityHost = configuration.GetSection("AzureEnvironment").Value == "AzurePublicCloud" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
             };
+                        
+            
 
-            var clientSecretCredential = new ClientSecretCredential(
+            var certConfig = configuration.GetSection("AzureAd:ClientCertificates").GetChildren().FirstOrDefault();
+
+            if(certConfig != null)
+            {
+                X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+                store.Open(OpenFlags.ReadOnly);
+                _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certConfig.GetSection("CertificateDistinguishedName").Value);
+                var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certConfig.GetSection("CertificateDistinguishedName").Value);
+
+                var clientCertCredential = new ClientCertificateCredential(
+                    configuration.GetSection("AzureAd:TenantId").Value,
+                    configuration.GetSection("AzureAd:ClientId").Value,
+                    certificate,
+                    options
+                );
+                store.Close();
+                this._graphClient = new GraphServiceClient(clientCertCredential);
+            } 
+            else
+            {
+                _logger.LogInformation("Using Client Secret for Graph service");
+
+                var clientSecretCredential = new ClientSecretCredential(
                     configuration.GetSection("AzureAd:TenantId").Value,
                     configuration.GetSection("AzureAd:ClientId").Value,
                     configuration.GetSection("AzureApp:ClientSecret").Value,
                     options
                 );
-            
-            this._graphClient = new GraphServiceClient(clientSecretCredential);
+
+                this._graphClient = new GraphServiceClient(clientSecretCredential);
+            }
         }
 
         public async Task<string> GetSecurityGroupName(string groupId)

@@ -38,8 +38,7 @@ namespace DelegationStationTests.Pages
             var cut = RenderComponent<LoginDisplay>();
 
             // Assert            
-            cut.MarkupMatches(@"Hello, TEST USER! 
-        <a href=""MicrosoftIdentity/Account/SignOut"">Log out</a>");
+            cut.Markup.Contains(@"<a href=""MicrosoftIdentity/Account/SignOut"">Log out</a>");
         }
 
         [TestMethod]

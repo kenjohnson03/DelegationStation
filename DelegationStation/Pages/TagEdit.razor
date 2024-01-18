@@ -32,12 +32,18 @@
             <h4>@tag.Description</h4>
             <br />
             <hr />
+        @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
+        {
+
+        
             <label>Name:</label>
             <InputText @bind-Value=tag.Name class="form-control"></InputText>
             <label>Description:</label>
             <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
             <br />
             <hr />
+
+        }
             <div class="container">
                 <h2>Assigned Groups</h2>
                 <table class="table table-responsive">
@@ -156,8 +162,7 @@
                     </tbody>
                 </table>
             </div>
-
-            @if (!userRole.IsDefaultRole())
+            @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
             {
                 <DisplayMessage Message="@deviceUpdateActionsValidationMessage" />
                 <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
@@ -317,8 +322,13 @@
                 <p class="text-success">@tagSuccessMessage</p>
             }
             <DisplayMessage Message=@securityGroupSearchMessage />
-            <button id="SaveButton" type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
-            <button id="DeleteButton" type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+
+            @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
+            {
+                <button id="SaveButton" type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
+                <button id="DeleteButton" type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+            }
+            
         }
     </Authorized>
         
@@ -701,7 +711,7 @@
         Guid g = Guid.NewGuid();
 
         // If the user is default
-        if (userRole.IsDefaultRole())
+        if (userRole.Attributes.Count == 0 && userRole.SecurityGroups == false && userRole.AdministrativeUnits == false)
         {
             tag = _tag;
             tagSuccessMessage = "";
@@ -733,7 +743,6 @@
 
         // Parse the user role to identify the activities they can perform
         // No updates to _tag delegation
-
         // User can update Attributes
         if (userRole.Attributes.Count > 0)
         {
@@ -759,6 +768,7 @@
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
             _tag.UpdateActions.AddRange(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit));
         }
+
 
         try
         {
@@ -792,7 +802,9 @@
         }
         else
         {
-            logger.LogWarning($"Error: '{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id}");
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}";
+            logger.LogWarning($"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}");
         }
     }
 

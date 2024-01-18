@@ -1,6 +1,6 @@
 ﻿<AuthorizeView>
     <Authorized>
-        Hello, @context.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault()! 
+        @context.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault()
         <a href="MicrosoftIdentity/Account/SignOut">Log out</a>
     </Authorized>
     <NotAuthorized>

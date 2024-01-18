@@ -50,6 +50,9 @@ Can be found in the Azure Portal under the App Registration -> Overview -> Appli
 <b>"AzureApp:ClientSecret" : ""</b><br/>
 Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client secrets
 
+<b>"AzureApp:ClientCertificateThumbprint" : ""</b><br/>
+Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
+
 <b>"AzureEnvironment" : ""</b><br/>
 Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
 
@@ -63,6 +66,10 @@ Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connecti
 Must be set to a cron expression to change the frequency of the function. The example is every 15 minutes.
 
 ## Service Principal Permissions
+The default permissions needed for users to access the application are the following:
+<b>
+User.Read<br/>
+</b>
 The service principal used by the application must have the following Graph API permissions to update device attributes:
 
 <b>

@@ -1,6 +1,7 @@
 ﻿@page "/DevicesBulkAction"
 @using System
 @using System.IO
+@using Microsoft.AspNetCore.Components.QuickGrid
 @using Microsoft.AspNetCore.Hosting
 @using Microsoft.Extensions.Logging
 @using System.ComponentModel.DataAnnotations;
@@ -82,6 +83,7 @@ else
             </div>
             
     }
+    
         <div class="row align-items-start mt-2">
             <div class="col-6">
                 <label for="Tags" class="form-label">Tags:</label>
@@ -140,7 +142,7 @@ else
     }
 
 
-    @if(devices.Count > 0)
+@*     @if(devices.Count > 0)
     {
         <b>Device data preview</b>
         <table class="table table-striped table-sm">
@@ -164,8 +166,17 @@ else
                 }
             </tbody>
         </table>
-    }
-    
+    } *@
+
+        <div>
+            <Microsoft.AspNetCore.Components.QuickGrid.QuickGrid Items="@loadedDevices" Pagination="@pagination" Class="table table-striped table-sm">
+        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Make" Property="@(p => p.Make)" />
+        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Model" Property="@(p => p.Model)" />
+        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Serial Number" Property="@(p => p.SerialNumber)" />
+        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Action" Property="@(p => p.Action)" />
+    </Microsoft.AspNetCore.Components.QuickGrid.QuickGrid>
+    </div>
+    <Paginator State="@pagination" />
 }
 </div>
 @code {
@@ -180,10 +191,13 @@ else
     private List<string> appliedTags = new();
 
     private List<IBrowserFile> loadedFiles = new();
-    private long maxFileSize = 1024 * 100;
+    
+    private long maxFileSize = 1024 * 30000;
     private int maxAllowedFiles = 1;
     private bool isLoading;
     private List<DeviceBulk> devices = new();
+    private IQueryable<DeviceBulk> loadedDevices = new List<DeviceBulk>().AsQueryable();
+    PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
     private List<string> fileError = new();
     private int completedDevices = 0;
     private int totalDevices = 0;
@@ -199,10 +213,23 @@ else
         {
             authState = await AuthState;
         }
+
         UpdateClaims();
         UpdateUserRole();
         await GetTags();
+        pagination.TotalItemCountChanged += (sender, eventArgs) => StateHasChanged();
     }
+
+    private async Task GoToPageAsync(int pageIndex)
+    {
+        await pagination.SetCurrentPageIndexAsync(pageIndex);
+    }
+
+    private string? PageButtonClass(int pageIndex)
+        => pagination.CurrentPageIndex == pageIndex ? "current" : null;
+
+    private string? AriaCurrentValue(int pageIndex)
+        => pagination.CurrentPageIndex == pageIndex ? "page" : null;
 
     private void UpdateUserRole()
     {
@@ -285,12 +312,12 @@ else
                     fileError.Add("File too large");
                     return;
                 }
-                if (file.ContentType != "text/csv")
-                {
-                    fileError.Add("Content type must be text/csv");
-                    isLoading = false;
-                    return;
-                }
+                // if (file.ContentType != "text/csv")
+                // {
+                //     fileError.Add("Content type must be text/csv");
+                //     isLoading = false;
+                //     return;
+                // }
 
 
                 var trustedFileNameForFileStorage = Path.GetRandomFileName();
@@ -393,7 +420,7 @@ else
                 }
             }
         }
-
+        loadedDevices = devices.AsQueryable();
         isLoading = false;
     }
 
