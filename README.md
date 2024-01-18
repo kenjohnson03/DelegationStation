@@ -41,20 +41,20 @@ Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connecti
 
 <b>"CertificateDistinguishedName" : ""</b><br/>
 
-"AzureAd": {
-&emsp;"Instance": "",
-&emsp;"Domain": "",
-&emsp;"TenantId": "",
-&emsp;"ClientId": "",
-&emsp;"CallbackPath": "",
-&emsp;"ClientCertificates": [
-&emsp;&emsp;{
-&emsp;&emsp;&emsp;"SourceType": "StoreWithDistinguishedName",
-&emsp;&emsp;&emsp;"CertificateStorePath": "CurrentUser/My",
-&emsp;&emsp;&emsp;"CertificateDistinguishedName": ""
-&emsp;&emsp;}
-&emsp;]
-}
+"AzureAd": {<br/>
+&emsp;"Instance": "",<br/>
+&emsp;"Domain": "",<br/>
+&emsp;"TenantId": "",<br/>
+&emsp;"ClientId": "",<br/>
+&emsp;"CallbackPath": "",<br/>
+&emsp;"ClientCertificates": [<br/>
+&emsp;&emsp;{<br/>
+&emsp;&emsp;&emsp;"SourceType": "StoreWithDistinguishedName",<br/>
+&emsp;&emsp;&emsp;"CertificateStorePath": "CurrentUser/My",<br/>
+&emsp;&emsp;&emsp;"CertificateDistinguishedName": ""<br/>
+&emsp;&emsp;}<br/>
+&emsp;]<br/>
+}<br/>
 
 
 ### Function App Environment Variables
