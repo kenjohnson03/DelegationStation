@@ -39,6 +39,24 @@ Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connecti
 <b>"DefaultActionDisable": "false"</b><br/>
 (Optional)Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
 
+<b>"CertificateDistinguishedName" : ""</b><br/>
+
+"AzureAd": {
+&emsp;"Instance": "",
+&emsp;"Domain": "",
+&emsp;"TenantId": "",
+&emsp;"ClientId": "",
+&emsp;"CallbackPath": "",
+&emsp;"ClientCertificates": [
+&emsp;&emsp;{
+&emsp;&emsp;&emsp;"SourceType": "StoreWithDistinguishedName",
+&emsp;&emsp;&emsp;"CertificateStorePath": "CurrentUser/My",
+&emsp;&emsp;&emsp;"CertificateDistinguishedName": ""
+&emsp;&emsp;}
+&emsp;]
+}
+
+
 ### Function App Environment Variables
 <b>"AzureAd:TenantId" : ""</b><br/>
 Can be found in the Azure Portal under Azure Active Directory -> Properties -> Directory ID
@@ -55,6 +73,10 @@ Can be found in the Azure Portal under the App Registration -> Certificates & se
 
 <b>"AzureEnvironment" : ""</b><br/>
 Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
+
+<b>""CertificateDistinguishedName" : ""</b><br/>
+Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
+Will look under CurrentUser\my store for the certificate with the distinguished name.
 
 <b>"COSMOS_CONNECTION_STRING": ""</b><br/>
 Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
