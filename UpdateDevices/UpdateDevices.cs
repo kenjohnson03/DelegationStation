@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http.Headers;
-using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Microsoft.Azure.Cosmos;
 using System.Text;
 using Microsoft.Graph;
@@ -18,11 +14,10 @@ using UpdateDevices.Models;
 using Microsoft.Graph.Models;
 using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
-using System.Runtime.CompilerServices;
 
 namespace UpdateDevices
 {
-    public class UpdateDevices
+  public class UpdateDevices
     {
         private static ILogger _logger;
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
@@ -308,7 +303,8 @@ namespace UpdateDevices
                 var managedDevices = await _graphClient.DeviceManagement.ManagedDevices
                     .GetAsync((requestConfiguration) =>
                     {
-                        requestConfiguration.QueryParameters.Select = ["id","manufacturer","model","serialNumber","azureADDeviceId"];
+                        //requestConfiguration.QueryParameters.Select = ["id","manufacturer","model","serialNumber","azureADDeviceId"];
+                        requestConfiguration.QueryParameters.Select = new string[] { "id", "manufacturer", "model", "serialNumber", "azureADDeviceId" };
                         requestConfiguration.QueryParameters.Filter = $"enrolledDateTime ge {dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")}";
                     });
 
