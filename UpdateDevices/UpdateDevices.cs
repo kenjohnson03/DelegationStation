@@ -1,11 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http.Headers;
-using System.Net.Http;
-using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Microsoft.Azure.Cosmos;
 using System.Text;
 using Microsoft.Graph;
@@ -16,11 +12,14 @@ using UpdateDevices.Models;
 using Microsoft.Graph.Models;
 using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
+using DelegationSharedLibrary;
 using Microsoft.Azure.Functions.Worker;
+
+
 
 namespace UpdateDevices
 {
-    public class UpdateDevices
+  public class UpdateDevices
     {
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
         private static Microsoft.Azure.Cosmos.Container _container = null;
@@ -36,9 +35,8 @@ namespace UpdateDevices
         [Function("UpdateDevices")]
         public async Task Run([TimerTrigger("%TriggerTime%")] TimerInfo timerInfo)
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger.LogInformation($"C# Timer trigger function {fullMethodName} executed at: {DateTime.Now}");
@@ -83,9 +81,8 @@ namespace UpdateDevices
             var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             if (String.IsNullOrEmpty(connectionString))
@@ -173,9 +170,8 @@ namespace UpdateDevices
 
         private async Task UpdateAttributesOnDeviceAsync(string deviceId, List<DeviceUpdateAction> updateActions)
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             if (string.IsNullOrEmpty(deviceId) || updateActions == null)
@@ -226,9 +222,8 @@ namespace UpdateDevices
 
         private async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(groupId))
@@ -265,9 +260,8 @@ namespace UpdateDevices
 
         private async Task AddDeviceToAzureAdministrativeUnit(string deviceId, string auId)
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(auId))
@@ -338,9 +332,8 @@ namespace UpdateDevices
         
         private async Task<FunctionSettings> GetFunctionSettings()
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
             FunctionSettings settings = new FunctionSettings();
             try
@@ -371,10 +364,10 @@ namespace UpdateDevices
 
         private async Task UpdateFunctionSettings()
         {
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
+
             FunctionSettings settings = new FunctionSettings();
             settings.LastRun = DateTime.UtcNow;
             try
@@ -395,9 +388,8 @@ namespace UpdateDevices
             var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
-            MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
-            string methodName = method.Name;
-            string className = method.ReflectedType.Name;
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             if (String.IsNullOrEmpty(connectionString) || String.IsNullOrEmpty(defaultActionDisable))
