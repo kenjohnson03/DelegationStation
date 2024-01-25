@@ -1,0 +1,89 @@
+name: software-test-build
+
+on:
+  workflow_dispatch:
+  push:
+
+# permissions:
+#   actions: read
+#   checks: write
+#   contents: read
+
+
+env:
+  AZ_ENVIRONMENT: AzureUSGovernment
+  CONFIGURATION: Release
+  DOTNET_CORE_VERSION: 8.0.x
+
+  AZURE_UPDATE_FUNCTION_NAME: sbx-netcom-delstation-update-fn
+  AZURE_UPDATE_FUNCTION_PACKAGE_PATH: .\published
+  AZURE_UPDATE_FUNCTION_PKG_NAME: update-function.zip
+
+  AZURE_APP_NAME: sbx-netcom-delstation-app
+  AZURE_APP_PACKAGE_PATH: .\published
+  AZURE_APP_PKG_NAME: webapp.zip
+
+  SRC_DIR: .
+  # TEST_DIR: ./src/WinGet.RestSource.UnitTest
+  
+jobs:
+
+   build-test:
+     runs-on: windows-latest
+     steps:
+     - uses: actions/checkout@v3
+
+     - name: Setup .NET SDK
+       uses: actions/setup-dotnet@v3
+       with:
+         dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
+
+     - name: Restore
+       run: dotnet restore "${{ env.SRC_DIR }}"
+
+       # FIXME:  Building each project separately to avoid failure caused by DelegationStationTests.  
+     - name: Build
+       run: |
+         dotnet build "${{ env.SRC_DIR }}/DelegationStationLibrary" --configuration ${{ env.CONFIGURATION }} --no-restore
+         dotnet build "${{ env.SRC_DIR }}/DelegationStation" --configuration ${{ env.CONFIGURATION }} --no-restore
+         dotnet build "${{ env.SRC_DIR }}/UpdateDevices" --configuration ${{ env.CONFIGURATION }} --no-restore
+         dotnet build "${{ env.SRC_DIR }}/IntuneEnrollment" --configuration ${{ env.CONFIGURATION }} --no-restore
+
+    #  - name: Unit Test Setup
+    #    shell: pwsh
+    #    run: |
+
+    #      # Launch Cosmos DB emulator
+    #      Import-Module "$env:ProgramFiles\Azure Cosmos DB Emulator\PSModules\Microsoft.Azure.CosmosDB.Emulator"
+    #      Start-CosmosDbEmulator
+     
+
+    #  - name: Unit Test
+    #    run: dotnet test "${{ env.TEST_DIR }}/WinGet.RestSource.UnitTest.csproj" --no-build --no-restore --verbosity normal --logger "trx;LogFileName=test-results.trx"
+     
+    #  - name: Generate Test Report
+    #    if: always()
+    #    uses:  dorny/test-reporter@v1
+    #    with:
+    #      name: Unit Tests
+    #      path: '${{ env.TEST_DIR }}/TestResults/*.trx'
+    #      reporter: dotnet-trx
+
+     - name: Publish Update Function
+       run: dotnet publish "${{ env.SRC_DIR }}/UpdateDevices" --configuration ${{ env.CONFIGURATION }} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
+
+     - name: Publish App
+       run: dotnet publish "${{ env.SRC_DIR }}/DelegationStation" --configuration ${{ env.CONFIGURATION }} --no-build --output "${{ env.AZURE_APP_PACKAGE_PATH }}"
+
+     - name: Upload Update Function Artifact
+       uses: actions/upload-artifact@v3
+       with:
+         name: ${{ env.AZURE_UPDATE_FUNCTION_PKG_NAME}}
+         path: ${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}
+
+     - name: Upload WebApp Artifact
+       uses: actions/upload-artifact@v3
+       with:
+         name: ${{ env.AZURE_APP_PKG_NAME}}
+         path: ${{ env.AZURE_APP_PACKAGE_PATH }}
+
