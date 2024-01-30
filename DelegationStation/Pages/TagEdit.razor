@@ -28,6 +28,7 @@
         }
         else if (tag != null)
         {
+          <EditForm Context="OutsideForm" Model="@tag" OnSubmit="Save">
             <h3>@tag.Name</h3>
             <h4>@tag.Description</h4>
             <br />
@@ -325,9 +326,10 @@
 
             @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
             {
-                <button id="SaveButton" type="button" class="btn btn-success" @onclick=@(() => Save())>Save</button>
+                <button id="SaveButton" class="btn btn-success" type="submit">Save</button>
                 <button id="DeleteButton" type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
             }
+            </EditForm>
             
         }
     </Authorized>
