@@ -441,17 +441,10 @@ namespace UpdateDevices
                 return;
             }
 
-            if (string.IsNullOrEmpty(ClientSecret) && !string.IsNullOrEmpty(subject))
+
+            if (!string.IsNullOrEmpty(subject))
             {
                 _logger.LogInformation("Using certificate authentication");
-            }
-            else
-            {
-                _logger.LogInformation("Using client secret authentication");
-            }
-
-            if (subject != null)
-            {
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
 
@@ -468,6 +461,7 @@ namespace UpdateDevices
             }
             else
             {
+                _logger.LogInformation("Using client secret authentication");
                 var clientSecretCredential = new ClientSecretCredential(
                     TenantId,
                     ClientId,
