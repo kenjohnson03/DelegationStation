@@ -20,12 +20,22 @@ namespace DelegationStation.Services
         {
             this._logger = logger;
 
+            var azureCloud = configuration.GetSection("AzureEnvironment").Value;
+
             var options = new TokenCredentialOptions
             {
-                AuthorityHost = configuration.GetSection("AzureEnvironment").Value == "AzurePublicCloud" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
+                AuthorityHost = azureCloud == "AzurePublicCloud" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
             };
-                        
-            
+
+            var scopes = new string[1];
+            if (azureCloud == "AzureGovernment")
+            {
+                scopes[0] = "https://graph.microsoft.us/.default";
+            }
+            else
+            {
+                scopes[0] = "https://graph.microsoft.com/.default";
+            }
 
             var certConfig = configuration.GetSection("AzureAd:ClientCertificates").GetChildren().FirstOrDefault();
 
@@ -43,7 +53,7 @@ namespace DelegationStation.Services
                     options
                 );
                 store.Close();
-                this._graphClient = new GraphServiceClient(clientCertCredential);
+                this._graphClient = new GraphServiceClient(clientCertCredential,scopes);
             } 
             else
             {
@@ -56,7 +66,7 @@ namespace DelegationStation.Services
                     options
                 );
 
-                this._graphClient = new GraphServiceClient(clientSecretCredential);
+                this._graphClient = new GraphServiceClient(clientSecretCredential,scopes);
             }
         }
 
