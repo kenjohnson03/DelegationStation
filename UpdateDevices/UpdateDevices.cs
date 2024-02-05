@@ -29,7 +29,7 @@ namespace UpdateDevices
 
         public UpdateDevices(ILoggerFactory loggerFactory)
         {
-            _logger = loggerFactory.CreateLogger<UpdateDevices>();
+          _logger = loggerFactory.CreateLogger<UpdateDevices>();
         }
 
         [Function("UpdateDevices")]
@@ -226,6 +226,8 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
+            var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
+
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(groupId))
             {
                 _logger.LogError($"{fullMethodName} Error: DeviceId or GroupId is null or empty. DeviceId: {deviceId} GroupId: {groupId}");
@@ -246,7 +248,7 @@ namespace UpdateDevices
             {
                 var requestBody = new ReferenceCreate
                 {
-                    OdataId = $"https://graph.microsoft.com/v1.0/devices/{deviceId}"
+                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceId}"
                 };
                 await _graphClient.Groups[$"{groupId}"].Members.Ref.PostAsync(requestBody);
                 _logger.LogInformation($"Added DeviceId {deviceId} to Group {groupId}");
@@ -264,6 +266,8 @@ namespace UpdateDevices
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
+
+            var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
 
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(auId))
             {
@@ -285,7 +289,7 @@ namespace UpdateDevices
             {
                 var requestBody = new ReferenceCreate
                 {
-                    OdataId = $"https://graph.microsoft.com/v1.0/devices/{deviceId}"
+                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceId}"
                 };
                 await _graphClient.Directory.AdministrativeUnits[$"{auId}"].Members.Ref.PostAsync(requestBody);
                 _logger.LogInformation($"Added DeviceId {deviceId} to Administrative Unit {auId}");
@@ -431,22 +435,15 @@ namespace UpdateDevices
             var ClientId = Environment.GetEnvironmentVariable("AzureAd:ClientId", EnvironmentVariableTarget.Process);
             var ClientSecret = Environment.GetEnvironmentVariable("AzureApp:ClientSecret", EnvironmentVariableTarget.Process);
             var azureCloud = Environment.GetEnvironmentVariable("AzureEnvironment", EnvironmentVariableTarget.Process);
+            var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
+
+            var scopes = new string[] { $"{graphEndpoint}.default" };
 
             var options = new TokenCredentialOptions
             {
                 AuthorityHost = azureCloud == "AzurePublicCloud" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
             };
 
-            var scopes = new string[1];
-            if (azureCloud == "AzureGovernment")
-            {
-                scopes[0] = "https://graph.microsoft.us/.default";
-            }
-            else
-            {
-                scopes[0] = "https://graph.microsoft.com/.default";
-            } 
-            
 
 
             if (string.IsNullOrEmpty(TenantId) || string.IsNullOrEmpty(ClientId) || (string.IsNullOrEmpty(ClientSecret) && string.IsNullOrEmpty(subject)))
@@ -463,7 +460,11 @@ namespace UpdateDevices
 
             if (!string.IsNullOrEmpty(subject))
             {
-                _logger.LogInformation("Using certificate authentication");
+                _logger.LogInformation("Using certificate authentication: ");
+                _logger.LogDebug("TenantId: " + TenantId);
+                _logger.LogDebug("ClientId: " + ClientId);
+                _logger.LogDebug("AzureCloud: " + azureCloud);
+                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
 
@@ -480,7 +481,11 @@ namespace UpdateDevices
             }
             else
             {
-                _logger.LogInformation("Using client secret authentication");
+                _logger.LogInformation("Using client secret authentication: ");
+                _logger.LogDebug("TenantId: " + TenantId);
+                _logger.LogDebug("ClientId: " + ClientId);
+                _logger.LogDebug("AzureCloud: " + azureCloud);
+                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
                 var clientSecretCredential = new ClientSecretCredential(
                     TenantId,
                     ClientId,
