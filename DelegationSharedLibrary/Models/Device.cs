@@ -9,18 +9,15 @@ namespace DelegationStationShared.Models
         [JsonProperty(PropertyName = "id")]
         public Guid Id { get; set; }
 
-        [Required(AllowEmptyStrings = false)]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Make is Required")]
         public string Make { get; set; }
 
-        [Required(AllowEmptyStrings = false, ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$")]
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Model is Required")]
 
         public string Model { get; set; }
 
 
-        [Required(AllowEmptyStrings = false)]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for this value.")]
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Serial Number is Required")]
         public string SerialNumber { get; set; }
 
         [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$",ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
