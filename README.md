@@ -88,7 +88,12 @@ Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connecti
 Must be set to a cron expression to change the frequency of the function. The example is every 15 minutes.
 
 ## Service Principal Permissions
-The default permissions needed for users to access the application are the following:
+The Web Application requires the following permissions to be set in the Azure Portal.
+<b>
+User.Read<br/>
+</b>
+
+The Function App permissions are the following:
 <b>
 User.Read<br/>
 </b>
@@ -110,6 +115,11 @@ AdministrativeUnit.ReadWrite.All<br/>
 To update Security Groups the service principal must have the following role assignments:
 
 Be the owner of the group.
+
+The Function app can alternatively be assigned the following role assignments in an Administrative Unit:
+<b>
+microsoft.directory/groups.security/members/update
+<br/>
 
 ## Application Registration Setup
 The application is designed to be deployed to an Azure App Service. The application can be deployed to a Windows or Linux App Service. The application can also be deployed to a container instance. The application can be deployed using the Azure CLI or Visual Studio. The application can also be deployed using GitHub Actions. The application can be deployed to a Windows or Linux App Service. The application can also be deployed to a container instance. The application can be deployed using the Azure CLI or Visual Studio. The application can also be deployed using GitHub Actions.
