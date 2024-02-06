@@ -114,12 +114,13 @@ namespace UpdateDevices
             List<DelegationStationShared.Models.Device> deviceResults = new List<DelegationStationShared.Models.Device>();
             try
             {
+
                 while (queryIterator.HasMoreResults)
                 {
                     var response = await queryIterator.ReadNextAsync();
                     deviceResults.AddRange(response.ToList());
                 }
-                _logger.LogInformation($"{fullMethodName} Found {deviceResults.Count}", deviceResults);
+                _logger.LogInformation($"{fullMethodName} Found {deviceResults.Count}");
             }
             catch (Exception ex)
             {
