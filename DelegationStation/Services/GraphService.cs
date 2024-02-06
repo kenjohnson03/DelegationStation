@@ -33,7 +33,7 @@ namespace DelegationStation.Services
 
             var certConfig = configuration.GetSection("AzureAd:ClientCertificates").GetChildren().FirstOrDefault();
 
-            if(certConfig != null)
+            if(certConfig?.Value != null)
             {
                _logger.LogInformation("Using certificate authentication: ");
                _logger.LogDebug("AzureCloud: " + azureCloud);
