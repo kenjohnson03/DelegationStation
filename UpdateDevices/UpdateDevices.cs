@@ -438,6 +438,7 @@ namespace UpdateDevices
             var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
 
             var scopes = new string[] { $"{graphEndpoint}.default" };
+            string baseUrl = graphEndpoint + "v1.0";
 
             var options = new TokenCredentialOptions
             {
@@ -477,7 +478,7 @@ namespace UpdateDevices
                     options
                 );
                 store.Close();
-                _graphClient = new GraphServiceClient(clientCertCredential,scopes);
+                _graphClient = new GraphServiceClient(clientCertCredential,scopes,baseUrl);
             }
             else
             {
@@ -493,7 +494,8 @@ namespace UpdateDevices
                     options
                 );
 
-                _graphClient = new GraphServiceClient(clientSecretCredential,scopes);
+                _graphClient = new GraphServiceClient(clientSecretCredential,scopes,baseUrl);
+
             }
         }
 
