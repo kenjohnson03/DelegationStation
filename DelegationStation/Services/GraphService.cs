@@ -21,26 +21,24 @@ namespace DelegationStation.Services
             this._logger = logger;
 
             var azureCloud = configuration.GetSection("AzureEnvironment").Value;
+            var graphEndpoint = configuration.GetSection("GraphEndpoint").Value;
 
             var options = new TokenCredentialOptions
             {
                 AuthorityHost = azureCloud == "AzurePublicCloud" ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
             };
 
-            var scopes = new string[1];
-            if (azureCloud == "AzureGovernment")
-            {
-                scopes[0] = "https://graph.microsoft.us/.default";
-            }
-            else
-            {
-                scopes[0] = "https://graph.microsoft.com/.default";
-            }
+            var scopes = new string[] { $"{graphEndpoint}.default" };
+            string baseUrl = graphEndpoint + "v1.0";
 
             var certConfig = configuration.GetSection("AzureAd:ClientCertificates").GetChildren().FirstOrDefault();
 
             if(certConfig != null)
             {
+               _logger.LogInformation("Using certificate authentication: ");
+               _logger.LogDebug("AzureCloud: " + azureCloud);
+               _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
                 _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certConfig.GetSection("CertificateDistinguishedName").Value);
@@ -53,11 +51,14 @@ namespace DelegationStation.Services
                     options
                 );
                 store.Close();
-                this._graphClient = new GraphServiceClient(clientCertCredential,scopes);
+                this._graphClient = new GraphServiceClient(clientCertCredential,scopes,baseUrl);
             } 
             else
             {
                 _logger.LogInformation("Using Client Secret for Graph service");
+                _logger.LogDebug("AzureCloud: " + azureCloud);
+                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+
 
                 var clientSecretCredential = new ClientSecretCredential(
                     configuration.GetSection("AzureAd:TenantId").Value,
@@ -66,7 +67,7 @@ namespace DelegationStation.Services
                     options
                 );
 
-                this._graphClient = new GraphServiceClient(clientSecretCredential,scopes);
+                this._graphClient = new GraphServiceClient(clientSecretCredential,scopes,baseUrl);
             }
         }
 
