@@ -1,6 +1,7 @@
 ﻿using Azure.Identity;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
@@ -31,9 +32,9 @@ namespace DelegationStation.Services
             var scopes = new string[] { $"{graphEndpoint}.default" };
             string baseUrl = graphEndpoint + "v1.0";
 
-            var certConfig = configuration.GetSection("AzureAd:ClientCertificates").GetChildren().FirstOrDefault();
+            var certDN = configuration.GetSection("AzureAd:ClientCertificates:CertificateDistinguishedName").Value;
 
-            if(certConfig?.Value != null)
+            if(!certDN.IsNullOrEmpty())
             {
                _logger.LogInformation("Using certificate authentication: ");
                _logger.LogDebug("AzureCloud: " + azureCloud);
@@ -41,8 +42,8 @@ namespace DelegationStation.Services
 
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
-                _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certConfig.GetSection("CertificateDistinguishedName").Value);
-                var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certConfig.GetSection("CertificateDistinguishedName").Value);
+                _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certDN);
+                var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certDN);
 
                 var clientCertCredential = new ClientCertificateCredential(
                     configuration.GetSection("AzureAd:TenantId").Value,
