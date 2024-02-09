@@ -36,10 +36,17 @@ Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending
 <b>"COSMOS_CONNECTION_STRING": ""</b><br/>
 Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
 
+<b>"COSMOS_DATABASE_NAME" : ""</b><br/>
+(Optional)The name of the Cosmos DB database. Default is "DelegationStationData"
+
+<b>"COSMOS_CONTAINER_NAME" : ""</b><br/>
+(Optional)The name of the Cosmos DB container. Default is "DeviceData"
+
 <b>"DefaultActionDisable": "false"</b><br/>
 (Optional)Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
 
 <b>"CertificateDistinguishedName" : ""</b><br/>
+The subject name of the certificate to be used for client certificate authentication. 
 
 "AzureAd": {<br/>
 &emsp;"Instance": "",<br/>
@@ -74,12 +81,18 @@ Can be found in the Azure Portal under the App Registration -> Certificates & se
 <b>"AzureEnvironment" : ""</b><br/>
 Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
 
-<b>""CertificateDistinguishedName" : ""</b><br/>
+<b>"CertificateDistinguishedName" : ""</b><br/>
 Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
 Will look under CurrentUser\my store for the certificate with the distinguished name.
 
 <b>"COSMOS_CONNECTION_STRING": ""</b><br/>
 Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
+
+<b>"COSMOS_DATABASE_NAME" : ""</b><br/>
+(Optional)The name of the Cosmos DB database. Default is "DelegationStationData"
+
+<b>"COSMOS_CONTAINER_NAME" : ""</b><br/>
+(Optional)The name of the Cosmos DB container. Default is "DeviceData"
 
 <b>"DefaultActionDisable": "false"</b><br/>
 (Optional)Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
