@@ -40,14 +40,19 @@ namespace DelegationStation.Services
             {
                 _logger.LogInformation("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
             }
+            if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_CONTAINER_NAME").Value))
+            {
+                _logger.LogInformation("COSMOS_CONTAINER_NAME is null or empty, using default value of DeviceData");
+            }
 
             string dbName = string.IsNullOrEmpty(configuration.GetSection("COSMOS_DATABASE_NAME").Value) ? "DelegationStationData" : configuration.GetSection("COSMOS_DATABASE_NAME").Value!;
+            string containerName = string.IsNullOrEmpty(configuration.GetSection("COSMOS_CONTAINER_NAME").Value) ? "DeviceData" : configuration.GetSection("COSMOS_CONTAINER_NAME").Value!;
 
             CosmosClient client = new(
                 connectionString: configuration.GetSection("COSMOS_CONNECTION_STRING").Value!
             );
-            ConfigureCosmosDatabase(client, "DelegationStation", dbName);
-            this._container = client.GetContainer("DelegationStation", dbName);
+            ConfigureCosmosDatabase(client, dbName, containerName);
+            this._container = client.GetContainer(dbName, containerName);
             _DefaultGroup = configuration.GetSection("DefaultAdminGroupObjectId").Value;
         }
 

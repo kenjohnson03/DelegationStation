@@ -397,8 +397,20 @@ namespace UpdateDevices
 
         private void ConnectToCosmosDb()
         {
-            var databaseName = "DelegationStation";
-            var containerName = "DeviceData";
+            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
+            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
+
+            if (string.IsNullOrEmpty(containerName))
+            {
+                _logger.LogWarning("COSMOS_CONTAINER_NAME is null or empty, using default value of DeviceData");
+                containerName = "DeviceData";
+            }
+            if(string.IsNullOrEmpty(databaseName))
+            {
+                _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
+                databaseName = "DelegationStationData";
+            }
+
             var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
