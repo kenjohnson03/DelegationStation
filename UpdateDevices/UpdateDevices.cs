@@ -44,7 +44,9 @@ namespace UpdateDevices
 
 
             ConnectToCosmosDb();
+            _logger.LogInformation($"{fullMethodName} Connect to Cosmos DB called");
             ConnectToGraph();
+            _logger.LogInformation($"{fullMethodName} Connect to Graph called");
 
             if (_container == null)
             {
@@ -76,40 +78,23 @@ namespace UpdateDevices
         private async Task RunDeviceUpdateActionsAsync(Microsoft.Graph.Models.ManagedDevice device)
         {
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
-            var databaseName = "DelegationStation";
-            var containerName = "DeviceData";
-            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
+
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            if (String.IsNullOrEmpty(connectionString))
-            {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine($"{fullMethodName} Error: Missing required environment variables. Please check the following environment variables are set:");
-                sb.Append(String.IsNullOrEmpty(connectionString) ? "COSMOS_CONNECTION_STRING\n" : "");
-                _logger.LogError(sb.ToString());
-                return;
-            }
             if (String.IsNullOrEmpty(defaultActionDisable))
             {
                 _logger.LogInformation($"{fullMethodName} DefaultActionDisable environment variable not set. Defaulting to false");
             }
 
-            CosmosClient client = new(
-                connectionString: connectionString
-            );
-            Microsoft.Azure.Cosmos.Container container = client.GetContainer(databaseName, containerName);
-
-            _logger.LogInformation("Connected to Cosmos DB");
-
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Make = @manufacturer AND c.Model = @model AND c.SerialNumber = @serialNumber")
                 .WithParameter("@manufacturer", device.Manufacturer.Trim())
                 .WithParameter("@model", device.Model.Trim())
                 .WithParameter("@serialNumber", device.SerialNumber.Trim());
-            var queryIterator = container.GetItemQueryIterator<DelegationStationShared.Models.Device>(query);
+            var queryIterator = _container.GetItemQueryIterator<DelegationStationShared.Models.Device>(query);
 
             List<DelegationStationShared.Models.Device> deviceResults = new List<DelegationStationShared.Models.Device>();
             try
@@ -145,7 +130,7 @@ namespace UpdateDevices
                 DeviceTag tag = new DeviceTag();
                 try
                 {
-                    ItemResponse<DeviceTag> tagResponse = await container.ReadItemAsync<DeviceTag>(tagId, new PartitionKey("DeviceTag"));
+                    ItemResponse<DeviceTag> tagResponse = await _container.ReadItemAsync<DeviceTag>(tagId, new PartitionKey("DeviceTag"));
                     tag = tagResponse.Resource;
                     _logger.LogInformation($"{fullMethodName} Information: Found tag {tag.Name}", tag);
                 }
@@ -154,17 +139,38 @@ namespace UpdateDevices
                     _logger.LogError($"{fullMethodName} Error: Get tag {tagId} failed.\n {ex.Message}", ex);
                 }
 
-                foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Group))
-                {
-                    await AddDeviceToAzureADGroup(device.AzureADDeviceId, deviceUpdateAction.Value);
-                }
-
-                await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
-
                 foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.AdministrativeUnit))
                 {
-                    await AddDeviceToAzureAdministrativeUnit(device.AzureADDeviceId, deviceUpdateAction.Value);
+                    try
+                    {
+                        await AddDeviceToAzureAdministrativeUnit(device.AzureADDeviceId, deviceUpdateAction.Value);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"{fullMethodName} Error: AddDeviceToAzureAdministrativeUnit failed.\n {ex.Message}", ex);
+                    }
                 }
+
+                foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Group))
+                {
+                    try
+                    {
+                        await AddDeviceToAzureADGroup(device.AzureADDeviceId, deviceUpdateAction.Value);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"{fullMethodName} Error: AddDeviceToAzureADGroup failed.\n {ex.Message}", ex);
+                    }
+                }
+
+                try
+                {
+                    await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"{fullMethodName} Error: UpdateAttributesOnDeviceAsync failed.\n {ex.Message}", ex);
+                }                
             }
         }
 
@@ -397,8 +403,20 @@ namespace UpdateDevices
 
         private void ConnectToCosmosDb()
         {
-            var databaseName = "DelegationStation";
-            var containerName = "DeviceData";
+            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
+            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
+
+            if (string.IsNullOrEmpty(containerName))
+            {
+                _logger.LogWarning("COSMOS_CONTAINER_NAME is null or empty, using default value of DeviceData");
+                containerName = "DeviceData";
+            }
+            if(string.IsNullOrEmpty(databaseName))
+            {
+                _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
+                databaseName = "DelegationStationData";
+            }
+
             var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
