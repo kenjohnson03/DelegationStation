@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
 using DelegationSharedLibrary;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.IdentityModel.Tokens;
 
 
 
@@ -125,6 +126,32 @@ namespace UpdateDevices
             }
 
             DelegationStationShared.Models.Device d = deviceResults.FirstOrDefault();
+
+            //Get device object ID from Graph which is needed for update actions
+            var deviceObjectID = "";
+            try
+            {
+      
+              var deviceObj = await _graphClient.Devices.GetAsync((requestConfiguration) =>
+              {
+                requestConfiguration.QueryParameters.Filter = $"deviceId eq '{device.AzureADDeviceId}'";
+                requestConfiguration.QueryParameters.Select = new string[] { "id" };
+              });
+              deviceObjectID = deviceObj.Value.FirstOrDefault().Id;
+
+            }
+            catch (Exception ex)
+            {
+              _logger.LogError($"{fullMethodName} Error: Failed to retrieve graph device ID using .\n {ex.Message}", ex);
+              return;
+            }
+            if (deviceObjectID.IsNullOrEmpty())
+            {
+              _logger.LogError($"{fullMethodName} Error: Failed to retrieve graph device ID using .\n");
+              return;
+            }
+
+
             foreach (string tagId in d.Tags)
             {
                 DeviceTag tag = new DeviceTag();
@@ -143,7 +170,7 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await AddDeviceToAzureAdministrativeUnit(device.AzureADDeviceId, deviceUpdateAction.Value);
+                        await AddDeviceToAzureAdministrativeUnit(deviceObjectID, deviceUpdateAction.Value);
                     }
                     catch (Exception ex)
                     {
@@ -155,7 +182,7 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await AddDeviceToAzureADGroup(device.AzureADDeviceId, deviceUpdateAction.Value);
+                        await AddDeviceToAzureADGroup(deviceObjectID, deviceUpdateAction.Value);
                     }
                     catch (Exception ex)
                     {
@@ -165,7 +192,7 @@ namespace UpdateDevices
 
                 try
                 {
-                    await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
+                    await UpdateAttributesOnDeviceAsync(deviceObjectID, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
                 }
                 catch (Exception ex)
                 {
@@ -224,7 +251,16 @@ namespace UpdateDevices
                     }
             };
 
-            var result = await _graphClient.Devices[$"{deviceId}"].PatchAsync(requestBody);               
+            try
+            {
+                var result = await _graphClient.Devices[$"{deviceId}"].PatchAsync(requestBody);
+                _logger.LogInformation($"Updated attributes on DeviceId {deviceId}");
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError($"Unable to update ExtenstionAttributes to DeviceId {deviceId}");
+                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+            }
         }
 
         private async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
