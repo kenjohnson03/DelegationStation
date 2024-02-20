@@ -107,9 +107,6 @@ User.Read<br/>
 </b>
 
 The Function App permissions are the following:
-<b>
-User.Read<br/>
-</b>
 The service principal used by the application must have the following Graph API permissions to update device attributes:
 
 <b>
@@ -118,6 +115,9 @@ Directory.Read.All<br/>
 DeviceManagementManagedDevices.Read.All<br/>
 </b>
 <br/>
+
+To add devices to Groups the service prinicpal must have this permission:
+<b>GroupMembers.ReadWriteAll<br/>
 
 For updates to Administrative Units the service principal must have the following role assignments:
 
