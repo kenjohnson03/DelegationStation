@@ -157,7 +157,7 @@
                                 <td>@a.ActionType</td>
                                 <td>@a.Name</td>
                                 <td>@a.Value</td>
-                                <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => { }))><span class="oi oi-trash"></span> Delete</button></td>                                    
+                                <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button></td>                                    
                             </tr>
                         }
                     </tbody>
@@ -327,7 +327,7 @@
             @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
             {
                 <button id="SaveButton" class="btn btn-success" type="submit">Save</button>
-                <button id="DeleteButton" type="button" class="btn btn-danger" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+                <button id="DeleteButton" type="button" class="btn btn-danger @(userRole.IsAdminRole() ? "" : "disabled")" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
             }
             </EditForm>
             
@@ -452,11 +452,11 @@
         {
             if (Id != null)
             {
-                tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+                _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
 
                 if (tag != null)
                 {
-                    _tag = tag;
+                    tag = _tag.ShallowCopy();
                 }
             }
         }
@@ -466,7 +466,7 @@
         }
     }
 
-    private void UpdateUserRole()
+    private async void UpdateUserRole()
     {
         if(string.IsNullOrEmpty(defaultGroup))
         {
@@ -478,7 +478,31 @@
         }
         else
         {
-            userRole = userRole.GetRole(groups, tag);
+            foreach(RoleDelegation r in _tag.RoleDelegations)
+            {
+                try
+                {
+                    Role role = await roleDBService.GetRoleAsync(r.Role.Id.ToString());
+                    if (role != null)
+                    {
+                        r.Role = role;
+                    }
+                    else
+                    {
+                        _tag.RoleDelegations.Remove(r);
+                        logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");
+                        tag = _tag.ShallowCopy();
+                        await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _tag.RoleDelegations.Remove(r);
+                    logger.LogError($"Failed to get Role Delegation for Role '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.\n{ex.Message}");                    
+                }
+            }
+        
+            userRole = userRole.GetRole(groups, _tag);
         }
         StateHasChanged();
     }
@@ -634,20 +658,20 @@
         }
     }
 
-    private async void AddDeviceUpdateAction(EditContext editContext)
+    private void AddDeviceUpdateAction(EditContext editContext)
     {
         deviceUpdateActionsValidationMessage = "";
         addDeviceUpdateState = "disabled";
         deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
         deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
 
-        if (userRole.IsAdminRole() == false)
-        {
-            deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
-            logger.LogWarning(deviceUpdateActionsValidationMessage);
-            addDeviceUpdateState = "";
-            return;
-        }
+        // if (userRole.IsAdminRole() == false)
+        // {
+        //     deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
+        //     logger.LogWarning(deviceUpdateActionsValidationMessage);
+        //     addDeviceUpdateState = "";
+        //     return;
+        // }
 
         if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && !System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
         {
@@ -661,8 +685,7 @@
             try
             {
                 if (string.IsNullOrEmpty(deviceUpdateAction.Name))
-                {
-                    deviceUpdateAction.Name = await graphService.GetSecurityGroupName(deviceUpdateAction.Value);
+                {                    
                     deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
                     addDeviceUpdateState = "";
                     return;
@@ -753,6 +776,10 @@
                 if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
                 {
                     _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value = tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value;
+                }           
+                else if(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                {
+                    _tag.UpdateActions.Add(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First());
                 }
             }
         }
