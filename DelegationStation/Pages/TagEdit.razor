@@ -664,15 +664,7 @@
         addDeviceUpdateState = "disabled";
         deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
         deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
-
-        // if (userRole.IsAdminRole() == false)
-        // {
-        //     deviceUpdateActionsValidationMessage = $"'{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
-        //     logger.LogWarning(deviceUpdateActionsValidationMessage);
-        //     addDeviceUpdateState = "";
-        //     return;
-        // }
-
+ 
         if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && !System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
         {
             deviceUpdateActionsValidationMessage = $"When using a group update action value must be a valid GUID";
