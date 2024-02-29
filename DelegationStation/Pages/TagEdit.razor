@@ -478,33 +478,46 @@
         }
         else
         {
+            List<RoleDelegation> rolesToRemove = new List<RoleDelegation>();
             foreach(RoleDelegation r in _tag.RoleDelegations)
             {
-                try
+                Role? role = await GetRole(r.Role.Id.ToString());
+                if(role != null)
                 {
-                    Role role = await roleDBService.GetRoleAsync(r.Role.Id.ToString());
-                    if (role != null)
-                    {
-                        r.Role = role;
-                    }
-                    else
-                    {
-                        _tag.RoleDelegations.Remove(r);
-                        logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");
-                        tag = _tag.ShallowCopy();
-                        await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
-                    }
+                    r.Role = role;
                 }
-                catch (Exception ex)
-                {
-                    _tag.RoleDelegations.Remove(r);
-                    logger.LogError($"Failed to get Role Delegation for Role '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.\n{ex.Message}");                    
+                else
+                {                    
+                    logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");     
                 }
             }
-        
+            foreach(RoleDelegation r in rolesToRemove)
+            {
+                _tag.RoleDelegations.Remove(r);
+            }
+            if(rolesToRemove.Count > 0)
+            {
+                await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
+            }
+            
+            tag = _tag.ShallowCopy();
             userRole = userRole.GetRole(groups, _tag);
         }
         StateHasChanged();
+    }
+
+    private async Task<Role?> GetRole(string roleId)
+    {
+        Role? role = null;
+        try
+        {
+            role = await roleDBService.GetRoleAsync(roleId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Failed to get Role {roleId}.\n{ex.Message}");
+        }
+        return role;
     }
 
     private void UpdateClaims()
