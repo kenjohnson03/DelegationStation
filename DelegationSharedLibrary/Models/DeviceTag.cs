@@ -26,5 +26,9 @@ namespace DelegationStationShared.Models
             PartitionKey = typeof(DeviceTag).Name;
         }
 
+        public DeviceTag ShallowCopy()
+        {
+            return (DeviceTag) this.MemberwiseClone();
+        }
     }
 }
