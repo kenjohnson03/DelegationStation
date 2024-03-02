@@ -124,134 +124,134 @@
 
 
 @code {
-    [CascadingParameter]
-    public Task<AuthenticationState>? AuthState { get; set; }
-    private AuthenticationState? authState;
-    private List<string> groups = new List<string>();
-    private List<Device> devices = new List<Device>();
-    private List<DeviceTag> deviceTags = new List<DeviceTag>();
-    private Device newDevice = new Device();
-    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
-    private string tagSearch = "";
-    private string deviceAddValidationMessage = "";
-    private int pageSize = 10;
-    private int currentPage = 0;
-    private string search = "";
-    private Device searchDevice = new Device();
-    private bool devicesLoading = true;
+  [CascadingParameter]
+  public Task<AuthenticationState>? AuthState { get; set; }
+  private AuthenticationState? authState;
+  private List<string> groups = new List<string>();
+  private List<Device> devices = new List<Device>();
+  private List<DeviceTag> deviceTags = new List<DeviceTag>();
+  private Device newDevice = new Device();
+  private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
+  private string tagSearch = "";
+  private string deviceAddValidationMessage = "";
+  private int pageSize = 10;
+  private int currentPage = 0;
+  private string search = "";
+  private Device searchDevice = new Device();
+  private bool devicesLoading = true;
 
 
-    protected override async Task OnInitializedAsync()
+  protected override async Task OnInitializedAsync()
+  {
+    if (AuthState != null)
     {
-        if (AuthState != null)
+      authState = await AuthState;
+    }
+    UpdateClaims();
+    UpdateUserRole();
+    await GetTags();
+    await GetDevices();        
+  }
+
+  private void UpdateUserRole()
+  {
+    string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+    if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
+    {
+      userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
+      return;
+    }
+    else if(deviceTags.Count > 0)
+    {
+      List<Role> roles = new List<Role>();
+      foreach(DeviceTag t in deviceTags)
+      {
+        foreach(RoleDelegation rd in t.RoleDelegations)
         {
-            authState = await AuthState;
+          roles.Add(rd.Role);
         }
-        UpdateClaims();
-        UpdateUserRole();
-        await GetTags();
-        await GetDevices();        
+      }            
+    }        
+  }
+
+  private void UpdateClaims()
+  {
+    groups = new List<string>();
+    var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+
+    if(groupClaims == null)
+    {
+      return;
     }
 
-    private void UpdateUserRole()
+    foreach (var c in groupClaims)
     {
-        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
-        {
-            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
-            return;
-        }
-        else if(deviceTags.Count > 0)
-        {
-            List<Role> roles = new List<Role>();
-            foreach(DeviceTag t in deviceTags)
-            {
-                foreach(RoleDelegation rd in t.RoleDelegations)
-                {
-                    roles.Add(rd.Role);
-                }
-            }            
-        }        
+      groups.Add(c.Value);
     }
+  }
 
-    private void UpdateClaims()
+  private async Task GetTags()
+  {
+    try
     {
-        groups = new List<string>();
-        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
-
-        if(groupClaims == null)
-        {
-            return;
-        }
-
-        foreach (var c in groupClaims)
-        {
-            groups.Add(c.Value);
-        }
+      deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
     }
-
-    private async Task GetTags()
+    catch(Exception ex)
     {
-        try
-        {
-            deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
-        }
-        catch(Exception ex)
-        {
-            logger.LogError($"Error retrieving tags.\n{ex.Message}");
-        }
+      logger.LogError($"Error retrieving tags.\n{ex.Message}");
     }
+  }
 
-    private async Task GetDevices()
-    {        
-        try
-        {
-            devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
-        }
-        catch(Exception ex)
-        {
-            logger.LogError($"Error retreiving Devices.\n{ex.Message}");
-        }
-        finally
-        {
-            devicesLoading = false;
-        }
-    }
-
-    private async Task GetDevicesSearch()
+  private async Task GetDevices()
+  {        
+    try
     {
-        try
-        {
-            devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"Error retreiving Devices.\n{ex.Message}");
-        }
+      devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
     }
-
-    private async Task AddDevice()
+    catch(Exception ex)
     {
-        try
-        {
-            string Id = deviceTags.Select(t => t.Id.ToString()).FirstOrDefault() ?? "";
-            if(newDevice.Tags.Count < 1 && !string.IsNullOrEmpty(Id))
-            {
-                newDevice.Tags.Add(Id);
-            }
-            else if (newDevice.Tags.Count < 1)
-            {
-                deviceAddValidationMessage = "Device must have at least one Tag";
-                return;
-            } 
-            else if(newDevice.Tags.Count > 1)
-            {
-                deviceAddValidationMessage = "Device must only have one Tag";
-                return;
-            }
-            newDevice.ModifiedUTC = DateTime.UtcNow;
-            newDevice.AddedBy = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").ToString();
-            Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
+      logger.LogError($"Error retreiving Devices.\n{ex.Message}");
+    }
+    finally
+    {
+      devicesLoading = false;
+    }
+  }
+
+  private async Task GetDevicesSearch()
+  {
+    try
+    {
+      devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError($"Error retreiving Devices.\n{ex.Message}");
+    }
+  }
+
+  private async Task AddDevice()
+  {
+    try
+    {
+      string Id = deviceTags.Select(t => t.Id.ToString()).FirstOrDefault() ?? "";
+      if(newDevice.Tags.Count < 1 && !string.IsNullOrEmpty(Id))
+      {
+        newDevice.Tags.Add(Id);
+      }
+      else if (newDevice.Tags.Count < 1)
+      {
+        deviceAddValidationMessage = "Device must have at least one Tag";
+        return;
+      } 
+      else if(newDevice.Tags.Count > 1)
+      {
+        deviceAddValidationMessage = "Device must only have one Tag";
+        return;
+      }
+      newDevice.ModifiedUTC = DateTime.UtcNow;
+      newDevice.AddedBy = authState?.User.Claims.First(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Value.ToString();
+      Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
             devices.Add(resp);
             newDevice = new Device();
             deviceAddValidationMessage = "";
