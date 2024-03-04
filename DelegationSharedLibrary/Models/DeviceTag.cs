@@ -12,6 +12,8 @@ namespace DelegationStationShared.Models
         public string Description { get; set; }
         public List<RoleDelegation> RoleDelegations { get; set; }
         public List<DeviceUpdateAction> UpdateActions { get; set; }
+        public DateTime? Modified { get; set; }
+        public string ModifiedBy { get; set; }
 
         [Required(AllowEmptyStrings = false)]
         public string PartitionKey { get; set; }
@@ -24,6 +26,7 @@ namespace DelegationStationShared.Models
             RoleDelegations = new List<RoleDelegation>();
             UpdateActions = new List<DeviceUpdateAction>();
             PartitionKey = typeof(DeviceTag).Name;
+            ModifiedBy = string.Empty;
         }
 
         public DeviceTag DeepCopyKeepId()
