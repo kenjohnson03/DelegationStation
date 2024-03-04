@@ -26,9 +26,20 @@ namespace DelegationStationShared.Models
             PartitionKey = typeof(DeviceTag).Name;
         }
 
-        public DeviceTag ShallowCopy()
+        public DeviceTag DeepCopyKeepId()
         {
-            return (DeviceTag) this.MemberwiseClone();
+            DeviceTag other = (DeviceTag) this.MemberwiseClone();
+            other.RoleDelegations = new List<RoleDelegation>();
+            foreach(RoleDelegation roleDelegation in this.RoleDelegations)
+            {
+                other.RoleDelegations.Add(roleDelegation.DeepCopyKeepId());
+            }
+            other.UpdateActions = new List<DeviceUpdateAction>();
+            foreach(DeviceUpdateAction updateAction in this.UpdateActions)
+            {
+                other.UpdateActions.Add(updateAction.DeepCopyKeepId());
+            }
+            return other;
         }
     }
 }

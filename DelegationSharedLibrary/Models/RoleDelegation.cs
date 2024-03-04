@@ -24,5 +24,13 @@ namespace DelegationStationShared.Models
             SecurityGroupName = string.Empty;
             PartitionKey = this.Id.ToString();
         }
+
+        public RoleDelegation DeepCopyKeepId()
+        {
+            RoleDelegation other = (RoleDelegation)this.MemberwiseClone();
+            other.Id = Guid.NewGuid();
+            other.Role = this.Role.DeepCopyKeepId();
+            return other;
+        }
     }
 }

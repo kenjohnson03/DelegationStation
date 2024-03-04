@@ -33,6 +33,12 @@ namespace DelegationStationShared.Models
             Name = string.Empty;
             Value = string.Empty;
         }
+
+        public DeviceUpdateAction DeepCopyKeepId()
+        {
+            DeviceUpdateAction other = (DeviceUpdateAction)this.MemberwiseClone();
+            return other;
+        }
     }
 
     public enum DeviceUpdateActionType
