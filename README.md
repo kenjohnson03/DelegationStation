@@ -241,6 +241,10 @@ Can be found in the Azure Portal under Azure Active Directory -> Groups -> Group
 <b>"AzureEnvironment" : ""</b><br/>
 Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
 
+<b>"GraphEndpoint": ""</b><br/>
+The URL of the graph instance you will be connecting to. 
+For example, "https://graph.microsoft.com/"
+
 <b>"AllowedHosts": "*"</b><br/>
 
 <b>"DefaultActionDisable": "false"</b><br/>
