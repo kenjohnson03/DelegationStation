@@ -344,117 +344,117 @@
 
 
 @code {
-    [CascadingParameter]
-    public Task<AuthenticationState>? AuthState { get; set; }
-    [Parameter] public string? Id { get; set; }
+  [CascadingParameter]
+  public Task<AuthenticationState>? AuthState { get; set; }
+  [Parameter] public string? Id { get; set; }
 
     private ConfirmMessage? ConfirmDelete;
     private ConfirmMessage? ConfirmSave;
 
 
-    public List<string> pGroups
-    {
-        get {
-            return groups;
-        }
-        set {
-        }
+  public List<string> pGroups
+  {
+    get {
+      return groups;
     }
-
-    private DeviceTag _tag = new DeviceTag();
-    private AuthenticationState? authState;
-    private List<string> groups = new List<string>();
-    private List<Role> roles = new List<Role>();
-    private Role userRole = (new Role()).GetDefaultRole();
-    private DeviceTag tag = new DeviceTag();
-    private RoleDelegation roleDelegation = new RoleDelegation();
-    private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
-    private string defaultGroup = "";
-    private string userName = "";
-    private string userId = "";
-    private string deviceUpdateActionsValidationMessage = "";
-    private string addDeviceUpdateState = "";
-    private string tagErrorMessage = "";
-    private string tagSuccessMessage = "";
-    private EditContext? deviceUpdateActionEditContext;
-    private string userMessage = "";
-
-    private string securityGroupSearchString = "";
-    private List<Group> securityGroupSearchResults = new List<Group>();
-    private string securityGroupSearchMessage = "";
-    private bool securityGroupSearchInProgress = false;
-    private bool securityGroupSearchExecuted = false;
-
-    private string administrativeUnitSearchString = "";
-    private List<AdministrativeUnit> administrativeUnitSearchResults = new List<AdministrativeUnit>();
-    private string administrativeUnitSearchMessage = "";
-    private bool administrativeUnitSearchInProgress = false;
-    private bool administrativeUnitSearchExecuted = false;
-
-    private string roleSecurityGroupSearchString = "";
-    private List<Group> roleSecurityGroupSearchResults = new List<Group>();
-    private string roleSecurityGroupSearchMessage = "";
-    private bool roleSecurityGroupSearchInProgress = false;
-    private bool roleSecurityGroupSearchExecuted = false;
-    private string addRoleMessage = "";
-
-
-    protected override async Task OnInitializedAsync()
-    {
-        deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
-        deviceUpdateActionEditContext.OnFieldChanged += DeviceUpdateAction_OnFieldChanged;
-
-
-        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (AuthState != null)
-        {
-            authState = await AuthState;
-            userName = authState?.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            userId = authState?.User.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-        }
-        await GetTag();
-        UpdateClaims();
-        UpdateUserRole();
-        await UpdateRoleDelegationGroups();
-        await GetRolesAsync();
+    set {
     }
+  }
 
-    private async Task GetRolesAsync()
-    {        
-        try
-        {
-            roles = await roleDBService.GetRolesAsync();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"Failed to get Roles.\n{ex.Message}");
-        }
-    }
+  private DeviceTag _tag = new DeviceTag();
+  private AuthenticationState? authState;
+  private List<string> groups = new List<string>();
+  private List<Role> roles = new List<Role>();
+  private Role userRole = (new Role()).GetDefaultRole();
+  private DeviceTag tag = new DeviceTag();
+  private RoleDelegation roleDelegation = new RoleDelegation();
+  private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
+  private string defaultGroup = "";
+  private string userName = "";
+  private string userId = "";
+  private string deviceUpdateActionsValidationMessage = "";
+  private string addDeviceUpdateState = "";
+  private string tagErrorMessage = "";
+  private string tagSuccessMessage = "";
+  private EditContext? deviceUpdateActionEditContext;
+  private string userMessage = "";
+
+  private string securityGroupSearchString = "";
+  private List<Group> securityGroupSearchResults = new List<Group>();
+  private string securityGroupSearchMessage = "";
+  private bool securityGroupSearchInProgress = false;
+  private bool securityGroupSearchExecuted = false;
+
+  private string administrativeUnitSearchString = "";
+  private List<AdministrativeUnit> administrativeUnitSearchResults = new List<AdministrativeUnit>();
+  private string administrativeUnitSearchMessage = "";
+  private bool administrativeUnitSearchInProgress = false;
+  private bool administrativeUnitSearchExecuted = false;
+
+  private string roleSecurityGroupSearchString = "";
+  private List<Group> roleSecurityGroupSearchResults = new List<Group>();
+  private string roleSecurityGroupSearchMessage = "";
+  private bool roleSecurityGroupSearchInProgress = false;
+  private bool roleSecurityGroupSearchExecuted = false;
+  private string addRoleMessage = "";
 
 
-    private void DeviceUpdateAction_OnFieldChanged(object? sender, FieldChangedEventArgs e)
+  protected override async Task OnInitializedAsync()
+  {
+    deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
+    deviceUpdateActionEditContext.OnFieldChanged += DeviceUpdateAction_OnFieldChanged;
+
+
+    defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
+    if (AuthState != null)
     {
-        deviceUpdateActionEditContext?.Validate();
-        if(e.FieldIdentifier.FieldName == nameof(deviceUpdateAction.ActionType))
-        {
-            DeviceUpdateActionTypeChanged(deviceUpdateAction.ActionType.ToString());
-        }
+      authState = await AuthState;
+      userName = authState?.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+      userId = authState?.User.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
     }
+    await GetTag();
+    UpdateClaims();
+    UpdateUserRole();
+    await UpdateRoleDelegationGroups();
+    await GetRolesAsync();
+  }
 
-    private void DeviceUpdateActionTypeChanged(string value)
+  private async Task GetRolesAsync()
+  {        
+    try
     {
-        DeviceUpdateActionType a = deviceUpdateAction.ActionType;
-        deviceUpdateAction = new DeviceUpdateAction();
-        deviceUpdateAction.ActionType = a;
+      roles = await roleDBService.GetRolesAsync();
     }
-
-    private async Task GetTag()
+    catch (Exception ex)
     {
-        try
-        {
-            if (Id != null)
-            {
-                _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+      logger.LogError($"Failed to get Roles.\n{ex.Message}");
+    }
+  }
+
+
+  private void DeviceUpdateAction_OnFieldChanged(object? sender, FieldChangedEventArgs e)
+  {
+    deviceUpdateActionEditContext?.Validate();
+    if(e.FieldIdentifier.FieldName == nameof(deviceUpdateAction.ActionType))
+    {
+      DeviceUpdateActionTypeChanged(deviceUpdateAction.ActionType.ToString());
+    }
+  }
+
+  private void DeviceUpdateActionTypeChanged(string value)
+  {
+    DeviceUpdateActionType a = deviceUpdateAction.ActionType;
+    deviceUpdateAction = new DeviceUpdateAction();
+    deviceUpdateAction.ActionType = a;
+  }
+
+  private async Task GetTag()
+  {
+    try
+    {
+      if (Id != null)
+      {
+        _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
 
                 if (tag != null)
                 {
@@ -509,57 +509,66 @@
         StateHasChanged();
     }
 
-    private async Task<Role?> GetRole(string roleId)
+  private async Task<Role?> GetRole(string roleId)
+  {
+    Role? role = null;
+    try
     {
-        Role? role = null;
-        try
-        {
-            role = await roleDBService.GetRoleAsync(roleId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"Failed to get Role {roleId}.\n{ex.Message}");
-        }
-        return role;
+      role = await roleDBService.GetRoleAsync(roleId);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError($"Failed to get Role {roleId}.\n{ex.Message}");
+    }
+    return role;
+  }
+
+  private void UpdateClaims()
+  {
+    groups = new List<string>();
+    var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+    roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
+    foreach (var c in roleClaims)
+    {
+      groups.Add(c.Value);
+    }
+  }
+
+  private bool ActionAllowed(DeviceUpdateAction action)
+  {
+    if (userRole == userRole.GetDefaultRole())
+    {
+      return false;
     }
 
-    private void UpdateClaims()
+    if(userRole == userRole.GetAdminRole())
     {
-        groups = new List<string>();
-        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
-        roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
-        foreach (var c in roleClaims)
-        {
-            groups.Add(c.Value);
-        }
+      return true;
+    }        
+
+    if(action.ActionType == DeviceUpdateActionType.Group && userRole.SecurityGroups)
+    {
+      return true;
     }
 
-    private bool ActionAllowed(DeviceUpdateAction action)
+    if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits)
     {
-        if (userRole == userRole.GetDefaultRole())
-        {
-            return false;
-        }
+      return true;
+    }
 
-        if(userRole == userRole.GetAdminRole())
-        {
-            return true;
-        }        
-
-        if(action.ActionType == DeviceUpdateActionType.Group && userRole.SecurityGroups)
-        {
-            return true;
-        }
-
-        if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits)
-        {
-            return true;
-        }
-
-        if((action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Count() > 0))
-        {
-            return true;
-        }
+    if((action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Count() > 0))
+    {
+      try
+      {
+        AllowedAttributes attr;
+        Enum.TryParse(action.Name, out attr);
+        return AttributeAllowed(attr);
+      }
+      catch (Exception ex)
+      {
+          logger.LogWarning($"Parsing Attribute {action.Name} failed.");
+      }
+    }
 
         return false;
     }

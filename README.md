@@ -2,51 +2,189 @@
 
 ## Table of Contents
 - [Overview](#overview)
-- [Environment variables](#environment-variables)
-- [Service Principal Permissions](#service-principal-permissions)
-- [Application Setup](#application-setup)	
-	- [Token Configuration](#token-configuration)
-	- [Authentication Blade](#authentication-blade)
-		- [Web Redirect URIs](#web-redirect-uris)
-		- [Implicit Grant and hybrid flows](#implicit-grant-and-hybrid-flows)
-		- [Supported account types](#supported-account-types)
-		- [API permissions](#api-permissions)
+- [Dependencies](#dependencies)
+	- [CosmosDB](#cosmosdb)
+	- [App Registration (Web Application)](#app-registration-web-application)
+	  - [Authentication Blade](#authentication-blade)
+	  - [API Permissions](#api-permissions)
+	  - [Certificates & Secrets](#certificates--secrets)
+	  - [Token Configuration](#token-configuration)
+	  - [Enterprise Application Setup](#enterprise-application-setup)
+	- [App Registration (UpdateDevices Function App)](#app-registration-updatedevices-function-app)
+	  - [Graph Permissions](#graph-permissions-1)
+	  - [Certificates & Secrets](#certificate-based-authentication-1)
+	- [Azure AD Configuration](#azure-ad-configuration)
+- [Web Application Configuration](#web-application-configuration)
+    - [Environment Variables](#environment-variables)
+	- [Certificate Configuration](#certificate-configuration)
+- [Update Devices Configuration](#update-devices-configuration)
+  - [EnvironmentVariables](#environment-variables-1)
+  - [Certificate Configuration](#certificate-configuration-1)
 
 
-## Environment variables
+
+
+## Overview
+
+This repository contains 3 applications:  
+* Web Application 
+* UpdateDevices function app
+* (WIP) InTuneEnrollment function app
+
+These applications can be deployed into Azure App Services (Windows or Linux) or Container Instances via Azure CLI, Visual Studio, or GitHub Actions.
+
+Software is currently built on .NET6 and function apps are using isolated worker model.
+
+## Dependencies
+
+### CosmosDB
+
+The software utilizes a CosmosDB to maintain application data.  
+* Database Name:  DelegationStationData 
+* Container
+  * Name: DeviceData  
+  * PartitionKey: /PartitionKey
+
+ *Note:  You can use a different different DB and Container name, but you will need to update related configuration values for each of the apps.*
+
+### App Registration (Web Application)
+
+From your AzureAD tenant in the Azure portal, add a new app registration.  
+**Name**:  DelegationStation</br>
+**Supported account types**:  Accounts in this organizational directory only</br>
+
+#### Authentication Blade
+
+Click on **+ Add a platform** and select **Web**</br>
+
+Set the following settings and don't forget to hit **Save**
+
+##### Redirect URI
+Add a Redirect URI value to return to the application URL.
+Example: https://delegationstation.azurewebsites.net/signin-oidc or https://delegationstation.azurewebsites.net/.auth/login/aad/callback
+
+*Note:  The URL path (/signin-oidc) must match the CallbackPath setting in the Application.*
+
+##### Implicit Grant and hybrid flows
+Select **ID tokens** for the implicit grant and hybrid flows.
+
+##### Supported account types
+Select **Accounts in this organizational directory only**
+
+#### API Permissions
+
+##### For User Login
+
+Ensure the following Permission is listed under Microsoft.Graph
+- User.Read  (Delegated)
+
+##### Graph Permissions
+
+Click on **+ Add a permission** 
+Select **Microsoft Graph** 
+Select **Application permissions**
+
+Add the following permissions:
+- Device.ReadWrite.All   (Allows for updating of device attributes)
+- Directory.Read.All     (Allows for listing of AD Groups)
+- DeviceManagementManagedDevices.ReadAll (Allows for reading and updating devices)
+
+Once done, ensure that you have been Granted Admin Consent for these permissions.
+
+#### Certificates & Secrets
+
+##### Certificate-based Authentication
+
+This assumes you already have a certificate you will be using for authentication.  
+You will need a .CER/.CRT/.PEM file with the public key for the App Registration.
+But you will also need a PFX with the private key (and a set passphrase) to configure in the Application
+
+- Click on **Certificates** 
+- Click on **Upload Certificate**
+- Select the file to upload from your local machine.
+- If you do not enter a description, it will use the Subject which you will need to use in the Application Configuration settings.
+
+##### Secret-based Authentication
+
+- Click on **Client secrets**
+- Click on **+ New client secret**
+- Store the value in a secure location (key vault is recommended).  This will be used in the configuration of the application.  
+
+#### Token Configuration
+This application utilizes Entra ID groups for accessing the application through claims. Each group that is assigned a role must be configured to be sent as a claim from the enterprise application.
+Add the following claims to the App registration:
+
+1. Navigate to the Token configuration blade.
+1. Click on **+ Add groups claim**
+1. Select **Security groups** OR **Groups assigned to the application (recommended for large enterprise companies to avoid exceeding the limit on the number of groups a token can emit)**					
+1. For each token type (ID, Access, SAML) select:
+   - Group ID
+   - Emit groups as role claims
+
+#### Enterprise Application Setup
+
+The Enterprise Application configuration will allow you to restrict designated users and groups to the application.
+
+- From the AD tenant screen in the Azure Portal, select **Enterprise Applications**
+- Click on the App Registration you just created.
+- Click on **Users and groups**
+- Add any groups or users who need access to the application.
+
+
+
+### App Registration (UpdateDevices Function App)
+
+From your AzureAD tenant in the Azure portal, add a new app registration.  
+**Name**:  DelegationStationFunction</br>
+**Supported account types**:  Accounts in this organizational directory only</br>
+
+#### Graph Permissions
+
+Click on **+ Add a permission** 
+Select **Microsoft Graph** 
+Select **Application permissions**
+
+Add the following permissions:
+- Device.ReadWrite.All   (Allows for updating of device attributes)
+- Directory.Read.All     (Allows for listing of AD Groups)
+- DeviceManagementManagedDevices.ReadAll (Allows for reading and updating devices)
+- AdministrativeUnit.ReadWrite.All (Allows for updating AUs)
+
+#### Certificates & Secrets
+
+##### Certificate-based Authentication
+
+This assumes you already have a certificate you will be using for authentication.  
+You will need a .CER/.CRT/.PEM file with the public key for the App Registration.
+But you will also need a PFX with the private key (and a set passphrase) to configure in the Application
+
+- Click on **Certificates** 
+- Click on **Upload Certificate**
+- Select the file to upload from your local machine.
+- If you do not enter a description, it will use the Subject which you will need to use in the Application Configuration settings.
+
+##### Secret-based Authentication
+
+- Click on **Client secrets**
+- Click on **+ New client secret**
+- Store the value in a secure location (key vault is recommended).  This will be used in the configuration of the application. 
+### Azure AD Configuration
+
+In order for the function app to update Security Groups, the App Registration must be:
+- The owner of all of the groups the function app should have permissions to edit  OR
+- Must be assigned the following role in an AU containing all of the groups it should have permissions
+   - microsoft.directory/groups.security/members/update
+
+Any groups added to the application under Tags will have to have the service principals permissions added in order to work as expected.
+
+
+## Web Application Configuration
+
+### Environment Variables
 Use the following environment variables to configure the application. These can be set in the `appsettings.json` file or in the Azure App Service configuration.
 
-<b>"AzureAd:TenantId" : ""</b><br/>
-Can be found in the Azure Portal under Azure Active Directory -> Properties -> Directory ID
-Can also be found in the Azure Portal under the App Registration -> Overview -> Directory ID
-
-<b>"AzureAd:ClientId" : ""</b><br/>
-Can be found in the Azure Portal under the App Registration -> Overview -> Application (client) ID
-
-<b>"AzureApp:ClientSecret" : ""</b><br/>
-Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client secrets
-
-<b>"DefaultAdminGroupObjectId" : ""</b><br/>
-Can be found in the Azure Portal under Azure Active Directory -> Groups -> Group -> Properties -> Object ID
-This is the group that will be used to determine if a user is an administrator of the application and can perform additional delgations within the application.
-
-<b>"AzureEnvironment" : ""</b><br/>
-Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
-
-<b>"COSMOS_CONNECTION_STRING": ""</b><br/>
-Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
-
-<b>"COSMOS_DATABASE_NAME" : ""</b><br/>
-(Optional)The name of the Cosmos DB database. Default is "DelegationStationData"
-
-<b>"COSMOS_CONTAINER_NAME" : ""</b><br/>
-(Optional)The name of the Cosmos DB container. Default is "DeviceData"
-
-<b>"DefaultActionDisable": "false"</b><br/>
-(Optional)Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
-
-<b>"CertificateDistinguishedName" : ""</b><br/>
-The subject name of the certificate to be used for client certificate authentication. 
+Note that for nested settings, in the portal, the nesting is done via two underscore characters.  For example,
+AzureAd__TenantId or AzureAD__ClientCertificates__CertificateDistinguishedName.
 
 "AzureAd": {<br/>
 &emsp;"Instance": "",<br/>
@@ -54,132 +192,160 @@ The subject name of the certificate to be used for client certificate authentica
 &emsp;"TenantId": "",<br/>
 &emsp;"ClientId": "",<br/>
 &emsp;"CallbackPath": "",<br/>
-&emsp;"ClientCertificates": [<br/>
-&emsp;&emsp;{<br/>
-&emsp;&emsp;&emsp;"SourceType": "StoreWithDistinguishedName",<br/>
-&emsp;&emsp;&emsp;"CertificateStorePath": "CurrentUser/My",<br/>
+&emsp;"ClientCertificates": {<br/>
 &emsp;&emsp;&emsp;"CertificateDistinguishedName": ""<br/>
 &emsp;&emsp;}<br/>
-&emsp;]<br/>
 }<br/>
 
+<b>"Instance": ""</b></br>
+The AuzreAD authentication endpoint.  For example, "https://login.microsoftonline.com/"
 
-### Function App Environment Variables
-<b>"AzureAd:TenantId" : ""</b><br/>
+<b>"Domain": ""</b></br>
+The domain of your AzureAD tenant.  For example, "delegationstation.microsoftonline.com"
+
+<b>"TenantId": ""</b><br/>
 Can be found in the Azure Portal under Azure Active Directory -> Properties -> Directory ID
 Can also be found in the Azure Portal under the App Registration -> Overview -> Directory ID
 
-<b>"AzureAd:ClientId" : ""</b><br/>
+<b>"ClientId" : ""</b><br/>
 Can be found in the Azure Portal under the App Registration -> Overview -> Application (client) ID
 
-<b>"AzureApp:ClientSecret" : ""</b><br/>
-Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client secrets
-
-<b>"AzureApp:ClientCertificateThumbprint" : ""</b><br/>
-Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
-
-<b>"AzureEnvironment" : ""</b><br/>
-Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
+<b>"CallbackPath": ""</b><br/>
+The path returned to after a successful user login.  Must match what is set in the App Registration Authentication settings for the web app.
+A typical setting would be "/signin-oidc"
 
 <b>"CertificateDistinguishedName" : ""</b><br/>
-Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
-Will look under CurrentUser\my store for the certificate with the distinguished name.
+The subject name of the certificate to be used for client certificate authentication. 
+
+"AzureApp": {<br/>
+&emsp;"ClientSecret": ""<br/>
+}<br/>
+
+<b>"ClientSecret": ""</b><br/>
+(Optional) Required if not using certificate-based authentication.
+Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client secrets
 
 <b>"COSMOS_CONNECTION_STRING": ""</b><br/>
 Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
 
 <b>"COSMOS_DATABASE_NAME" : ""</b><br/>
-(Optional)The name of the Cosmos DB database. Default is "DelegationStationData"
+(Optional) The name of the Cosmos DB database. Default is "DelegationStationData"
 
 <b>"COSMOS_CONTAINER_NAME" : ""</b><br/>
-(Optional)The name of the Cosmos DB container. Default is "DeviceData"
+(Optional) The name of the Cosmos DB container. Default is "DeviceData"
+
+<b>"DefaultAdminGroupObjectId" : ""</b><br/>
+AzureAD group that contains Administrative users of the application, who can perform additional delegations within the application.
+Can be found in the Azure Portal under Azure Active Directory -> Groups -> Group -> Properties -> Object ID
+
+<b>"AzureEnvironment" : ""</b><br/>
+Can be set to "AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the environment you are using.
+
+<b>"GraphEndpoint": ""</b><br/>
+The URL of the graph instance you will be connecting to. 
+For example, "https://graph.microsoft.com/"
+
+<b>"AllowedHosts": "*"</b><br/>
 
 <b>"DefaultActionDisable": "false"</b><br/>
-(Optional)Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
+(Optional) Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
+
+### Certificate Configuration
+
+This is only needed if you are connecting to Graph using certificates.
+
+#### Local
+
+- In Windows Explorer, go to the location of the PFX with the private key.
+- Right-click on the file and choose 'Install PFX'
+- Choose **Current User**
+- Confirm the correct PFX file is listed and click **Next**
+- Enter password for the private key and click **Next**
+- Click on **Place all certificates in the following store** and click on **Browse...**
+- Choose **Personal**
+- Review the final screen and choose **Finish**
+
+#### Azure
+
+- In the Azure Portal, go the Function App resource
+- Click on **Settings** -> **Certificates**
+- Click on **Bring your own certificates (.pfx)**
+- Click on **+ Add certificate**
+- Choose **Upload certificate (.pfx)** 
+- Enter the file location and password and click on **Validate**
+- Click on **Add**
+
+*Note:  In order to keep the certificates separate the WebApp and Function App need to be deployed in different RGs.  Certs are shared across webspaces.  More info here:  https://learn.microsoft.com/en-us/azure/app-service/app-service-plan-manage#move-an-app-to-another-app-service-plan
+
+## Update Devices Configuration
+
+### Environment Variables
+Use the `local.settings.json.template` file to help setup your local configuration file.  
+When deploying to Azure, these will go in your Configuration Settings or Environment Variables section, which is separate in some versions of the portal.  
+
+<b>"AzureEnvironment" : ""</b><br/>
+"AzurePublicCloud", "AzureUSDoD", or "AzureUSGovernment" depending on the Azure environment you are using.
+
+<b>"COSMOS_CONNECTION_STRING": ""</b><br/>
+Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connection String
+
+<b>"COSMOS_DATABASE_NAME" : ""</b><br/>
+(Optional) The name of the Cosmos DB database. Default is "DelegationStationData"
+
+<b>"COSMOS_CONTAINER_NAME" : ""</b><br/>
+(Optional) The name of the Cosmos DB container. Default is "DeviceData"
 
 <b>"TriggerTime": "0 */15 * * * *"</b><br/>
 Must be set to a cron expression to change the frequency of the function. The example is every 15 minutes.
 
-## Service Principal Permissions
-The Web Application requires the following permissions to be set in the Azure Portal.
-<b>
-User.Read<br/>
-</b>
+<b>"AzureAd:TenantId" : ""</b><br/>
+Can be found in the Azure Portal under Azure Active Directory -> Properties -> Directory ID
+Can also be found in the Azure Portal under the App Registration -> Overview -> Directory ID
 
-The Function App permissions are the following:
-The service principal used by the application must have the following Graph API permissions to update device attributes:
+<b>"AzureAd:ClientId" : ""</b><br/>
+ClientID of the App Registration you created for this function app.
+Can be found in the Azure Portal under the App Registration -> Overview -> Application (client) ID
 
-<b>
-Device.ReadWrite.All<br/>
-Directory.Read.All<br/>
-DeviceManagementManagedDevices.Read.All<br/>
-</b>
-<br/>
+<b>"AzureApp:ClientSecret" : ""</b><br/>
+ClientSecret of the App Registration you created for this function app.  
+(Optional) Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client secrets
+Required if you are not going to use Certificate-based authentication.
 
-To add devices to Groups the service prinicpal must have this permission:
-<b>GroupMembers.ReadWriteAll<br/>
+<b>"CertificateDistinguishedName" : ""</b><br/>
+(Optional) If using a certificate in place of a client secret, this the Subject of that certificate.  
+Can be found in the Azure Portal under the App Registration -> Certificates & secrets -> Client certificates
+Will look under CurrentUser\my store for the certificate with the distinguished name.
 
-For updates to Administrative Units the service principal must have the following role assignments:
+<b>"GraphEndpoint": ""</b><br/>
+The URL of the graph instance you will be connecting to. 
+For example, "https://graph.microsoft.com/"
 
-<b>
-AdministrativeUnit.ReadWrite.All<br/>
-</b>
+<b>"DefaultActionDisable": "false"</b><br/>
+(Optional) Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
 
-To update Security Groups the service principal must have the following role assignments:
+### Certificate Configuration
 
-Be the owner of the group.
+This is only needed if you are connecting to Graph using certificates.
 
-The Function app can alternatively be assigned the following role assignments in an Administrative Unit:
-<b>
-microsoft.directory/groups.security/members/update
-<br/>
+#### Local
 
-## Application Registration Setup
-The application is designed to be deployed to an Azure App Service. The application can be deployed to a Windows or Linux App Service. The application can also be deployed to a container instance. The application can be deployed using the Azure CLI or Visual Studio. The application can also be deployed using GitHub Actions. The application can be deployed to a Windows or Linux App Service. The application can also be deployed to a container instance. The application can be deployed using the Azure CLI or Visual Studio. The application can also be deployed using GitHub Actions.
+- In Windows Explorer, go to the location of the PFX with the private key.
+- Right-click on the file and choose 'Install PFX'
+- Choose **Current User**
+- Confirm the correct PFX file is listed and click **Next**
+- Enter password for the private key and click **Next**
+- Click on **Place all certificates in the following store** and click on **Browse...**
+- Choose **Personal**
+- Review the final screen and choose **Finish**
 
-### Token Configuration
-This application utilizes Entra ID groups for accessing the application through claims. Each group that is assigned a role must be configured to be sent as a claim from the enterprise application.
-Add the following claims to the App registration:
+#### Azure
 
-1. In the Azure Portal, navigate to the App Registration for the application.	
-1. Navigate to the Token configuration blade.
-1. Click on Add groups claim.
-1. Select Security groups OR Groups  assigned to the application (recommended for large enterprise companies to avoid exceeding the limit on the number of groups a token can emit).						
-1. Ensure the Group ID is selected for each token type.
-1. Ensure Emit groups as role claims is selected for each token type.
+- In the Azure Portal, go the Function App resource
+- Click on **Settings** -> **Certificates**
+- Click on **Bring your own certificates (.pfx)**
+- Click on **+ Add certificate**
+- Choose **Upload certificate (.pfx)** 
+- Enter the file location and password and click on **Validate**
+- Click on **Add**
 
-### Authentication Blade
-
-#### Web Redirect URIs
-Ensure the Redirect URIs are set to the application URL. For example: https://delegationstation.azurewebsites.net/signin-oidc or https://delegationstation.azurewebsites.net/.auth/login/aad/callback
-
-#### Implicit Grant and hybrid flows
-Select <b>ID tokens</b> for the Implicit grant and hybrid flows.
-
-#### Supported account types
-Select <b>Accounts in this organizational directory only</b> for the Supported account types.
-
-#### API permissions
-The service principal used by the application must have the following Graph API permissions to update device attributes:
-
-<b>
-Device.ReadWrite.All<br/>
-</b>
-<br/>
-
-The service principal used by the application must have the following Graph API permissions to update read information about the devices and security groups used:
-
-<b>
-Directory.Read.All<br/>
-DeviceManagementManagedDevices.Read.All<br/>
-</b>
-<br/>
-
-## Enterprise Application Setup
-Create an Enterprise Application in Azure AD for the application. This will allow you to assign users and groups to the application.
-
-### Users and Groups
-Navigate to the Users and groups blade and assign groups to the application. The application will use the groups assigned to the application to determine the role of the user. 
-
-## Adding Devices to Groups
-The service principal used by the application should be the owner of the groups needed to be managed or given access to the groups through an Administrative Unit. Any groups added to the application under Tags will have to have the service principals permissions added in order to work as expected.
+*Note:  In order to keep the certificates separate the WebApp and Function App need to be deployed in different RGs.  Certs are shared across webspaces.  More info here:  https://learn.microsoft.com/en-us/azure/app-service/app-service-plan-manage#move-an-app-to-another-app-service-plan
