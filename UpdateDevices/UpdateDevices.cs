@@ -405,15 +405,8 @@ namespace UpdateDevices
                 if (settings == null)
                 {
                     settings = new FunctionSettings();
-                    settings.LastRun = DateTime.UtcNow;
-                }
-                else if (settings.LastRun == null)
-                {
-                    settings = new FunctionSettings();
-                    settings.LastRun = DateTime.UtcNow;
                 }
             }
-
 
             return settings;
         }
