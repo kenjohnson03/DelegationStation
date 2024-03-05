@@ -41,6 +41,14 @@ namespace DelegationStationShared.Models
             AdministrativeUnits = false;
             PartitionKey = typeof(Role).Name;
         }
+
+        public Role DeepCopyKeepId()
+        {
+            Role other = (Role) this.MemberwiseClone();
+            other.Attributes = new List<AllowedAttributes>(this.Attributes);
+            return other;
+        }
+
         public Role GetRole(List<string> userGroups, DeviceTag tag)
         {
             Role userRole = GetDefaultRole();

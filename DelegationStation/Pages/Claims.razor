@@ -11,9 +11,10 @@
 
 <AuthorizeView>
     <Authorized>
-        @foreach(var claim in context.User.Claims)
+        <h2>Roles</h2>
+        @foreach (var group in roles)
         {
-            <p>@claim.ToString()</p>
+            <p>@group</p>
         }
     </Authorized>
     <NotAuthorized>
@@ -21,14 +22,8 @@
     </NotAuthorized>
 </AuthorizeView>
 
-<h2>Roles</h2>
-@foreach(var group in roles)
-{
-    <p>@group</p>
-}
 
-<h3>Default Group</h3>
-<p>@defaultGroup</p>
+
 
 @code {
     [CascadingParameter]
@@ -39,7 +34,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if(AuthState != null)
         {
             authState = await AuthState;
