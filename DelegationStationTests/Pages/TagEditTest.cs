@@ -65,8 +65,7 @@ namespace DelegationStationTests.Pages
                     .Add(p => p.Id, "myId"));
 
                 // Assert
-                string match = @" Role:
-                    <select";
+                string match = @"Role:\s*<select";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
             }
         }
