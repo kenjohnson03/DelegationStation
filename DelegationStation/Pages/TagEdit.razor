@@ -33,7 +33,7 @@
             <h4>@tag.Description</h4>
             <br />
             <hr />
-        @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
+        @if (userRole.IsAdminRole())
         {
 
         
@@ -340,6 +340,7 @@
 </AuthorizeView>
 
 <ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
+<ConfirmMessage ConfirmAction="@(async () => await Save())" @ref="ConfirmSave" />
 
 
 @code {
@@ -347,7 +348,8 @@
   public Task<AuthenticationState>? AuthState { get; set; }
   [Parameter] public string? Id { get; set; }
 
-  private ConfirmMessage? ConfirmDelete;
+    private ConfirmMessage? ConfirmDelete;
+    private ConfirmMessage? ConfirmSave;
 
 
   public List<string> pGroups
@@ -454,57 +456,58 @@
       {
         _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
 
-        if (tag != null)
-        {
-          tag = _tag.ShallowCopy();
+                if (tag != null)
+                {
+                    tag = _tag.DeepCopyKeepId();
+                }
+            }
         }
-      }
-    }
-    catch (Exception ex)
-    {
-      logger.LogError($"Failed to find Device Tag {Id} to Edit.\n{ex.Message}");
-    }
-  }
-
-  private async void UpdateUserRole()
-  {
-    if(string.IsNullOrEmpty(defaultGroup))
-    {
-      userRole = userRole.GetDefaultRole();
-    }
-    else if(groups.Contains(defaultGroup))
-    {
-      userRole = userRole.GetAdminRole();
-    }
-    else
-    {
-      List<RoleDelegation> rolesToRemove = new List<RoleDelegation>();
-      foreach(RoleDelegation r in _tag.RoleDelegations)
-      {
-        Role? role = await GetRole(r.Role.Id.ToString());
-        if(role != null)
+        catch (Exception ex)
         {
-          r.Role = role;
+            logger.LogError($"Failed to find Device Tag {Id} to Edit.\n{ex.Message}");
+            tagErrorMessage = $"Failed to find Device Tag {Id} to Edit.";
+        }
+    }
+
+    private async void UpdateUserRole()
+    {
+        if(string.IsNullOrEmpty(defaultGroup))
+        {
+            userRole = userRole.GetDefaultRole();
+        }
+        else if(groups.Contains(defaultGroup))
+        {
+            userRole = userRole.GetAdminRole();
         }
         else
-        {                    
-          logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");     
-        }
-      }
-      foreach(RoleDelegation r in rolesToRemove)
-      {
-        _tag.RoleDelegations.Remove(r);
-      }
-      if(rolesToRemove.Count > 0)
-      {
-        await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
-      }
+        {
+            List<RoleDelegation> rolesToRemove = new List<RoleDelegation>();
+            foreach(RoleDelegation r in _tag.RoleDelegations)
+            {
+                Role? role = await GetRole(r.Role.Id.ToString());
+                if(role != null)
+                {
+                    r.Role = role;
+                }
+                else
+                {                    
+                    logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");     
+                }
+            }
+            foreach(RoleDelegation r in rolesToRemove)
+            {
+                _tag.RoleDelegations.Remove(r);
+            }
+            if(rolesToRemove.Count > 0)
+            {
+                await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
+            }
 
-      tag = _tag.ShallowCopy();
-      userRole = userRole.GetRole(groups, _tag);
+            tag = _tag.DeepCopyKeepId();
+            userRole = userRole.GetRole(groups, _tag);
+        }
+        StateHasChanged();
     }
-    StateHasChanged();
-  }
 
   private async Task<Role?> GetRole(string roleId)
   {
@@ -686,7 +689,7 @@
         addDeviceUpdateState = "disabled";
         deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
         deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
- 
+
         if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && !System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
         {
             deviceUpdateActionsValidationMessage = $"When using a group update action value must be a valid GUID";
@@ -696,20 +699,9 @@
 
         if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
         {
-            try
+            if (string.IsNullOrEmpty(deviceUpdateAction.Name))
             {
-                if (string.IsNullOrEmpty(deviceUpdateAction.Name))
-                {                    
-                    deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
-                    addDeviceUpdateState = "";
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Guid g = Guid.NewGuid();
-                deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}\nCorrelation Id: {g.ToString()}";
-                logger.LogError($"Failed to find group id {deviceUpdateAction.Value} when adding to Tag {tag.Id}.\nCorrelation Id: {g.ToString()}\n{ex.Message}");
+                deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
                 addDeviceUpdateState = "";
                 return;
             }
@@ -745,14 +737,48 @@
         addDeviceUpdateState = "";
     }
 
+    private async Task<bool> ChangesSinceLoad(Guid CorrelationId)
+    {
+        bool changes = false;
+        try
+        {
+            DeviceTag t = await deviceTagDBService.GetDeviceTagAsync(tag.Id.ToString());
+            if (t != null)
+            {
+                if (t.Modified != _tag.Modified)
+                {
+                    changes = true;
+                }
+            }
+            tagSuccessMessage = "";
+            tagErrorMessage = "";
+        }
+        catch(Exception ex)
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Failed to get Tag {tag.Id} from DB.\nCorrelation ID: {CorrelationId.ToString()}\nTime: {DateTime.UtcNow.ToString()} ";
+            logger.LogWarning(tagErrorMessage, ex.Message);
+            return true;
+        }
+        return changes;
+    }
+
     private async Task Save()
     {
         Guid g = Guid.NewGuid();
 
+        if (await ChangesSinceLoad(g))
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: Tag {tag.Id} has been modified since it was loaded. Please refresh the page and try again. Correlation Id:{g.ToString()}";
+            logger.LogWarning(tagErrorMessage);
+            return;
+        }
+
         // If the user is default
         if (userRole.Attributes.Count == 0 && userRole.SecurityGroups == false && userRole.AdministrativeUnits == false)
         {
-            tag = _tag;
+            tag = _tag.DeepCopyKeepId();
             tagSuccessMessage = "";
             tagErrorMessage = $"Error: '{userName}' {userId} is not an admin for Tag {tag.Id}. Correlation Id:{g.ToString()}";
             logger.LogWarning($"Error: '{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id} without Admin rights");
@@ -764,7 +790,9 @@
         {
             try
             {
-                _tag = tag;
+                _tag = tag.DeepCopyKeepId();
+                _tag.Modified = DateTime.UtcNow;
+                _tag.ModifiedBy = userId;
                 await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);                
                 tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
                 tagErrorMessage = "";
@@ -776,7 +804,7 @@
                 tagErrorMessage = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
                 logger.LogError($"Error: '{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
             }
-            tag = _tag;
+            tag = _tag.DeepCopyKeepId();
             return;
         }
 
@@ -787,7 +815,7 @@
         {
             foreach (var attribute in userRole.Attributes)
             {
-                if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0 && _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
                 {
                     _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value = tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value;
                 }           
@@ -795,31 +823,40 @@
                 {
                     _tag.UpdateActions.Add(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First());
                 }
+		            else if(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() <= 0)
+                {
+                    _tag.UpdateActions.RemoveAll(a => a.Name == attribute.ToString());
+                }
             }
         }
 
         // User can update Groups
         if (userRole.SecurityGroups)
         {
+            List<DeviceUpdateAction> groupActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
-            _tag.UpdateActions.AddRange(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group));
+            _tag.UpdateActions.AddRange(groupActions);
+
         }
 
         // User can update Administrative Units
         if (userRole.AdministrativeUnits)
         {
+            List<DeviceUpdateAction> administrativeUnitActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
-            _tag.UpdateActions.AddRange(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit));
+            _tag.UpdateActions.AddRange(administrativeUnitActions);
         }
 
 
         try
         {
-            await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
+            _tag.Modified = DateTime.UtcNow;
+            _tag.ModifiedBy = userId;
+            _tag = await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
             tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
             tagErrorMessage = "";
             logger.LogInformation($"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
-            tag = _tag;
+            tag = _tag.DeepCopyKeepId();
         }
         catch (Exception ex)
         {
@@ -969,12 +1006,14 @@
         if (string.IsNullOrEmpty(securityGroupSearchString))
         {
             securityGroupSearchMessage = "Error: Search string is empty";
+            securityGroupSearchInProgress = false;
             return;
         }
 
         try
         {
             securityGroupSearchResults = await graphService.SearchGroupAsync(securityGroupSearchString);
+            securityGroupSearchMessage = "";
         }
         catch (Exception ex)
         {
@@ -1018,6 +1057,7 @@
         if (string.IsNullOrEmpty(administrativeUnitSearchString))
         {
             administrativeUnitSearchMessage = "Error: Search string is empty";
+            administrativeUnitSearchInProgress = false;
             return;
         }
 
