@@ -823,30 +823,28 @@
                 {
                     _tag.UpdateActions.Add(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First());
                 }
+		            else if(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() <= 0)
+                {
+                    _tag.UpdateActions.RemoveAll(a => a.Name == attribute.ToString());
+                }
             }
         }
 
         // User can update Groups
         if (userRole.SecurityGroups)
         {
-            if(tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).Count() > 0)
-            {
-                List<DeviceUpdateAction> groupActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).ToList();
-                _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
-                _tag.UpdateActions.AddRange(groupActions);
-            }
+            List<DeviceUpdateAction> groupActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).ToList();
+            _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
+            _tag.UpdateActions.AddRange(groupActions);
 
         }
 
         // User can update Administrative Units
         if (userRole.AdministrativeUnits)
         {
-            if (tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).Count() > 0)
-            {
-                List<DeviceUpdateAction> administrativeUnitActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).ToList();
-                _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
-                _tag.UpdateActions.AddRange(administrativeUnitActions);
-            }
+            List<DeviceUpdateAction> administrativeUnitActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).ToList();
+            _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
+            _tag.UpdateActions.AddRange(administrativeUnitActions);
         }
 
 
