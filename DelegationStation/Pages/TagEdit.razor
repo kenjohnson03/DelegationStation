@@ -326,6 +326,9 @@
                 {
                     <p class="text-success">@tagSuccessMessage</p>
                 }
+
+                <p>@(deviceCount > -1 ? $"Device count: {deviceCount}" : "Unable to retrieve device count")</p>
+
                 <DisplayMessage Message=@securityGroupSearchMessage />
 
                 @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
@@ -404,6 +407,8 @@
     private bool roleSecurityGroupSearchExecuted = false;
     private string addRoleMessage = "";
 
+    private int deviceCount = 0;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -423,6 +428,20 @@
         UpdateUserRole();
         await UpdateRoleDelegationGroups();
         await GetRolesAsync();
+        deviceCount = await GetDeviceCount();
+    }
+
+    private async Task<int> GetDeviceCount()
+    {
+        try
+        {
+            return await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"Failed to get Device Count.\n{ex.Message}");
+            return -1;
+        }
     }
 
     private async Task GetRolesAsync()
@@ -878,27 +897,25 @@
         Guid g = Guid.NewGuid();
 
         // Check if there are devices associated with the tag
-        try
-        {
-            int count = await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
-            if (count > 0)
-            {
-                tagSuccessMessage = "";
-                tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {count} devices still associated with it. Correlation Id:{g.ToString()}";
-                logger.LogWarning($"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {count} devices still associated with it");
-                return;
-            }
-        }
-        catch (Exception ex)
+        deviceCount = await GetDeviceCount();
+        if(deviceCount == -1)
         {
             tagSuccessMessage = "";
             tagErrorMessage = $"Error: '{userName}' {userId} unable to check for devices on Tag {tag.Id}.\nCorrelation Id:{g.ToString()}";
-            logger.LogError($"{tagErrorMessage}\n{ex.Message}");
-        }
-        finally
-        {
+            logger.LogWarning($"{tagErrorMessage}");
             StateHasChanged();
+            return;
         }
+
+        if (deviceCount > 0)
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {deviceCount} devices still associated with it.\nCorrelation Id:{g.ToString()}";
+            logger.LogWarning($"{tagErrorMessage}");
+            StateHasChanged();
+            return;
+        }
+        StateHasChanged();
 
         // Check if user is an admin and only then delete the tag
         if (userRole.IsAdminRole())
@@ -910,14 +927,16 @@
             }
             catch (Exception ex)
             {
-                logger.LogError($"Error: Unable to delete Tag {tag.Id}.\n{ex.Message}");
+                tagSuccessMessage = "";
+                tagErrorMessage = $"Error: Unable to delete Tag {tag.Id}.\nCorrelation Id:{g.ToString()}";
+                logger.LogError($"{tagErrorMessage}\n{ex.Message}");
             }
         }
         else
         {
             tagSuccessMessage = "";
-            tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}";
-            logger.LogWarning($"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}");
+            tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}\nCorrelation Id:{g.ToString()}";
+            logger.LogWarning($"{tagErrorMessage}");
         }
     }
 
