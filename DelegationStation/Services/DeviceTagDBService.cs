@@ -1,5 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
+using DelegationStation.Pages;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ namespace DelegationStation.Services
         Task<DeviceTag> AddOrUpdateDeviceTagAsync(DeviceTag deviceTag);
         Task<DeviceTag> GetDeviceTagAsync(string tagId);
         Task DeleteDeviceTagAsync(DeviceTag deviceTag);
+        Task<int> GetDeviceCountByTagIdAsync(string tagId);
     }
     public class DeviceTagDBService : IDeviceTagDBService
     {
@@ -140,6 +142,28 @@ namespace DelegationStation.Services
         {
             ItemResponse<DeviceTag> response = await this._container.UpsertItemAsync<DeviceTag>(deviceTag);
             return response;
+        }
+
+        public async Task<int> GetDeviceCountByTagIdAsync(string tagId)
+        {
+            if (tagId == null)
+            {
+                throw new Exception("DeviceDBService GetDeviceAsync was sent null tagId");
+            }
+            if (!System.Text.RegularExpressions.Regex.Match(tagId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            {
+                throw new Exception($"DeviceDBService GetDeviceAsync tagId did not match GUID format {tagId}");
+            }
+
+
+
+            QueryDefinition q = new QueryDefinition("SELECT VALUE COUNT(d.id) FROM d WHERE d.Type = \"Device\" AND CONTAINS(d.Tags, @tagId, true)");
+            q.WithParameter("@tagId", tagId);
+            
+            FeedIterator<int> queryIterator = this._container.GetItemQueryIterator<int>(q);
+            FeedResponse<int> response = await queryIterator.ReadNextAsync();
+
+            return response.Count;
         }
 
         public async Task DeleteDeviceTagAsync(DeviceTag deviceTag)
