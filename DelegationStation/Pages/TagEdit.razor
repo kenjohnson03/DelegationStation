@@ -41,7 +41,7 @@
             <InputText @bind-Value=tag.Name class="form-control"></InputText>
                     <label class="my-1">Description:</label>
             <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
-                    <label class="my-1">Allowed UsesPrincipalName REGEX:</label>
+                    <label class="my-1">Allowed User Principal Name REGEX:</label>
             <InputText @bind-Value=tag.AllowedUserPrincipalName class="form-control"></InputText>
             <div class="border rounded my-3 p-3">
                 <h4>Test enrollment user</h4>
@@ -75,16 +75,6 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @foreach (RoleDelegation r in tag.RoleDelegations)
-                        {
-                            <tr>
-                                <th>Role</th>
-                                <th>Security Group Name</th>
-                                <th>Security Group Id</th>
-                                <th></th>
-                            </tr>
-                        </thead>
                         <tbody>
                             @foreach (RoleDelegation r in tag.RoleDelegations)
                             {
