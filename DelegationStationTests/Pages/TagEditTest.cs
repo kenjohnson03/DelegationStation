@@ -1,18 +1,9 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bunit;
-using DelegationStation.Pages;
-using DelegationStationShared;
-using System.Security.Claims;
+﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using DelegationStation.Services;
-using Microsoft.Extensions.Logging;
-using DelegationStation.Fakes;
-using Microsoft.Graph.Models;
-using AngleSharp;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
-using Microsoft.Graph.Reports.GetGroupArchivedPrintJobsWithGroupIdWithStartDateTimeWithEndDateTime;
 
 namespace DelegationStationTests.Pages
 {
