@@ -10,21 +10,18 @@
 @inject IConfiguration config
 @inject NavigationManager nav
 @inject IRoleDBService roleDBService
+@inject IAuthorizationService authorizationService
 
 
 @attribute [Authorize]
 
 <h3>Tag Edit</h3>
 
-<AuthorizeView Context="authContext">
+<AuthorizeView Context="authContext" Policy="ViewDeviceTag" Resource="_tag">
     <Authorized>
         @if (Id == null)
         {
             <h3>Error in navigation path</h3>
-        }
-        else if (userRole.IsDefaultRole())
-        {
-            <h3>Not authorized</h3>
         }
         else if (tag != null)
         {
@@ -33,10 +30,8 @@
                 <h4>@tag.Description</h4>
                 <br />
                 <hr />
-                @if (userRole.IsAdminRole())
+                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
                 {
-
-
                     <label>Name:</label>
                     <InputText @bind-Value=tag.Name class="form-control"></InputText>
                     <label>Description:</label>
@@ -63,13 +58,13 @@
                                     <td>@r.Role.Name</td>
                                     <td>@r.SecurityGroupName</td>
                                     <td>@r.SecurityGroupId</td>
-                                    <td><button type="button" class="btn btn-danger @(userRole.IsAdminRole() ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
+                                    <td><button type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
-                @if (userRole.IsAdminRole())
+                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
                 {
                     <DisplayMessage Message="@addRoleMessage" />
                     <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
@@ -163,7 +158,9 @@
                         </tbody>
                     </table>
                 </div>
-                @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
+                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded ||
+               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded ||
+               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
                 {
                     <DisplayMessage Message="@deviceUpdateActionsValidationMessage" />
                     <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
@@ -175,9 +172,9 @@
 
                             @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
                             {
-                                if ((t == DeviceUpdateActionType.Group && userRole.SecurityGroups) ||
-                                (t == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits) ||
-                                (t == DeviceUpdateActionType.Attribute && userRole.Attributes.Count > 0))
+                                if ((t == DeviceUpdateActionType.Group && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded) ||
+                                (t == DeviceUpdateActionType.AdministrativeUnit && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded) ||
+                                (t == DeviceUpdateActionType.Attribute && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded))
                                 {
                                     <option value="@t">@t</option>
                                 }
@@ -328,10 +325,12 @@
                 }
                 <DisplayMessage Message=@securityGroupSearchMessage />
 
-                @if (userRole.Attributes.Count > 0 || userRole.SecurityGroups || userRole.AdministrativeUnits)
+                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded ||
+               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded ||
+               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
                 {
                     <button id="SaveButton" class="btn btn-success" type="submit">Save</button>
-                    <button id="DeleteButton" type="button" class="btn btn-danger @(userRole.IsAdminRole() ? "" : "disabled")" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+                    <button id="DeleteButton" type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
                 }
             </EditForm>
 
@@ -339,13 +338,12 @@
     </Authorized>
 
     <NotAuthorized>
-        <p>Not Authorized</p>
+        <h3>Not Authorized</h3>
     </NotAuthorized>
 </AuthorizeView>
 
 <ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
 <ConfirmMessage ConfirmAction="@(async () => await Save())" @ref="ConfirmSave" />
-
 
 @code {
     [CascadingParameter]
@@ -355,23 +353,11 @@
     private ConfirmMessage? ConfirmDelete;
     private ConfirmMessage? ConfirmSave;
 
-
-    public List<string> pGroups
-    {
-        get
-        {
-            return groups;
-        }
-        set
-        {
-        }
-    }
-
     private DeviceTag _tag = new DeviceTag();
     private AuthenticationState? authState;
     private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();
-    private Role userRole = (new Role()).GetDefaultRole();
+
     private DeviceTag tag = new DeviceTag();
     private RoleDelegation roleDelegation = new RoleDelegation();
     private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
@@ -410,7 +396,6 @@
         deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
         deviceUpdateActionEditContext.OnFieldChanged += DeviceUpdateAction_OnFieldChanged;
 
-
         defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
         if (AuthState != null)
         {
@@ -418,11 +403,14 @@
             userName = authState?.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
             userId = authState?.User.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
+
         await GetTag();
-        UpdateClaims();
-        UpdateUserRole();
-        await UpdateRoleDelegationGroups();
-        await GetRolesAsync();
+
+        if(_tag != null)
+        {
+            await UpdateRoleDelegationGroups();
+            await GetRolesAsync();
+        }        
     }
 
     private async Task GetRolesAsync()
@@ -456,11 +444,24 @@
 
     private async Task GetTag()
     {
+        if(authState == null)
+        {
+            return;
+        } 
+
         try
         {
             if (Id != null)
             {
                 _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+                if (!authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+                {
+                    return;
+                }
+                foreach(RoleDelegation roleDelegation in _tag.RoleDelegations)
+                {
+                    roleDelegation.Role = await roleDBService.GetRoleAsync(roleDelegation.Role.Id.ToString());
+                }
 
                 if (tag != null)
                 {
@@ -473,106 +474,40 @@
             logger.LogError($"Failed to find Device Tag {Id} to Edit.\n{ex.Message}");
             tagErrorMessage = $"Failed to find Device Tag {Id} to Edit.";
         }
-    }
-
-    private async void UpdateUserRole()
-    {
-        if (string.IsNullOrEmpty(defaultGroup))
-        {
-            userRole = userRole.GetDefaultRole();
-        }
-        else if (groups.Contains(defaultGroup))
-        {
-            userRole = userRole.GetAdminRole();
-        }
-        else
-        {
-            List<RoleDelegation> rolesToRemove = new List<RoleDelegation>();
-            foreach (RoleDelegation r in _tag.RoleDelegations)
-            {
-                Role? role = await GetRole(r.Role.Id.ToString());
-                if (role != null)
-                {
-                    r.Role = role;
-                }
-                else
-                {
-                    logger.LogWarning($"Removing Role Delegation for '{r.Role.Name}' {r.Role.Id} on Tag {_tag.Name}.");
-                }
-            }
-            foreach (RoleDelegation r in rolesToRemove)
-            {
-                _tag.RoleDelegations.Remove(r);
-            }
-            if (rolesToRemove.Count > 0)
-            {
-                await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
-            }
-
-            tag = _tag.DeepCopyKeepId();
-            userRole = userRole.GetRole(groups, _tag);
-        }
         StateHasChanged();
-    }
-
-    private async Task<Role?> GetRole(string roleId)
-    {
-        Role? role = null;
-        try
-        {
-            role = await roleDBService.GetRoleAsync(roleId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"Failed to get Role {roleId}.\n{ex.Message}");
-        }
-        return role;
-    }
-
-    private void UpdateClaims()
-    {
-        groups = new List<string>();
-        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
-        roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
-        foreach (var c in roleClaims)
-        {
-            groups.Add(c.Value);
-        }
     }
 
     private bool ActionAllowed(DeviceUpdateAction action)
     {
-        if (userRole == userRole.GetDefaultRole())
+        if (authState != null)
         {
-            return false;
-        }
-
-        if (userRole == userRole.GetAdminRole())
-        {
-            return true;
-        }
-
-        if (action.ActionType == DeviceUpdateActionType.Group && userRole.SecurityGroups)
-        {
-            return true;
-        }
-
-        if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit && userRole.AdministrativeUnits)
-        {
-            return true;
-        }
-
-        if ((action.ActionType == DeviceUpdateActionType.Attribute && userRole.Attributes.Count() > 0))
-        {
-            try
+            if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
             {
-                AllowedAttributes attr;
-                Enum.TryParse(action.Name, out attr);
-                return AttributeAllowed(attr);
+                return true;
             }
-            catch (Exception ex)
+
+            if (action.ActionType == DeviceUpdateActionType.Group)
             {
-                logger.LogWarning($"Parsing Attribute {action.Name} failed.\n{ex.Message}");
+                return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded;
+            }
+
+            if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+            {
+                return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded;
+            }
+
+            if (action.ActionType == DeviceUpdateActionType.Attribute)
+            {
+                try
+                {
+                    AllowedAttributes attr;
+                    Enum.TryParse(action.Name, out attr);
+                    return AttributeAllowed(attr);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"Parsing Attribute {action.Name} failed.\n{ex.Message}");
+                }
             }
         }
 
@@ -581,11 +516,47 @@
 
     private bool AttributeAllowed(AllowedAttributes e)
     {
-        if ((userRole.Attributes.Where(a => a.ToString() == e.ToString()).Count() > 0) ||
-            (userRole.Attributes.Where(a => a == AllowedAttributes.All).Count() > 0))
+        if(authState != null)
         {
-            return true;
+            switch (e)
+            {
+                case AllowedAttributes.All:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAllAttributes).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute1:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute1).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute2:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute2).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute3:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute3).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute4:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute4).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute5:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute5).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute6:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute6).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute7:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute7).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute8:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute8).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute9:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute9).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute10:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute10).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute11:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute11).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute12:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute12).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute13:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute13).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute14:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute14).Result.Succeeded;
+                case AllowedAttributes.ExtensionAttribute15:
+                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute15).Result.Succeeded;
+                default:
+                    return false;
+            }
         }
+
         return false;
     }
 
@@ -644,8 +615,14 @@
 
     private void AddRoleDelegation()
     {
+        if(authState == null)
+        {
+            addRoleMessage = "Error: User not found";
+            return;
+        }
+
         addRoleMessage = "";
-        if (userRole.IsAdminRole() == false)
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded == false)
         {
             addRoleMessage = $"Error: '{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
             logger.LogWarning(deviceUpdateActionsValidationMessage);
@@ -773,6 +750,14 @@
     {
         Guid g = Guid.NewGuid();
 
+        if(authState == null)
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = "Error: User not found";
+            logger.LogWarning(tagErrorMessage);
+            return;
+        }
+
         if (await ChangesSinceLoad(g))
         {
             tagSuccessMessage = "";
@@ -782,7 +767,9 @@
         }
 
         // If the user is default
-        if (userRole.Attributes.Count == 0 && userRole.SecurityGroups == false && userRole.AdministrativeUnits == false)
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded == false &&
+               authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded == false &&
+               authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded == false)
         {
             tag = _tag.DeepCopyKeepId();
             tagSuccessMessage = "";
@@ -792,7 +779,7 @@
         }
 
         // Update everything if user is an admin
-        if (userRole.IsAdminRole())
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
         {
             try
             {
@@ -817,27 +804,30 @@
         // Parse the user role to identify the activities they can perform
         // No updates to _tag delegation
         // User can update Attributes
-        if (userRole.Attributes.Count > 0)
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
         {
-            foreach (var attribute in userRole.Attributes)
+            foreach (AllowedAttributes attribute in Enum.GetValues(typeof(AllowedAttributes)))
             {
-                if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0 && _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                if(AttributeAllowed(attribute))
                 {
-                    _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value = tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value;
-                }
-                else if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
-                {
-                    _tag.UpdateActions.Add(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First());
-                }
-                else if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() <= 0)
-                {
-                    _tag.UpdateActions.RemoveAll(a => a.Name == attribute.ToString());
-                }
+                    if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0 && _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                    {
+                        _tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value = tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First().Value;
+                    }
+                    else if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() > 0)
+                    {
+                        _tag.UpdateActions.Add(tag.UpdateActions.Where(a => a.Name == attribute.ToString()).First());
+                    }
+                    else if (tag.UpdateActions.Where(a => a.Name == attribute.ToString()).Count() <= 0)
+                    {
+                        _tag.UpdateActions.RemoveAll(a => a.Name == attribute.ToString());
+                    }
+                }                
             }
         }
 
         // User can update Groups
-        if (userRole.SecurityGroups)
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded)
         {
             List<DeviceUpdateAction> groupActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
@@ -846,7 +836,7 @@
         }
 
         // User can update Administrative Units
-        if (userRole.AdministrativeUnits)
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded)
         {
             List<DeviceUpdateAction> administrativeUnitActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
@@ -877,6 +867,14 @@
         // Error correlation Id
         Guid g = Guid.NewGuid();
 
+        if(authState == null || authState.User == null)
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: Unable to delete Tag. Correlation Id:{g.ToString()}";
+            logger.LogWarning($"Error: Unable to delete Tag. Correlation Id:{g.ToString()}");
+            return;
+        }
+
         // Check if there are devices associated with the tag
         try
         {
@@ -901,7 +899,7 @@
         }
 
         // Check if user is an admin and only then delete the tag
-        if (userRole.IsAdminRole())
+        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Delete).Result.Succeeded)
         {
             try
             {

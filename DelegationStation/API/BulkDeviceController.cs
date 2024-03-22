@@ -42,7 +42,7 @@ namespace DelegationStation.API
                 return BadRequest("Tag Id Empty");
             }
 
-            DeviceTag tag = null;
+            DeviceTag? tag = null;
             try
             {
                 tag = await _deviceTagDBService.GetDeviceTagAsync(id);

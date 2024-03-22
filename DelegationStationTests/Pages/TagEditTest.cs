@@ -13,6 +13,8 @@ using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
 using Microsoft.Graph.Reports.GetGroupArchivedPrintJobsWithGroupIdWithStartDateTimeWithEndDateTime;
+using Microsoft.AspNetCore.Authorization;
+using DelegationStation.Authorization;
 
 namespace DelegationStationTests.Pages
 {
@@ -53,16 +55,32 @@ namespace DelegationStationTests.Pages
                 // Arrange
                 // Add Dependent Services
                 Guid defaultId = Guid.NewGuid();
+                AddDefaultServices(defaultId.ToString());
                 var authContext = this.AddTestAuthorization();
-                authContext.SetAuthorized("TEST USER");
+                ServiceCollection sc = new ServiceCollection();
+                var logger = new LoggerFactory().CreateLogger<DeviceTagAuthorizationHandler>();
+                var myConfiguration = new Dictionary<string, string>
+                    {
+                        {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                        {"Nested:Key1", "NestedValue1"},
+                        {"Nested:Key2", "NestedValue2"}
+                    };
+                var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(myConfiguration)
+                .Build();
+                var authHandler = new DeviceTagAuthorizationHandler(configuration, logger);
+                sc.AddSingleton<IAuthorizationHandler>(authHandler);
+                
+                authContext.RegisterAuthorizationServices(sc);
+
+                authContext.SetAuthorized("TEST USER", AuthorizationState.Authorized);
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-                AddDefaultServices(defaultId.ToString());
+                authContext.SetPolicies("ViewDeviceTag");
 
                 // Act
                 var cut = RenderComponent<TagEdit>(parameters => parameters
-                    .Add(p => p.Id, "myId"));
+                    .Add(p => p.Id, Guid.NewGuid().ToString()));
 
                 // Assert
                 string match = @"Role:\s*<select";
@@ -82,7 +100,6 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", Guid.NewGuid().ToString()));
-
                 AddDefaultServices(defaultId.ToString());
 
                 // Act
@@ -400,8 +417,6 @@ namespace DelegationStationTests.Pages
         {
 
             //      Create fake services
-
-
             List<DeviceTag> deviceTags = new List<DeviceTag>();
             DeviceTag deviceTag1 = new DeviceTag();
             deviceTag1.Name = "testTagName1";
@@ -462,13 +477,15 @@ namespace DelegationStationTests.Pages
                 .AddInMemoryCollection(myConfiguration)
                 .Build();
 
+            
 
             //      Add Dependent Services
+            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration); 
+            Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
             Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
             Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
             Services.AddSingleton<IRoleDBService>(fakeRoleDBService);
             Services.AddSingleton<IGraphService>(fakeGraphService);
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
         }
 
         private void AddLimitedRoleServices(string defaultId = "", string userGroupId = "")
@@ -551,6 +568,8 @@ namespace DelegationStationTests.Pages
             Services.AddSingleton<IRoleDBService>(fakeRoleDBService);
             Services.AddSingleton<IGraphService>(fakeGraphService);
             Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+            Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
+
         }
     }
 }
