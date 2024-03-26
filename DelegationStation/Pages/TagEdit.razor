@@ -49,7 +49,11 @@
                 <button type="button" @onclick=@ValidateTestEnrollmentUser class="btn btn-primary my-2">Test</button>
                 @if (displayTestResult)
                 {
-                    @if (testEnrollmentUserResult)
+                    @if (testEnrollmentUserResult == null)
+                    {
+                        <p class="text-success">Invalid Regular Expression</p>
+                    }
+                    else if (testEnrollmentUserResult == true)
                     {
                         <p class="text-success">User is allowed to enroll</p>
                     }
@@ -425,7 +429,7 @@
     private string addRoleMessage = "";
 
     private string testEnrollmentUser = "";
-    private bool testEnrollmentUserResult = false;
+    private bool? testEnrollmentUserResult = false;
     private bool displayTestResult = false;
 
     private int deviceCount = 0;
@@ -808,9 +812,30 @@
         return changes;
     }
 
+    private static bool IsRegexPatternValid(string pattern)
+    {
+        try
+        {
+            new System.Text.RegularExpressions.Regex(pattern);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        return true;
+    }
+
     private async Task Save()
     {
         Guid g = Guid.NewGuid();
+
+        if(String.IsNullOrEmpty(tag.AllowedUserPrincipalName) == false && IsRegexPatternValid(tag.AllowedUserPrincipalName) == false)
+        {
+            tagSuccessMessage = "";
+            tagErrorMessage = $"Error: Invalid Allowed User Principal Name Regex Pattern. Correlation Id:{g.ToString()}";
+            logger.LogWarning(tagErrorMessage);
+            return;
+        }
 
         if (await ChangesSinceLoad(g))
         {
@@ -1198,11 +1223,19 @@
     {
         if(!string.IsNullOrEmpty(testEnrollmentUser))
         {
-            testEnrollmentUserResult = System.Text.RegularExpressions.Regex.IsMatch(testEnrollmentUser, tag.AllowedUserPrincipalName);
+            if(IsRegexPatternValid(tag.AllowedUserPrincipalName))
+            {
+                testEnrollmentUserResult = System.Text.RegularExpressions.Regex.IsMatch(testEnrollmentUser, tag.AllowedUserPrincipalName);
+            }
+            else
+            {
+                testEnrollmentUserResult = null;
+            }
         }
-        else
+
+        if(string.IsNullOrEmpty(tag.AllowedUserPrincipalName))
         {
-            testEnrollmentUserResult = false;
+            testEnrollmentUserResult = true;
         }
         displayTestResult = true;
     }
