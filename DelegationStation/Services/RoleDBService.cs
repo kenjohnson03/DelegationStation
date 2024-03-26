@@ -1,6 +1,5 @@
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
-using System.Configuration;
 
 namespace DelegationStation.Services
 {

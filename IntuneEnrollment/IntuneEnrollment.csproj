@@ -5,9 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.10.4" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.37.1" />
-    <PackageReference Include="Microsoft.Graph" Version="5.38.0" />
-    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.2.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.38.1" />
+    <PackageReference Include="Microsoft.Graph" Version="5.45.0" />
+    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DelegationSharedLibrary\DelegationSharedLibrary.csproj" />
