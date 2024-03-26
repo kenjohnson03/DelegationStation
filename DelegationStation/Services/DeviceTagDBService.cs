@@ -157,13 +157,13 @@ namespace DelegationStation.Services
 
 
 
-            QueryDefinition q = new QueryDefinition("SELECT VALUE COUNT(d.id) FROM d WHERE d.Type = \"Device\" AND CONTAINS(d.Tags, @tagId, true)");
+            QueryDefinition q = new QueryDefinition("SELECT VALUE COUNT(d.id) FROM d WHERE d.Type = \"Device\" AND ARRAY_CONTAINS(d.Tags, @tagId, true)");
             q.WithParameter("@tagId", tagId);
             
             FeedIterator<int> queryIterator = this._container.GetItemQueryIterator<int>(q);
             FeedResponse<int> response = await queryIterator.ReadNextAsync();
 
-            return response.Count;
+            return response.Resource.FirstOrDefault<int>();
         }
 
         public async Task DeleteDeviceTagAsync(DeviceTag deviceTag)
