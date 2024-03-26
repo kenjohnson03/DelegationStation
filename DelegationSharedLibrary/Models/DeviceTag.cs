@@ -15,6 +15,8 @@ namespace DelegationStationShared.Models
         public DateTime? Modified { get; set; }
         public string ModifiedBy { get; set; }
 
+        public string AllowedUserPrincipalName { get; set; }
+
         [Required(AllowEmptyStrings = false)]
         public string PartitionKey { get; set; }
 
@@ -27,6 +29,7 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             PartitionKey = typeof(DeviceTag).Name;
             ModifiedBy = string.Empty;
+            AllowedUserPrincipalName = string.Empty;
         }
 
         public DeviceTag DeepCopyKeepId()

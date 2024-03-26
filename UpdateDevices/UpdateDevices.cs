@@ -166,6 +166,32 @@ namespace UpdateDevices
                     _logger.LogError($"{fullMethodName} Error: Get tag {tagId} failed.\n {ex.Message}", ex);
                 }
 
+                // Check the enrollment user and ensure there is a match
+                // Allow any where the user is not set
+                try
+                {
+                    if (!string.IsNullOrEmpty(tag.AllowedUserPrincipalName))
+                    {
+                        // If the user principal name is not in the allowed list, skip the tag
+                        if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
+                        {
+                            _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} did not match Tag Id {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}");
+                            return;
+                        }
+                    }
+                } 
+                catch (System.ArgumentException ex)
+                {
+                    _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}. Argument exception thrown: {ex.Message}");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}. Exception thrown: {ex.Message}");
+                    return;
+                }
+                
+
                 foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.AdministrativeUnit))
                 {
                     try
@@ -361,7 +387,7 @@ namespace UpdateDevices
                     .GetAsync((requestConfiguration) =>
                     {
                       // requestConfiguration.QueryParameters.Select = ["id","manufacturer","model","serialNumber","azureADDeviceId"];
-                      requestConfiguration.QueryParameters.Select = new string[] { "id", "manufacturer", "model", "serialNumber", "azureADDeviceId" };
+                      requestConfiguration.QueryParameters.Select = new string[] { "id", "manufacturer", "model", "serialNumber", "azureADDeviceId", "userPrincipalName" };
                       requestConfiguration.QueryParameters.Filter = $"enrolledDateTime ge {dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")}";
                     });
 

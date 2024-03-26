@@ -234,12 +234,7 @@
     {
         try
         {
-            string Id = deviceTags.Select(t => t.Id.ToString()).FirstOrDefault() ?? "";
-            if(newDevice.Tags.Count < 1 && !string.IsNullOrEmpty(Id))
-            {
-                newDevice.Tags.Add(Id);
-            }
-            else if (newDevice.Tags.Count < 1)
+            if (newDevice.Tags.Count < 1)
             {
                 deviceAddValidationMessage = "Device must have at least one Tag";
                 return;
