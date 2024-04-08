@@ -1,11 +1,5 @@
-using Azure.Core;
-using Azure.Identity;
-using DelegationStation.Pages;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
-using Microsoft.Extensions.Logging;
-using Microsoft.Identity;
-using Microsoft.Identity.Web;
 
 namespace DelegationStation.Services
 {

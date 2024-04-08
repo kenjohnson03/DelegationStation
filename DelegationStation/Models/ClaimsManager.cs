@@ -1,6 +1,4 @@
-﻿using DelegationStation.Pages;
-using System.Net;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 
 namespace DelegationStation.Models
 {
