@@ -151,6 +151,8 @@ namespace UpdateDevices
               return;
             }
 
+            _logger.LogInformation($"{fullMethodName} Found device matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}' in Entra" +
+                                    $" -- ObjectID: '{deviceObjectID}', DeviceID: '{device.AzureADDeviceId}', ManagedDeviceID: '{device.Id}'");
 
             foreach (string tagId in d.Tags)
             {
@@ -196,6 +198,7 @@ namespace UpdateDevices
                 {
                     try
                     {
+                        _logger.LogInformation($"{fullMethodName} Adding Device to Administrative Unit {deviceUpdateAction.Name}");
                         await AddDeviceToAzureAdministrativeUnit(deviceObjectID, deviceUpdateAction.Value);
                     }
                     catch (Exception ex)
@@ -208,7 +211,8 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await AddDeviceToAzureADGroup(deviceObjectID, deviceUpdateAction.Value);
+                        _logger.LogInformation($"{fullMethodName} Adding Device to Group {deviceUpdateAction.Name}");
+                        await AddDeviceToAzureADGroup(deviceObjectID, deviceUpdateAction.Name);
                     }
                     catch (Exception ex)
                     {
@@ -217,8 +221,10 @@ namespace UpdateDevices
                 }
 
                 try
-                {
-                    await UpdateAttributesOnDeviceAsync(deviceObjectID, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
+                { 
+                    var attributeList = tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList();
+                    _logger.LogInformation($"{fullMethodName} Adding Attributes to Device: [{string.Join(", ",attributeList.Select(a => a.Name + ": " + a.Value))}]");
+                    await UpdateAttributesOnDeviceAsync(deviceObjectID, attributeList);
                 }
                 catch (Exception ex)
                 {
@@ -284,7 +290,7 @@ namespace UpdateDevices
             }
             catch(Exception ex)
             {
-                _logger.LogError($"Unable to update ExtenstionAttributes to DeviceId {deviceId}");
+                _logger.LogError($"Unable to update ExtensionAttributes to DeviceId {deviceId}");
                 _logger.LogError($"{fullMethodName} Error: {ex.Message}");
             }
         }
