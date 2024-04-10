@@ -12,9 +12,9 @@
 @inject IDeviceDBService deviceDBService
 @inject IDeviceTagDBService deviceTagDBService
 @inject IConfiguration config
+@inject IAuthorizationService authorizationService
 
 @attribute [Authorize]
-
 
 <div class="container">
     <div class="row align-items-start mt-3">
@@ -192,7 +192,7 @@ else
     private List<string> appliedTags = new();
 
     private List<IBrowserFile> loadedFiles = new();
-    
+
     private long maxFileSize = 1024 * 30000;
     private int maxAllowedFiles = 1;
     private bool isLoading;
@@ -313,12 +313,6 @@ else
                     fileError.Add("File too large");
                     return;
                 }
-                // if (file.ContentType != "text/csv")
-                // {
-                //     fileError.Add("Content type must be text/csv");
-                //     isLoading = false;
-                //     return;
-                // }
 
 
                 var trustedFileNameForFileStorage = Path.GetRandomFileName();
@@ -470,6 +464,16 @@ else
                 logger.LogError($"Error: Tag {tagToApply} not found.");
                 isUpdating = false;
                 return;
+            }
+
+            DeviceTag tag = deviceTags.First(t => t.Id.ToString() == tagToApply);
+
+            if (authorizationService.AuthorizeAsync(authState.User, tag, Authorization.DeviceTagOperations.BulkUpload).Result.Succeeded == false)
+            {
+                updateErrors.Add("Error: Unauthorized to apply tag.");
+                logger.LogError($"Error: Unauthorized to apply tag. UserId: {userId.Value} TagId: {tag.Id}");
+                isUpdating = false;
+                return;                
             }
 
             try
