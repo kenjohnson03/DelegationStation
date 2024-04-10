@@ -19,7 +19,7 @@ using DelegationStation.Authorization;
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class TagEditTest : Bunit.TestContext
+    public class TagEditTests : Bunit.TestContext
     {
         [TestMethod]
         public void TagShouldRender()
@@ -30,15 +30,17 @@ namespace DelegationStationTests.Pages
                 // Add Dependent Services
                 Guid defaultId = Guid.NewGuid();
                 var authContext = this.AddTestAuthorization();
+
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate");
 
                 AddDefaultServices(defaultId.ToString());
 
                 // Act
                 var cut = RenderComponent<TagEdit>(parameters => parameters
-                    .Add(p => p.Id, "myId"));
+                    .Add(p => p.Id, "11111111-1111-1111-1111-111111111111"));
 
                 // Assert
                 string match = @"class=""form-control valid"" value=""testTagName1""";
@@ -57,26 +59,11 @@ namespace DelegationStationTests.Pages
                 Guid defaultId = Guid.NewGuid();
                 AddDefaultServices(defaultId.ToString());
                 var authContext = this.AddTestAuthorization();
-                ServiceCollection sc = new ServiceCollection();
-                var logger = new LoggerFactory().CreateLogger<DeviceTagAuthorizationHandler>();
-                var myConfiguration = new Dictionary<string, string>
-                    {
-                        {"DefaultAdminGroupObjectId", defaultId.ToString()},
-                        {"Nested:Key1", "NestedValue1"},
-                        {"Nested:Key2", "NestedValue2"}
-                    };
-                var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
-                var authHandler = new DeviceTagAuthorizationHandler(configuration, logger);
-                sc.AddSingleton<IAuthorizationHandler>(authHandler);
-                
-                authContext.RegisterAuthorizationServices(sc);
 
                 authContext.SetAuthorized("TEST USER", AuthorizationState.Authorized);
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-                authContext.SetPolicies("ViewDeviceTag");
+                authContext.SetPolicies("TagView","TagUpdate");
 
                 // Act
                 var cut = RenderComponent<TagEdit>(parameters => parameters
@@ -114,7 +101,7 @@ namespace DelegationStationTests.Pages
         }
 
         [TestMethod]
-        public void AdminShouldShowAllUpdateActions()
+        public void AdminShouldShowAttributes()
         {
             using (ShimsContext.Create())
             {
@@ -125,7 +112,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAttributes");
                 AddDefaultServices(defaultId.ToString());
 
                 // Act
@@ -133,40 +120,8 @@ namespace DelegationStationTests.Pages
                     .Add(p => p.Id, "myId"));
 
                 // Assert
-                string match = @"<option value=""Group"".*>Group</option>";
+                string match = $"<option value=\"Attribute\".*>Attribute</option>";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                match = @"<option value=""AdministrativeUnit"".*>AdministrativeUnit</option>";
-                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                match = @"<option value=""Attribute"".*>Attribute</option>";
-                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-            }
-        }
-
-        [TestMethod]
-        public void AdminShouldShowAllAttributes()
-        {
-            using (ShimsContext.Create())
-            {
-                // Arrange
-                // Add Dependent Services
-                Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
-                authContext.SetAuthorized("TEST USER");
-                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-                AddDefaultServices(defaultId.ToString());
-
-                // Act
-                var cut = RenderComponent<TagEdit>(parameters => parameters
-                    .Add(p => p.Id, "myId"));
-
-                // Assert
-                for(int i = 1; i < 16; i++)
-                {
-                    string match = $"<option value=\"ExtensionAttribute{i}\".*>ExtensionAttribute{i}</option>";
-                    Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                }
             }
         }
 
@@ -182,6 +137,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionSecurityGroups");
 
                 AddDefaultServices(defaultId.ToString());
 
@@ -207,7 +163,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAdministrativeUnits");
                 AddDefaultServices(defaultId.ToString());
 
                 // Act
@@ -217,46 +173,6 @@ namespace DelegationStationTests.Pages
                 // Assert
                 string match = $"<option value=\"AdministrativeUnit\".*>AdministrativeUnit</option>";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-            }
-        }
-
-        [TestMethod]
-        public void LimitedRoleShouldLimitExtensionAttributes()
-        {
-            using (ShimsContext.Create())
-            {
-                // Arrange
-                // Add Dependent Services
-                Guid defaultId = Guid.NewGuid();
-                Guid userGroup = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
-                authContext.SetAuthorized("TEST USER");
-                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
-
-                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
-
-                // Act
-                var cut = RenderComponent<TagEdit>(parameters => parameters
-                    .Add(p => p.Id, "myId"));
-
-                // Assert
-                int[] ints = new int[3];
-                ints[0] = 1;
-                ints[1] = 5;
-                ints[2] = 12;
-                for (int i = 1; i < 16; i++)
-                {
-                    string match = $"<option value=\"ExtensionAttribute{i}\".*>ExtensionAttribute{i}</option>";
-                    if (ints.Contains(i))
-                    {
-                        Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                    }
-                    else
-                    {
-                        Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected to not Match:\n{match}\nActual:\n{cut.Markup}");
-                    }
-                }
             }
         }
 
@@ -273,6 +189,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
 
                 AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
@@ -300,6 +217,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
                 authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
 
                 AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
@@ -332,9 +250,9 @@ namespace DelegationStationTests.Pages
                 // Assert
                 string match = @"<h3>Tag Edit</h3>.*";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                match = @"<p>Not Authorized</p>";
+                match = @"<h3>Not Authorized</h3>";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-                match = @"<table";
+                match = @".*<table";
                 Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected to not Match:\n{match}\nActual:\n{cut.Markup}");
             }
         }
@@ -349,6 +267,7 @@ namespace DelegationStationTests.Pages
             authContext.SetAuthorized("TEST USER");
             authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
             authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+            authContext.SetPolicies("TagView");
 
             AddDefaultServices(defaultId.ToString());
 
@@ -398,6 +317,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdateActions");
 
                 AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
@@ -419,10 +339,12 @@ namespace DelegationStationTests.Pages
             //      Create fake services
             List<DeviceTag> deviceTags = new List<DeviceTag>();
             DeviceTag deviceTag1 = new DeviceTag();
+            deviceTag1.Id = Guid.Parse("11111111-1111-1111-1111-111111111111");
             deviceTag1.Name = "testTagName1";
             deviceTag1.Description = "testTagDescription1";
             deviceTags.Add(deviceTag1);
             DeviceTag deviceTag2 = new DeviceTag();
+            deviceTag2.Id = Guid.Parse("22222222-2222-2222-2222-222222222222");
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);

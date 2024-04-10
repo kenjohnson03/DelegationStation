@@ -1,4 +1,5 @@
-﻿using DelegationStation.Services;
+﻿using Azure;
+using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,17 +17,20 @@ namespace DelegationStation.API
         private IDeviceDBService _deviceDBService;
         private IDeviceTagDBService _deviceTagDBService;
         private readonly IConfiguration _config;
-        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger) 
+        private readonly IAuthorizationService _authorizationService;
+        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger, IAuthorizationService authorizationService) 
         {
             _logger = logger;
             _deviceDBService = deviceService;
             _deviceTagDBService = deviceTagDBService;
             _config = config;
+            _authorizationService = authorizationService;
         }
 
         [HttpGet("BulkDevice")]
         public async Task<IActionResult> Download(string id = "")
         {
+            // authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded == false
             List<string> groups = new List<string>();
             var roleClaims = User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
             roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
@@ -58,12 +62,11 @@ namespace DelegationStation.API
                 return BadRequest("Unable to find tag");
             }
 
-            userRole = userRole.GetRole(groups, defaultGroup, tag);
-
-            if(userRole.IsDefaultRole())
+            if(_authorizationService.AuthorizeAsync(User, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded == false)
             {
                 return new UnauthorizedResult();
             }
+
             string fileName = "Devices.csv";
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
             StringBuilder sb = new StringBuilder();

@@ -15,7 +15,7 @@ using Microsoft.Extensions.Configuration;
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class TagTest : Bunit.TestContext
+    public class TagTests : Bunit.TestContext
     {
         [TestMethod]
         public void TagsShouldRender()

@@ -3,6 +3,7 @@ using DelegationStation.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 
@@ -23,8 +24,18 @@ builder.Services.AddControllers(config =>
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("ViewDeviceTag", policy =>
+    options.AddPolicy("TagView", policy =>
         policy.Requirements.Add(DeviceTagOperations.Read));
+    options.AddPolicy("TagUpdate", policy =>
+        policy.Requirements.Add(DeviceTagOperations.Update));
+    options.AddPolicy("TagUpdateActions", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateActions));
+    options.AddPolicy("TagUpdateActionSecurityGroups", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateSecurityGroups));
+    options.AddPolicy("TagUpdateActionAttributes", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateAttributes));
+    options.AddPolicy("TagUpdateActionAdministrativeUnits", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateAdministrativeUnits));
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();    

@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Http;
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class RoleTest : Bunit.TestContext
+    public class RoleTests : Bunit.TestContext
     {
         [TestMethod]
         public void RolesShouldRender()

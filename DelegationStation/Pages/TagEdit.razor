@@ -17,7 +17,7 @@
 
 <h3>Tag Edit</h3>
 
-<AuthorizeView Context="authContext" Policy="ViewDeviceTag" Resource="_tag">
+<AuthorizeView Context="authContext" Policy="TagView" Resource="_tag">
     <Authorized>
         @if (Id == null)
         {
@@ -30,17 +30,16 @@
                 <h4>@tag.Description</h4>
                 <br />
                 <hr />
-                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
-                {
-                    <label>Name:</label>
-                    <InputText @bind-Value=tag.Name class="form-control"></InputText>
-                    <label>Description:</label>
-                    <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
-                    <br />
-                    <hr />
+                <AuthorizeView Context="TagUpdateContext" Policy="TagUpdate" Resource="_tag">
+                    <Authorized>
+                        <label>Name:</label>
+                        <InputText @bind-Value=tag.Name class="form-control"></InputText>
+                        <label>Description:</label>
+                        <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
+                        <br />
+                        <hr />
 
-                }
-                <div class="container">
+                        <div class="container">
                     <h2>Assigned Groups</h2>
                     <table class="table table-responsive">
                         <thead>
@@ -64,8 +63,7 @@
                         </tbody>
                     </table>
                 </div>
-                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
-                {
+
                     <DisplayMessage Message="@addRoleMessage" />
                     <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
                         <DataAnnotationsValidator />
@@ -132,218 +130,275 @@
                         <br />
                         <input type="submit" class="btn btn-primary mt-2 mb-2 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) || string.IsNullOrEmpty(roleDelegation.Role.Name) ? "disabled" : "")" value="Add Role" />
                     </EditForm>
-                }
+                
+                    </Authorized>
+                    <NotAuthorized>
+                        <label>Name:</label>
+                        <InputText @bind-Value=tag.Name class="form-control" disabled></InputText>
+                        <label>Description:</label>
+                        <InputTextArea @bind-Value=tag.Description class="form-control" disabled></InputTextArea>
+                        <br />
+                        <hr />
+                    </NotAuthorized>
+                </AuthorizeView>
+                
 
-                <div class="container">
-                    <h2>Actions on Enrollment</h2>
-                    <table class="table table-responsive">
-                        <thead>
-                            <tr>
-                                <th>Action Type</th>
-                                <th>Name</th>
-                                <th>Value</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (DeviceUpdateAction a in tag.UpdateActions)
-                            {
-                                <tr class="">
-                                    <td>@a.ActionType</td>
-                                    <td>@a.Name</td>
-                                    <td>@a.Value</td>
-                                    <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded ||
-               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded ||
-               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
-                {
-                    <DisplayMessage Message="@deviceUpdateActionsValidationMessage" />
-                    <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
-
-                        Update Action:
-                        <select value="@deviceUpdateAction.ActionType" @onchange="DeviceUpdateActionChanged" class="form-select">
-
-                            @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
-                            {
-                                if ((t == DeviceUpdateActionType.Group && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded) ||
-                                (t == DeviceUpdateActionType.AdministrativeUnit && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded) ||
-                                (t == DeviceUpdateActionType.Attribute && authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded))
-                                {
-                                    <option value="@t">@t</option>
-                                }
-                            }
-                        </select>
-                        <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
-                        @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
-                        {
-                            <label class="form-label">Attribute name:</label>
-                            <InputSelect @bind-Value=deviceUpdateAction.Name class="form-select">
-                                @{
-                                    foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
+                
+                <AuthorizeView Context="TagLimitedUpdateContext" Policy="TagUpdateActions" Resource="_tag">
+                    <Authorized>
+                        <div class="container">
+                            <h2>Actions on Enrollment</h2>
+                            <table class="table table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th>Action Type</th>
+                                        <th>Name</th>
+                                        <th>Value</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (DeviceUpdateAction a in tag.UpdateActions)
                                     {
-                                        if (tag.UpdateActions.Where(u => u.Name == t.ToString()).Count() > 0)
-                                        {
-                                            // Attribute already exists in tag
-                                            continue;
-                                        }
-                                        else if (t == AllowedAttributes.All)
-                                        {
-                                            // Don't show the All attribute
-                                            continue;
-                                        }
-                                        else if (AttributeAllowed(t))
-                                        {
-                                            <option value="@t">@t</option>
-                                        }
+                                        <tr class="">
+                                            <td>@a.ActionType</td>
+                                            <td>@a.Name</td>
+                                            <td>@a.Value</td>
+                                            <td><button type="button" class="btn btn-danger @(ActionAllowed(a) ? "" : "disabled")" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <DisplayMessage Message="@deviceUpdateActionsValidationMessage" />
+                        <EditForm EditContext="deviceUpdateActionEditContext" OnValidSubmit="AddDeviceUpdateAction" class="form-control mb-3">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            Update Action:
+                            <select value="@deviceUpdateAction.ActionType" @onchange="DeviceUpdateActionChanged" class="form-select">
+
+                                @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
+                                {
+                                    if (t == DeviceUpdateActionType.Group)
+                                    {
+                                        <AuthorizeView Context="TagGroupUpdateOption" Policy="TagUpdateActionSecurityGroups" Resource="_tag">
+                                            <Authorized>
+                                                <option value="@t">@t</option>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    }
+
+                                    if (t == DeviceUpdateActionType.AdministrativeUnit)
+                                    {
+                                        <AuthorizeView Context="TagAdministrativeUnitUpdateOption" Policy="TagUpdateActionAdministrativeUnits" Resource="_tag">
+                                            <Authorized>
+                                                <option value="@t">@t</option>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    }
+
+                                    if (t == DeviceUpdateActionType.Attribute)
+                                    {
+                                        <AuthorizeView Context="TagAttributeUpdateOption" Policy="TagUpdateActionAttributes" Resource="_tag">
+                                            <Authorized>
+                                                <option value="@t">@t</option>
+                                            </Authorized>
+                                        </AuthorizeView>
                                     }
                                 }
-                            </InputSelect>
-                            <label class="form-label">Attribute value:</label>
-                            <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
-                        }
-                        else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
-                        {
-                            @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+                            </select>
+                            <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
+                            @if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
                             {
-                                <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
-                                <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
-                            }
-                            else
-                            {
-                                <p class="mt-2 mb-2">Select an Administrative Unit</p>
-                            }
-
-                            <DisplayMessage Message=@administrativeUnitSearchMessage />
-                            <InputText class="form-control" @bind-Value=administrativeUnitSearchString placeholder="Search for an Administrative Unit"></InputText>
-                            <button type="button" class="btn btn-secondary mt-2 @(administrativeUnitSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchAdministrativeUnits()) @onkeyup=@SearchAdministrativeUnitsKeyUp>Search</button>
-                            @if (administrativeUnitSearchResults.Count > 0)
-                            {
-                                <table class="table table-responsive">
-                                    <thead>
-                                        <tr>
-                                            <th>Display Name</th>
-                                            <th>Description</th>
-                                            <th>Object Id</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (AdministrativeUnit a in administrativeUnitSearchResults)
+                                <label class="form-label">Attribute name:</label>
+                                <InputSelect @bind-Value=deviceUpdateAction.Name class="form-select">
+                                    @{
+                                        foreach (AllowedAttributes t in Enum.GetValues(typeof(AllowedAttributes)))
                                         {
-                                            <tr class="">
-
-                                                <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.DisplayName</td>
-                                                <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Description</td>
-                                                <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Id</td>
-                                                <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectAdministrativeUnit(a))>Select</button></td>
-                                            </tr>
+                                            if (tag.UpdateActions.Where(u => u.Name == t.ToString()).Count() > 0)
+                                            {
+                                                // Attribute already exists in tag
+                                                continue;
+                                            }
+                                            else if (t == AllowedAttributes.All)
+                                            {
+                                                // Don't show the All attribute
+                                                continue;
+                                            }
+                                            else if (AttributeAllowed(t))
+                                            {
+                                                <option value="@t">@t</option>
+                                            }
                                         }
-                                    </tbody>
-                                </table>
+                                    }
+                                </InputSelect>
+                                <label class="form-label">Attribute value:</label>
+                                <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
                             }
-                            else if (administrativeUnitSearchInProgress)
+                            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
                             {
-                                <p class="mt-2 mb-2">Searching...</p>
+                                @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+                                {
+                                    <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
+                                    <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
+                                }
+                                else
+                                {
+                                    <p class="mt-2 mb-2">Select an Administrative Unit</p>
+                                }
+
+                                <DisplayMessage Message=@administrativeUnitSearchMessage />
+                                <InputText class="form-control" @bind-Value=administrativeUnitSearchString placeholder="Search for an Administrative Unit"></InputText>
+                                <button type="button" class="btn btn-secondary mt-2 @(administrativeUnitSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchAdministrativeUnits()) @onkeyup=@SearchAdministrativeUnitsKeyUp>Search</button>
+                                @if (administrativeUnitSearchResults.Count > 0)
+                                {
+                                    <table class="table table-responsive">
+                                        <thead>
+                                            <tr>
+                                                <th>Display Name</th>
+                                                <th>Description</th>
+                                                <th>Object Id</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (AdministrativeUnit a in administrativeUnitSearchResults)
+                                            {
+                                                <tr class="">
+
+                                                    <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.DisplayName</td>
+                                                    <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Description</td>
+                                                    <td class="clickable" @onclick=@(() => SelectAdministrativeUnit(a))>@a.Id</td>
+                                                    <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectAdministrativeUnit(a))>Select</button></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else if (administrativeUnitSearchInProgress)
+                                {
+                                    <p class="mt-2 mb-2">Searching...</p>
+                                }
+                                else if (administrativeUnitSearchResults.Count == 0 && administrativeUnitSearchExecuted)
+                                {
+                                    <p class="mt-2 mb-2">No results found</p>
+                                }
                             }
-                            else if (administrativeUnitSearchResults.Count == 0 && administrativeUnitSearchExecuted)
+                            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
                             {
-                                <p class="mt-2 mb-2">No results found</p>
+
+                                @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
+                                {
+                                    <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
+                                    <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
+                                }
+                                else
+                                {
+                                    <p class="mt-2 mb-2">Select a security group</p>
+                                }
+
+                                <DisplayMessage Message=@securityGroupSearchMessage />
+                                <InputText class="form-control" @bind-Value=securityGroupSearchString placeholder="Search for a group"></InputText>
+                                <button type="button" class="btn btn-secondary mt-2 @(securityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchSecurityGroups()) @onkeyup=@SearchSecurityGroupsKeyUp>Search</button>
+                                @if (securityGroupSearchResults.Count > 0)
+                                {
+                                    <table class="table table-responsive">
+                                        <thead>
+                                            <tr>
+                                                <th>Display Name</th>
+                                                <th>Description</th>
+                                                <th>Object Id</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (Group g in securityGroupSearchResults)
+                                            {
+                                                <tr class="">
+
+                                                    <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.DisplayName</td>
+                                                    <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Description</td>
+                                                    <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Id</td>
+                                                    <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectSecurityGroup(g))>Select</button></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else if (securityGroupSearchInProgress)
+                                {
+                                    <p class="mt-2 mb-2">Searching...</p>
+                                }
+                                else if (securityGroupSearchResults.Count == 0 && securityGroupSearchExecuted)
+                                {
+                                    <p class="mt-2 mb-2">No results found</p>
+                                }
+
                             }
-                        }
-                        else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+                            <br />
+
+                            <input type="submit" class="btn btn-primary mt-2 mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
+
+                            
+                        </EditForm>
+
+                        @if (!string.IsNullOrEmpty(tagErrorMessage))
                         {
-
-                            @if (!string.IsNullOrEmpty(deviceUpdateAction.Name))
-                            {
-                                <p class="mt-2 mb-2">@deviceUpdateAction.Name</p>
-                                <p class="mt-2 mb-2">@deviceUpdateAction.Value</p>
-                            }
-                            else
-                            {
-                                <p class="mt-2 mb-2">Select a security group</p>
-                            }
-
-                            <DisplayMessage Message=@securityGroupSearchMessage />
-                            <InputText class="form-control" @bind-Value=securityGroupSearchString placeholder="Search for a group"></InputText>
-                            <button type="button" class="btn btn-secondary mt-2 @(securityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => SearchSecurityGroups()) @onkeyup=@SearchSecurityGroupsKeyUp>Search</button>
-                            @if (securityGroupSearchResults.Count > 0)
-                            {
-                                <table class="table table-responsive">
-                                    <thead>
-                                        <tr>
-                                            <th>Display Name</th>
-                                            <th>Description</th>
-                                            <th>Object Id</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (Group g in securityGroupSearchResults)
-                                        {
-                                            <tr class="">
-
-                                                <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.DisplayName</td>
-                                                <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Description</td>
-                                                <td class="clickable" @onclick=@(() => SelectSecurityGroup(g))>@g.Id</td>
-                                                <td><button type="button" class="btn btn-primary" @onclick=@(() => SelectSecurityGroup(g))>Select</button></td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
-                            else if (securityGroupSearchInProgress)
-                            {
-                                <p class="mt-2 mb-2">Searching...</p>
-                            }
-                            else if (securityGroupSearchResults.Count == 0 && securityGroupSearchExecuted)
-                            {
-                                <p class="mt-2 mb-2">No results found</p>
-                            }
-
+                            <p class="text-danger">@tagErrorMessage</p>
                         }
-                        <br />
+                        @if (!string.IsNullOrEmpty(tagSuccessMessage))
+                        {
+                            <p class="text-success">@tagSuccessMessage</p>
+                        }
+                        <DisplayMessage Message=@securityGroupSearchMessage />
 
-                        <input type="submit" class="btn btn-primary mt-2 mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
-                    </EditForm>
+                        <button id="SaveButton" class="btn btn-success" type="submit">Save</button>
+                        <button id="DeleteButton" type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="container">
+                            <h2>Actions on Enrollment</h2>
+                            <table class="table table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th>Action Type</th>
+                                        <th>Name</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (DeviceUpdateAction a in tag.UpdateActions)
+                                    {
+                                        <tr class="">
+                                            <td>@a.ActionType</td>
+                                            <td>@a.Name</td>
+                                            <td>@a.Value</td>                                           
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
 
-                }
-
-                @if (!string.IsNullOrEmpty(tagErrorMessage))
-                {
-                    <p class="text-danger">@tagErrorMessage</p>
-                }
-                @if (!string.IsNullOrEmpty(tagSuccessMessage))
-                {
-                    <p class="text-success">@tagSuccessMessage</p>
-                }
-                <DisplayMessage Message=@securityGroupSearchMessage />
-
-                @if (authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded ||
-               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded ||
-               authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
-                {
-                    <button id="SaveButton" class="btn btn-success" type="submit">Save</button>
-                    <button id="DeleteButton" type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => ConfirmDeleteTag())>Delete</button>
-                }
+                
             </EditForm>
-
         }
+        <ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
+        <ConfirmMessage ConfirmAction="@(async () => await Save())" @ref="ConfirmSave" />
     </Authorized>
+
+    <Authorizing>
+        <h3>Authorizing...</h3
+    </Authorizing>
 
     <NotAuthorized>
         <h3>Not Authorized</h3>
     </NotAuthorized>
 </AuthorizeView>
 
-<ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
-<ConfirmMessage ConfirmAction="@(async () => await Save())" @ref="ConfirmSave" />
+
 
 @code {
     [CascadingParameter]
@@ -454,6 +509,17 @@
             if (Id != null)
             {
                 _tag = await deviceTagDBService.GetDeviceTagAsync(Id);
+
+                if (_tag != null)
+                {
+                    tag = _tag.DeepCopyKeepId();
+                }
+                else
+                {
+                    tagErrorMessage = $"Failed to find Device Tag {Id} to Edit.";
+                    return;
+                }
+
                 if (!authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
                 {
                     return;
@@ -461,12 +527,7 @@
                 foreach(RoleDelegation roleDelegation in _tag.RoleDelegations)
                 {
                     roleDelegation.Role = await roleDBService.GetRoleAsync(roleDelegation.Role.Id.ToString());
-                }
-
-                if (tag != null)
-                {
-                    tag = _tag.DeepCopyKeepId();
-                }
+                }                
             }
         }
         catch (Exception ex)

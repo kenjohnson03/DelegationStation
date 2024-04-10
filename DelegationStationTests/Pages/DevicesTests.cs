@@ -17,7 +17,7 @@ using System.Text.RegularExpressions;
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class DevicesTest : Bunit.TestContext
+    public class DevicesTests : Bunit.TestContext
     {
         [TestMethod]
         public void DevicesShouldRender()

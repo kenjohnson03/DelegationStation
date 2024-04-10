@@ -25,7 +25,7 @@ namespace DelegationStation.Authorization
             if (string.IsNullOrEmpty(defaultAdminGroup))
             {
                 _logger.LogError("Device Tag Authorization Handler DefaultAdminGroupObjectId not found in configuration");
-                context.Fail();
+                context.Fail(new AuthorizationFailureReason(this, "Unable to find default admin group"));
                 return Task.CompletedTask;
             }
 
@@ -59,6 +59,27 @@ namespace DelegationStation.Authorization
                         {
                             context.Succeed(requirement);
                             return Task.CompletedTask;
+                        }
+                    }
+                }                
+            }
+
+            if (requirement.Name == DeviceTagOperations.UpdateActions.Name)
+            {
+                foreach (RoleDelegation roleDelegation in resource.RoleDelegations)
+                {
+                    foreach (string group in groups)
+                    {
+                        if (group == roleDelegation.SecurityGroupId)
+                        {
+                            if (roleDelegation.Role.AdministrativeUnits | 
+                                roleDelegation.Role.SecurityGroups | 
+                                (roleDelegation.Role.Attributes.Count > 0 &&
+                                    roleDelegation.Role.Attributes.Contains(AllowedAttributes.None) == false))
+                            {
+                                context.Succeed(requirement);
+                                return Task.CompletedTask;
+                            }
                         }
                     }
                 }
@@ -451,7 +472,8 @@ namespace DelegationStation.Authorization
                     }
                 }
             }
-
+            
+            context.Fail(new AuthorizationFailureReason(this, $"{requirement.Name} not delegated to Tag {resource.Name} with Id {resource.Id}"));
             return Task.CompletedTask;
         }
     }
@@ -464,6 +486,8 @@ namespace DelegationStation.Authorization
             new OperationAuthorizationRequirement { Name = nameof(Read) };
         public static OperationAuthorizationRequirement Update =
             new OperationAuthorizationRequirement { Name = nameof(Update) };
+        public static OperationAuthorizationRequirement UpdateActions =
+            new OperationAuthorizationRequirement { Name = nameof(UpdateActions) };
         public static OperationAuthorizationRequirement Delete =
             new OperationAuthorizationRequirement { Name = nameof(Delete) };
         public static OperationAuthorizationRequirement BulkUpload =
