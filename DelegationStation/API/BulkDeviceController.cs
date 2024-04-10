@@ -30,7 +30,6 @@ namespace DelegationStation.API
         [HttpGet("BulkDevice")]
         public async Task<IActionResult> Download(string id = "")
         {
-            // authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded == false
             List<string> groups = new List<string>();
             var roleClaims = User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
             roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
