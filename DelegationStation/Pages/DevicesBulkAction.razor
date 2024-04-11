@@ -109,6 +109,22 @@ else
         
     </div>
 
+    @if (!string.IsNullOrEmpty(userMessage))
+    {
+        @if (userMessage.ToLower().Contains("error"))
+        {
+            <div class="alert alert-danger" role="alert">
+                @userMessage
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-success" role="alert">
+                @userMessage
+            </div>
+        }
+    }
+
     @if(isUpdating || completedDevices > 0)
     {
         @if(isUpdating)
@@ -183,10 +199,11 @@ else
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
-    private AuthenticationState? authState;
+    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+    private string userId = string.Empty;
+    private string userName = string.Empty;
 
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
-    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
     private List<string> groups = new List<string>();
     private string tagSearch = "";
     private List<string> appliedTags = new();
@@ -204,19 +221,22 @@ else
     private int totalDevices = 0;
     private bool isUpdating;
     private List<string> updateErrors = new();
+    private string userMessage = string.Empty;
 
 
     // private double percent = 0;
 
     protected override async Task OnInitializedAsync()
     {
-        if (AuthState != null)
+        if (AuthState is not null)
         {
-            authState = await AuthState;
+            var authState = await AuthState;
+            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
 
         UpdateClaims();
-        UpdateUserRole();
         await GetTags();
         // pagination.TotalItemCountChanged += (sender, eventArgs) => StateHasChanged();
     }
@@ -232,31 +252,11 @@ else
     // private string? AriaCurrentValue(int pageIndex)
     //     => pagination.CurrentPageIndex == pageIndex ? "page" : null;
 
-    private void UpdateUserRole()
-    {
-        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
-        {
-            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
-            return;
-        }
-        else if (deviceTags.Count > 0)
-        {
-            List<Role> roles = new List<Role>();
-            foreach (DeviceTag t in deviceTags)
-            {
-                foreach (RoleDelegation rd in t.RoleDelegations)
-                {
-                    roles.Add(rd.Role);
-                }
-            }
-        }
-    }
 
     private void UpdateClaims()
     {
         groups = new List<string>();
-        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+        var groupClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
 
         if (groupClaims == null)
         {
@@ -271,13 +271,15 @@ else
 
     private async Task GetTags()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
         try
         {
             deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
         }
         catch (Exception ex)
         {
-            logger.LogError($"Error retrieving tags.\n{ex.Message}");
+            logger.LogError($"Error retrieving tags.\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 
@@ -296,6 +298,9 @@ else
 
     private async Task LoadFiles(InputFileChangeEventArgs e)
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         isLoading = true;
         loadedFiles.Clear();
         fileError = new();
@@ -347,9 +352,9 @@ else
                         var input = ln.Split(',');
                         if(input.Length != 4)
                         {
-                            fileError.Add($"Line {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.");
-                            logger.LogError("File: {Filename} Error: {Error}",
-                                file.Name, "Invalid number of columns");
+                            var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
+                            fileError.Add(message);
+                            logger.LogError($"{message}\nUser: {userName} {userId}");
                             isLoading = false;
                             return;
                         }
@@ -358,9 +363,9 @@ else
                             // Validate Make, Model, SerialNumber, Action
                             if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
                             {
-                                fileError.Add($"Line {line}. Invalid action. Action should be either add or remove.");
-                                logger.LogError("File: {Filename} Error: {Error}",
-                                    file.Name, "Invalid action");
+                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
+                                fileError.Add(message);
+                                logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                 continue;
                             }
 
@@ -376,15 +381,15 @@ else
 
                             if (!Validator.TryValidateObject(newDevice, context, results, true))
                             {
-                                string validationErrors = "";
-                                validationErrors += $"Line {line}. Invalid input\n";
+                                System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                                sb.Append($"Line {line}. Invalid input\n");
                                 foreach(var result in results)
                                 {
-                                    validationErrors += "\t" + result.ErrorMessage + "\n" ?? "";
+                                    sb.Append("\t" + result.ErrorMessage + "\n" ?? "");
                                 };
-                                fileError.Add(validationErrors);
-                                logger.LogError("File: {Filename} Error: {Error}\nErrors: {Errors}",
-                                    file.Name, "Invalid input", fileError);
+                                sb.AppendLine($"Correlation Id: {c.ToString()}");
+                                fileError.Add(sb.ToString());
+                                logger.LogWarning($"{sb.ToString()}\nUser: {userName} {userId}");
                                 continue;
                             }
 
@@ -392,8 +397,9 @@ else
                         } 
                         catch (Exception ex)
                         {
-                            fileError.Add($"Line {line}. File: {file.Name} Error: {ex.Message}");
-                            logger.LogError($"Line {line}. File: {file.Name} Error: {ex.Message}");
+                            var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}.\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                            fileError.Add(message);
+                            logger.LogError($"{message}\nUser: {userName} {userId}");
                             isLoading = false;
                             return;
                         }
@@ -402,9 +408,9 @@ else
             }
             catch (Exception ex)
             {
-                fileError.Add(ex.Message);
-                logger.LogError("File: {Filename} Error: {Error}",
-                    file.Name, ex.Message);
+                var message = $"File upload error.\nFile Name: {file.Name}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                fileError.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
             }
             finally
             {
@@ -434,6 +440,9 @@ else
 
     private async Task UpdateDevices()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         isUpdating = true;
         completedDevices = 0;
         totalDevices = devices.Count();
@@ -449,29 +458,31 @@ else
 
         foreach(DeviceBulk device in devices)
         {
-            System.Security.Claims.Claim userId = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").FirstOrDefault() ?? new System.Security.Claims.Claim("no", "No user ID");
-            if(userId.Value == "No user ID")
+            if(string.IsNullOrEmpty(userId))
             {
-                updateErrors.Add("Error: User ID not found.");
-                logger.LogError("Error: User ID not found.");
+                var message = $"Error: User ID not found. {userId}\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
                 isUpdating = false;
                 return;
             }
 
             if(deviceTags.Any(t => t.Id.ToString() == tagToApply) == false)
             {
-                updateErrors.Add($"Error: Tag {tagToApply} not found.");
-                logger.LogError($"Error: Tag {tagToApply} not found.");
+                var message = $"Error: Tag {tagToApply} not found.\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
                 isUpdating = false;
                 return;
             }
 
             DeviceTag tag = deviceTags.First(t => t.Id.ToString() == tagToApply);
 
-            if (authorizationService.AuthorizeAsync(authState.User, tag, Authorization.DeviceTagOperations.BulkUpload).Result.Succeeded == false)
+            if (authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.BulkUpload).Result.Succeeded == false)
             {
-                updateErrors.Add("Error: Unauthorized to apply tag.");
-                logger.LogError($"Error: Unauthorized to apply tag. UserId: {userId.Value} TagId: {tag.Id}");
+                var message = $"Error: Unauthorized to apply tag. TagId: {tag.Id}\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
                 isUpdating = false;
                 return;                
             }
@@ -485,12 +496,14 @@ else
                     d.Model = device.Model;
                     d.SerialNumber = device.SerialNumber;
                     d.ModifiedUTC = DateTime.UtcNow;
-                    d.AddedBy = userId.Value;
+                    d.AddedBy = userId;
                     d.Tags.Add(tagToApply);
                     var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
                     if(deviceResult == null)
                     {
-                        updateErrors.Add($"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}");
+                        var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                        updateErrors.Add(message);
+                        logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else if (device.Action == DeviceBulkAction.remove)
@@ -501,28 +514,35 @@ else
                         // Validate the applied tag is on the device
                         if(!d.Tags.Contains(tagToApply))
                         {
-                            updateErrors.Add($"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.");                      
+                            var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
+                            updateErrors.Add(message);
+                            logger.LogError($"{message}\nUser: {userName} {userId}");
                         }
                         else
                         {
                             await deviceDBService.DeleteDeviceAsync(d);
+                            logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
                         }                        
                     }
                     else
                     {
-                        updateErrors.Add($"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}");
+                        var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nDevice not found.\nCorrelation Id: {c.ToString()}";
+                        updateErrors.Add(message);
+                        logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else
                 {
-                    updateErrors.Add("No update action");
+                    var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                    updateErrors.Add(message);
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
                 }
             }
             catch (Exception ex)
             {
-                string err = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}";
-                updateErrors.Add(err);
-                logger.LogError(err);
+                var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             }
 
             completedDevices++;

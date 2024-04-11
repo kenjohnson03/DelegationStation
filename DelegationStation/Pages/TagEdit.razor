@@ -385,6 +385,21 @@
                 
             </EditForm>
         }
+        @if (!string.IsNullOrEmpty(userMessage))
+        {
+            @if (userMessage.ToLower().Contains("error"))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @userMessage
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" role="alert">
+                    @userMessage
+                </div>
+            }
+        }
         <ConfirmMessage ConfirmAction="@(async () => await Delete())" @ref="ConfirmDelete" />
         <ConfirmMessage ConfirmAction="@(async () => await Save())" @ref="ConfirmSave" />
     </Authorized>
@@ -403,13 +418,17 @@
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
+    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+    private string userId = string.Empty;
+    private string userName = string.Empty;
+
     [Parameter] public string? Id { get; set; }
 
     private ConfirmMessage? ConfirmDelete;
     private ConfirmMessage? ConfirmSave;
 
     private DeviceTag _tag = new DeviceTag();
-    private AuthenticationState? authState;
+
     private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();
 
@@ -417,8 +436,6 @@
     private RoleDelegation roleDelegation = new RoleDelegation();
     private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
     private string defaultGroup = "";
-    private string userName = "";
-    private string userId = "";
     private string deviceUpdateActionsValidationMessage = "";
     private string addDeviceUpdateState = "";
     private string tagErrorMessage = "";
@@ -452,11 +469,12 @@
         deviceUpdateActionEditContext.OnFieldChanged += DeviceUpdateAction_OnFieldChanged;
 
         defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (AuthState != null)
+        if (AuthState is not null)
         {
-            authState = await AuthState;
-            userName = authState?.User.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            userId = authState?.User.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            var authState = await AuthState;
+            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
 
         await GetTag();
@@ -470,13 +488,18 @@
 
     private async Task GetRolesAsync()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         try
         {
             roles = await roleDBService.GetRolesAsync();
         }
         catch (Exception ex)
         {
-            logger.LogError($"Failed to get Roles.\n{ex.Message}");
+            var message = $"Failed to get Roles.\nCorrelation Id: {c.ToString()}";
+            userMessage = message;
+            logger.LogError($"{message}.\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 
@@ -499,10 +522,8 @@
 
     private async Task GetTag()
     {
-        if(authState == null)
-        {
-            return;
-        } 
+        Guid c = new Guid();
+        userMessage = string.Empty;
 
         try
         {
@@ -516,12 +537,17 @@
                 }
                 else
                 {
-                    tagErrorMessage = $"Failed to find Device Tag {Id} to Edit.";
+                    var message = $"Failed to find Device Tag {Id} to Edit.\nCorrelation Id: {c.ToString()}";
+                    tagErrorMessage = message;
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
                     return;
                 }
 
-                if (!authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+                if (!authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
                 {
+                    var message = $"User {userName} {userId} is not authorized to read Device Tag {Id}.\nCorrelation Id: {c.ToString()}";
+                    tagErrorMessage = message;
+                    logger.LogError(message);
                     return;
                 }
                 foreach(RoleDelegation roleDelegation in _tag.RoleDelegations)
@@ -532,97 +558,99 @@
         }
         catch (Exception ex)
         {
-            logger.LogError($"Failed to find Device Tag {Id} to Edit.\n{ex.Message}");
-            tagErrorMessage = $"Failed to find Device Tag {Id} to Edit.";
+            var message = $"Failed to find Device Tag {Id} to Edit.\nCorrelation Id: {c.ToString()}";
+            tagErrorMessage = message;
+            logger.LogError($"{message}.\n{ex.Message}\nUser: {userName} {userId}");
         }
         StateHasChanged();
     }
 
     private bool ActionAllowed(DeviceUpdateAction action)
     {
-        if (authState != null)
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
         {
-            if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
-            {
-                return true;
-            }
+            return true;
+        }
 
-            if (action.ActionType == DeviceUpdateActionType.Group)
-            {
-                return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded;
-            }
+        if (action.ActionType == DeviceUpdateActionType.Group)
+        {
+            return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded;
+        }
 
-            if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit)
-            {
-                return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded;
-            }
+        if (action.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+        {
+            return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded;
+        }
 
-            if (action.ActionType == DeviceUpdateActionType.Attribute)
+        if (action.ActionType == DeviceUpdateActionType.Attribute)
+        {
+            try
             {
-                try
-                {
-                    AllowedAttributes attr;
-                    Enum.TryParse(action.Name, out attr);
-                    return AttributeAllowed(attr);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning($"Parsing Attribute {action.Name} failed.\n{ex.Message}");
-                }
+                AllowedAttributes attr;
+                Enum.TryParse(action.Name, out attr);
+                return AttributeAllowed(attr);
+            }
+            catch (Exception ex)
+            {
+                var message = $"Parsing Attribute {action.Name} failed.\nCorrelation Id: {c.ToString()}";
+                userMessage = message;
+                logger.LogWarning($"{message}.\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
+
 
         return false;
     }
 
     private bool AttributeAllowed(AllowedAttributes e)
     {
-        if(authState != null)
+        switch (e)
         {
-            switch (e)
-            {
-                case AllowedAttributes.All:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAllAttributes).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute1:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute1).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute2:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute2).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute3:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute3).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute4:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute4).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute5:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute5).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute6:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute6).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute7:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute7).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute8:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute8).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute9:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute9).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute10:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute10).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute11:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute11).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute12:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute12).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute13:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute13).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute14:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute14).Result.Succeeded;
-                case AllowedAttributes.ExtensionAttribute15:
-                    return authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute15).Result.Succeeded;
-                default:
-                    return false;
-            }
-        }
-
-        return false;
+            case AllowedAttributes.All:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAllAttributes).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute1:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute1).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute2:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute2).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute3:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute3).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute4:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute4).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute5:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute5).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute6:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute6).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute7:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute7).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute8:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute8).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute9:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute9).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute10:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute10).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute11:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute11).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute12:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute12).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute13:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute13).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute14:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute14).Result.Succeeded;
+            case AllowedAttributes.ExtensionAttribute15:
+                return authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateExtensionAttribute15).Result.Succeeded;
+            default:
+                return false;
+        }        
     }
 
     private async Task GetRoleDelegationName(EventArgs? e)
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         if (string.IsNullOrEmpty(roleDelegation.SecurityGroupId))
         {
             return;
@@ -640,22 +668,31 @@
         }
         catch (Exception ex)
         {
-            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
-            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            var message = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\nCorrelation Id: {c.ToString()}";
+            deviceUpdateActionsValidationMessage = message;
+            logger.LogWarning($"{message}.\n{ex.Message}\nUser: {userName} {userId}");
             return;
         }
     }
 
     private async Task GetActionSecurityGroupName(EventArgs? e)
     {
-        Guid g = Guid.NewGuid();
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         if (string.IsNullOrEmpty(deviceUpdateAction.Value))
         {
+            var message = $"Device Update Action Value ({deviceUpdateAction.Value}) is empty.\nCorrelation Id: {c.ToString()}";
+            deviceUpdateActionsValidationMessage = message;
+            logger.LogWarning($"{message}.\nUser: {userName} {userId}");
             return;
         }
 
         if (!System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
         {
+            var message = $"Device Update Action Value ({deviceUpdateAction.Value}) is not a valid GUID.\nCorrelation Id: {c.ToString()}";
+            deviceUpdateActionsValidationMessage = message;
+            logger.LogWarning($"{message}.\nUser: {userName} {userId}");
             return;
         }
 
@@ -666,27 +703,24 @@
         }
         catch (Exception ex)
         {
-            tagSuccessMessage = "";
-            tagErrorMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\nCorrelation ID: {g.ToString()}\nTime: {DateTime.UtcNow.ToString()} ";
-            deviceUpdateActionsValidationMessage = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\n{ex.Message}\nCorrelation ID: {g.ToString()}\nTime: {DateTime.UtcNow.ToString()}";
-            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            var message = $"Failed to get Security Group Name for {deviceUpdateAction.Value}.\nCorrelation Id: {c.ToString()}";
+            deviceUpdateActionsValidationMessage = message;
+            logger.LogWarning($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             return;
         }
     }
 
     private void AddRoleDelegation()
     {
-        if(authState == null)
-        {
-            addRoleMessage = "Error: User not found";
-            return;
-        }
+        Guid c = new Guid();
+        userMessage = string.Empty;
 
         addRoleMessage = "";
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded == false)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded == false)
         {
-            addRoleMessage = $"Error: '{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights";
-            logger.LogWarning(deviceUpdateActionsValidationMessage);
+            var message = $"Error: '{userName}' {userId} attempted to update Tag '{tag.Name}' {tag.Id} without Admin rights.\nCorrelation Id: {c.ToString()}";
+            addRoleMessage = message;
+            logger.LogWarning($"{message}\nUser: {userName} {userId}");
             return;
         }
 
@@ -721,8 +755,9 @@
         }
         catch (Exception ex)
         {
-            addRoleMessage = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\n{ex.Message}";
-            logger.LogWarning(addRoleMessage);
+            var message = $"Failed to get Security Group Name for {roleDelegation.SecurityGroupId}.\nCorrelation Id: {c.ToString()}";
+            addRoleMessage = message;
+            logger.LogWarning($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             return;
         }
     }
@@ -799,9 +834,10 @@
         }
         catch (Exception ex)
         {
+            var message = $"Failed to get Tag {tag.Id} from DB.\nCorrelation Id: {CorrelationId.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Failed to get Tag {tag.Id} from DB.\nCorrelation ID: {CorrelationId.ToString()}\nTime: {DateTime.UtcNow.ToString()} ";
-            logger.LogWarning(tagErrorMessage, ex.Message);
+            tagErrorMessage = message;
+            logger.LogWarning($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             return true;
         }
         return changes;
@@ -809,38 +845,32 @@
 
     private async Task Save()
     {
-        Guid g = Guid.NewGuid();
+        Guid c = Guid.NewGuid();
 
-        if(authState == null)
+        if (await ChangesSinceLoad(c))
         {
+            var message = $"Error: Tag {tag.Id} has been modified since it was loaded. Please refresh the page and try again.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = "Error: User not found";
-            logger.LogWarning(tagErrorMessage);
+            tagErrorMessage = message;
+            logger.LogWarning($"{message}\nUser: {userName} {userId}");
             return;
         }
 
-        if (await ChangesSinceLoad(g))
-        {
-            tagSuccessMessage = "";
-            tagErrorMessage = $"Error: Tag {tag.Id} has been modified since it was loaded. Please refresh the page and try again. Correlation Id:{g.ToString()}";
-            logger.LogWarning(tagErrorMessage);
-            return;
-        }
-
-        // If the user is default
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded == false &&
-               authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded == false &&
-               authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded == false)
+        // If the user is not authorized
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded == false &&
+               authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded == false &&
+               authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded == false)
         {
             tag = _tag.DeepCopyKeepId();
+            var message = $"Error: '{userName}' {userId} is not authorized to save Tag {tag.Name} {tag.Id}.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Error: '{userName}' {userId} is not an admin for Tag {tag.Id}. Correlation Id:{g.ToString()}";
-            logger.LogWarning($"Error: '{userName}' {userId} attempted to save Tag '{tag.Name}' {tag.Id} without Admin rights");
+            tagErrorMessage = message;
+            logger.LogWarning($"{message}\nUser: {userName} {userId}");
             return;
         }
 
         // Update everything if user is an admin
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
         {
             try
             {
@@ -848,15 +878,17 @@
                 _tag.Modified = DateTime.UtcNow;
                 _tag.ModifiedBy = userId;
                 await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
-                tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
+                var message = $"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}\nCorrelation Id:{c.ToString()}";
+                tagSuccessMessage = message;
                 tagErrorMessage = "";
-                logger.LogInformation($"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
+                logger.LogInformation($"{message}\nUser: {userName} {userId}");
             }
             catch (Exception ex)
             {
+                var message = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{c.ToString()}";
                 tagSuccessMessage = "";
-                tagErrorMessage = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
-                logger.LogError($"Error: '{userName}' {userId} unable to save Tag {tag.Id}.\n{ex.Message}");
+                tagErrorMessage = message;
+                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             }
             tag = _tag.DeepCopyKeepId();
             return;
@@ -865,7 +897,7 @@
         // Parse the user role to identify the activities they can perform
         // No updates to _tag delegation
         // User can update Attributes
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAttributes).Result.Succeeded)
         {
             foreach (AllowedAttributes attribute in Enum.GetValues(typeof(AllowedAttributes)))
             {
@@ -888,7 +920,7 @@
         }
 
         // User can update Groups
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateSecurityGroups).Result.Succeeded)
         {
             List<DeviceUpdateAction> groupActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.Group).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.Group);
@@ -897,7 +929,7 @@
         }
 
         // User can update Administrative Units
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.UpdateAdministrativeUnits).Result.Succeeded)
         {
             List<DeviceUpdateAction> administrativeUnitActions = tag.UpdateActions.Where(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit).ToList();
             _tag.UpdateActions.RemoveAll(a => a.ActionType == DeviceUpdateActionType.AdministrativeUnit);
@@ -910,31 +942,26 @@
             _tag.Modified = DateTime.UtcNow;
             _tag.ModifiedBy = userId;
             _tag = await deviceTagDBService.AddOrUpdateDeviceTagAsync(_tag);
-            tagSuccessMessage = $"Success: Saved tag. Correlation Id:{g.ToString()}";
+            var message = $"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{c.ToString()}";
+            tagSuccessMessage = message;
             tagErrorMessage = "";
-            logger.LogInformation($"Success: '{userName}' {userId} saved Tag '{tag.Name}' {tag.Id}.\nCorrelation Id:{g.ToString()}");
+            logger.LogInformation($"{message}\nUser: {userName} {userId}");
             tag = _tag.DeepCopyKeepId();
         }
         catch (Exception ex)
         {
+            var message = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Error: '{userName}' {userId} unable to save Tag {tag.Id}. Correlation Id:{g.ToString()}";
-            logger.LogError($"{tagErrorMessage}.\n{ex.Message}");
+            tagErrorMessage = message;
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 
     private async Task Delete()
     {
         // Error correlation Id
-        Guid g = Guid.NewGuid();
-
-        if(authState == null || authState.User == null)
-        {
-            tagSuccessMessage = "";
-            tagErrorMessage = $"Error: Unable to delete Tag. Correlation Id:{g.ToString()}";
-            logger.LogWarning($"Error: Unable to delete Tag. Correlation Id:{g.ToString()}");
-            return;
-        }
+        Guid c = Guid.NewGuid();
+        userMessage = string.Empty;
 
         // Check if there are devices associated with the tag
         try
@@ -942,17 +969,19 @@
             int count = await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
             if (count > 0)
             {
+                var message = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {count} devices still associated with it.\nCorrelation Id:{c.ToString()}";
                 tagSuccessMessage = "";
-                tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {count} devices still associated with it. Correlation Id:{g.ToString()}";
-                logger.LogWarning($"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} with {count} devices still associated with it");
+                tagErrorMessage = message;
+                logger.LogWarning($"{message}\nUser: {userName} {userId}");
                 return;
             }
         }
         catch (Exception ex)
         {
+            var message = $"Error: '{userName}' {userId} unable to check for devices on Tag {tag.Id}.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Error: '{userName}' {userId} unable to check for devices on Tag {tag.Id}.\nCorrelation Id:{g.ToString()}";
-            logger.LogError($"{tagErrorMessage}\n{ex.Message}");
+            tagErrorMessage = message;
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {
@@ -960,7 +989,7 @@
         }
 
         // Check if user is an admin and only then delete the tag
-        if (authorizationService.AuthorizeAsync(authState.User, _tag, Authorization.DeviceTagOperations.Delete).Result.Succeeded)
+        if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Delete).Result.Succeeded)
         {
             try
             {
@@ -969,20 +998,23 @@
             }
             catch (Exception ex)
             {
-                logger.LogError($"Error: Unable to delete Tag {tag.Id}.\n{ex.Message}");
+                var message = $"Error: Unable to delete Tag {tag.Id}.\nCorrelation Id:{c.ToString()}";
+                userMessage = message;
+                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
         else
         {
+            var message = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id} without proper permissions.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}";
-            logger.LogWarning($"Error: '{userName}' {userId} attempted to delete Tag '{tag.Name}' {tag.Id}");
+            tagErrorMessage = message;
+            logger.LogWarning($"{message}\nUser: {userName} {userId}");
         }
     }
 
     private async Task GetGroupForNewUpdateAction(KeyboardEventArgs e)
     {
-        Guid g = Guid.NewGuid();
+        Guid c = Guid.NewGuid();
         deviceUpdateAction.Name = "Querying for name";
         StateHasChanged();
         try
@@ -999,15 +1031,19 @@
         }
         catch (Exception ex)
         {
+            var message = $"Error: Unable to get group name.\nCorrelation Id:{c.ToString()}";
             tagSuccessMessage = "";
-            tagErrorMessage = $"Unable to get group name. Correlation Id:{g.ToString()}";
-            logger.LogError($"Unable to get groups for update actions.\n{ex.Message}\nCorrelation Id:{g.ToString()}");
+            tagErrorMessage = message;
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         deviceUpdateAction.Name = "";
     }
 
     private async Task UpdateRoleDelegationGroups()
     {
+        Guid c = Guid.NewGuid();
+        userMessage = string.Empty;
+
         foreach (RoleDelegation r in tag.RoleDelegations)
         {
             try
@@ -1019,13 +1055,18 @@
             }
             catch (Exception ex)
             {
-                logger.LogError($"Unable to get group {r.SecurityGroupId} for RoleDelegation {r.Id} under Tag {tag.Id}.\n{ex.Message}");
+                var message = $"Error: Unable to get group {r.SecurityGroupId} for RoleDelegation {r.Id} under Tag {tag.Id}.\nCorrelation Id:{c.ToString()}";
+                userMessage = message;
+                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
     }
 
     private async Task UpdateUpdateActionGroups()
     {
+        Guid c = Guid.NewGuid();
+        userMessage = string.Empty;
+
         foreach (DeviceUpdateAction action in tag.UpdateActions)
         {
             try
@@ -1037,7 +1078,9 @@
             }
             catch (Exception ex)
             {
-                logger.LogError($"Unable to get group {action.Value} for UpdateAction {action.Id} under Tag {tag.Id}.\n{ex.Message}");
+                var message = $"Error: Unable to get group {action.Value} for UpdateAction {action.Id} under Tag {tag.Id}.\nCorrelation Id:{c.ToString()}";
+                userMessage = message;
+                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
     }
@@ -1057,7 +1100,8 @@
 
     private void DeviceUpdateActionChanged(ChangeEventArgs e)
     {
-
+        Guid c = Guid.NewGuid();
+        userMessage = string.Empty;
 
         try
         {
@@ -1071,7 +1115,9 @@
         catch (Exception ex)
         {
             deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
-            logger.LogError($"Error: Unable to parse DeviceUpdateActionType {e.ToString()}.\n{ex.Message}");
+            var message = $"Error: Unable to parse DeviceUpdateActionType {e.ToString()}.\nCorrelation Id:{c.ToString()}";
+            userMessage = message;
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         deviceUpdateAction.Name = "";
         deviceUpdateAction.Value = "";
@@ -1085,13 +1131,15 @@
 
     private async void SearchSecurityGroups()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         if (securityGroupSearchInProgress)
         {
             return;
         }
         securityGroupSearchInProgress = true;
         securityGroupSearchExecuted = true;
-        Guid c = Guid.NewGuid();
         StateHasChanged();
 
 
@@ -1109,9 +1157,10 @@
         }
         catch (Exception ex)
         {
-            securityGroupSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+            var message = $"Error: Unable to search for groups.\nCorrelation Id:{c.ToString()}";
+            securityGroupSearchMessage = message;
 
-            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {
@@ -1136,13 +1185,15 @@
 
     private async void SearchAdministrativeUnits()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         if (administrativeUnitSearchInProgress)
         {
             return;
         }
         administrativeUnitSearchInProgress = true;
         administrativeUnitSearchExecuted = true;
-        Guid c = Guid.NewGuid();
         StateHasChanged();
 
 
@@ -1159,9 +1210,10 @@
         }
         catch (Exception ex)
         {
-            administrativeUnitSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+            var message = $"Error: Unable to search for groups.\nCorrelation Id:{c.ToString()}";
+            administrativeUnitSearchMessage = message;
 
-            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {
@@ -1180,13 +1232,15 @@
 
     private async void RoleSearchSecurityGroups()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
+
         if (roleSecurityGroupSearchInProgress)
         {
             return;
         }
         roleSecurityGroupSearchInProgress = true;
         roleSecurityGroupSearchExecuted = true;
-        Guid c = Guid.NewGuid();
         StateHasChanged();
 
 
@@ -1203,9 +1257,10 @@
         }
         catch (Exception ex)
         {
-            roleSecurityGroupSearchMessage = $"Error: Unable to search for groups. Correlation Id:{c.ToString()}";
+            var message = $"Error: Unable to search for groups.\nCorrelation Id:{c.ToString()}";
+            roleSecurityGroupSearchMessage = message;
 
-            logger.LogError($"Unable to search for groups.\n{ex.Message}\nCorrelation Id: {c.ToString()}");
+            logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {

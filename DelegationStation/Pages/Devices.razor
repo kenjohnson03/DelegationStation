@@ -6,7 +6,7 @@
 @inject IDeviceDBService deviceDBService
 @inject ILogger<Tags> logger
 @inject NavigationManager nav
-@inject IConfiguration config
+@inject IAuthorizationService authorizationService
 
 @attribute [Authorize]
 
@@ -112,6 +112,22 @@
 
             <input type="submit" class="btn btn-primary mb-3" value="Add" />
         </EditForm>
+
+        @if (!string.IsNullOrEmpty(userMessage))
+        {
+            @if (userMessage.ToLower().Contains("error"))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @userMessage
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" role="alert">
+                    @userMessage
+                </div>
+            }
+        }
     </Authorized>
     <NotAuthorized>
         <p>Not Authorized</p>
@@ -126,7 +142,10 @@
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
-    private AuthenticationState? authState;
+    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+    private string userId = string.Empty;
+    private string userName = string.Empty;
+
     private List<string> groups = new List<string>();
     private List<Device> devices = new List<Device>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
@@ -139,45 +158,28 @@
     private string search = "";
     private Device searchDevice = new Device();
     private bool devicesLoading = true;
+    private string userMessage = string.Empty;
 
 
     protected override async Task OnInitializedAsync()
     {
-        if (AuthState != null)
+        if (AuthState is not null)
         {
-            authState = await AuthState;
+            var authState = await AuthState;
+            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
+
         UpdateClaims();
-        UpdateUserRole();
         await GetTags();
         await GetDevices();        
-    }
-
-    private void UpdateUserRole()
-    {
-        string defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (groups.Contains(defaultGroup) && !string.IsNullOrEmpty(defaultGroup))
-        {
-            userRole = new Role() { Id = Guid.Empty, Name = "Admin", Attributes = new List<AllowedAttributes>() { AllowedAttributes.All }, SecurityGroups = true, AdministrativeUnits = true };
-            return;
-        }
-        else if(deviceTags.Count > 0)
-        {
-            List<Role> roles = new List<Role>();
-            foreach(DeviceTag t in deviceTags)
-            {
-                foreach(RoleDelegation rd in t.RoleDelegations)
-                {
-                    roles.Add(rd.Role);
-                }
-            }            
-        }        
     }
 
     private void UpdateClaims()
     {
         groups = new List<string>();
-        var groupClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+        var groupClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
 
         if(groupClaims == null)
         {
@@ -192,25 +194,31 @@
 
     private async Task GetTags()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
         try
         {
             deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
         }
         catch(Exception ex)
         {
-            logger.LogError($"Error retrieving tags.\n{ex.Message}");
+            userMessage = $"Error retrieving tags.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 
     private async Task GetDevices()
     {        
+        Guid c = new Guid();
+        userMessage = string.Empty;
         try
         {
             devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
         }
         catch(Exception ex)
         {
-            logger.LogError($"Error retreiving Devices.\n{ex.Message}");
+            userMessage = $"Error retrieving Devices.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {
@@ -220,18 +228,23 @@
 
     private async Task GetDevicesSearch()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
         try
         {
             devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber);
         }
         catch (Exception ex)
         {
-            logger.LogError($"Error retreiving Devices.\n{ex.Message}");
+            userMessage = $"Error retrieving searching Devices.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 
     private async Task AddDevice()
     {
+        Guid c = new Guid();
+        userMessage = string.Empty;
         try
         {
             if (newDevice.Tags.Count < 1)
@@ -244,8 +257,16 @@
                 deviceAddValidationMessage = "Device must only have one Tag";
                 return;
             }
+            DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
+            if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+            {
+                userMessage = $"Error: Not authorized to add devices to tag {tag.Id} {tag.Name}.\nCorrelation Id: {c.ToString()}";
+                logger.LogError($"{userMessage}\nUser: {userName} {userId}");
+                return;
+            }
+
             newDevice.ModifiedUTC = DateTime.UtcNow;
-            newDevice.AddedBy = authState?.User.Claims.First(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Value.ToString();
+            newDevice.AddedBy = userId;
             Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
             devices.Add(resp);
             newDevice = new Device();
@@ -253,9 +274,8 @@
         }
         catch (Exception ex)
         {
-            Guid c = Guid.NewGuid();
             deviceAddValidationMessage = $"Error adding tags.\nCorrelation Id:{c.ToString()}";
-            logger.LogError($"Error adding tags.\nCorrelation Id:{c.ToString()}\n{ex.Message}\n");
+            logger.LogError($"{deviceAddValidationMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
 

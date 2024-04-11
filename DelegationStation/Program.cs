@@ -36,6 +36,8 @@ builder.Services.AddAuthorization(options =>
         policy.Requirements.Add(DeviceTagOperations.UpdateAttributes));
     options.AddPolicy("TagUpdateActionAdministrativeUnits", policy =>
         policy.Requirements.Add(DeviceTagOperations.UpdateAdministrativeUnits));
+    options.AddPolicy("DelegationStationAdmin", policy =>
+        policy.RequireRole(builder.Configuration["DefaultAdminGroupObjectId"]));
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();    

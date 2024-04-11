@@ -32,7 +32,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
+                authContext.SetPolicies("DelegationStationAdmin");
                 //      Create fake services
                 List<Role> roles = new List<Role>();
                 Role role = new Role();
