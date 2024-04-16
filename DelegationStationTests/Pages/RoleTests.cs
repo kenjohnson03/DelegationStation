@@ -1,17 +1,8 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bunit;
-using DelegationStation.Pages;
-using DelegationStation.Shared;
-using System.Security.Claims;
+﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using DelegationStation.Services;
-using Microsoft.Extensions.Logging;
-using DelegationStation.Fakes;
-using Microsoft.Graph.Models;
-using AngleSharp;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
-using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Http;
 
 namespace DelegationStationTests.Pages

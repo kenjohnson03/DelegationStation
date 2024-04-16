@@ -3,7 +3,6 @@ using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Graph.Models.Security;
 using System.Text;
 
 namespace DelegationStation.API

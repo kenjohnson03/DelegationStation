@@ -233,7 +233,8 @@ else
             var authState = await AuthState;
             user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
             userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            //userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
 
         UpdateClaims();
@@ -271,7 +272,7 @@ else
 
     private async Task GetTags()
     {
-        Guid c = new Guid();
+        Guid c= new Guid();
         userMessage = string.Empty;
         try
         {
@@ -279,8 +280,8 @@ else
         }
         catch (Exception ex)
         {
-            logger.LogError($"Error retrieving tags.\n{ex.Message}\nUser: {userName} {userId}");
-        }
+      logger.LogError($"Error retrieving tags.\n{ex.Message}\nUser: {userName} {userId}.\nCorrelation Id:{c.ToString()}");
+      }
     }
 
     private void AddRemoveTag(DeviceTag tag)
