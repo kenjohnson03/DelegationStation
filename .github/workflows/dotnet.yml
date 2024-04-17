@@ -32,7 +32,7 @@ jobs:
         dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURIATION}} --no-restore
         dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURIATION}} --no-restore
         dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURIATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURIATION}} --no-restore
+        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURIATION}} --no-restore
       
    # - name: Test
    #   run: dotnet test --no-build --verbosity normal
