@@ -1,5 +1,9 @@
+using DelegationStation.Authorization;
 using DelegationStation.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 
@@ -10,23 +14,47 @@ builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 builder.Services.AddControllersWithViews()
     .AddMicrosoftIdentityUI();
-builder.Services.AddControllers();
+builder.Services.AddControllers(config =>
+{
+    var policy = new AuthorizationPolicyBuilder()
+                     .RequireAuthenticatedUser()
+                     .Build();
+    config.Filters.Add(new AuthorizeFilter(policy));
+});
 
 builder.Services.AddAuthorization(options =>
 {
-    // By default, all incoming requests will be authorized according to the default policy
-    options.FallbackPolicy = options.DefaultPolicy;
+    options.AddPolicy("TagView", policy =>
+        policy.Requirements.Add(DeviceTagOperations.Read));
+    options.AddPolicy("TagUpdate", policy =>
+        policy.Requirements.Add(DeviceTagOperations.Update));
+    options.AddPolicy("TagUpdateActions", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateActions));
+    options.AddPolicy("TagUpdateActionSecurityGroups", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateSecurityGroups));
+    options.AddPolicy("TagUpdateActionAttributes", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateAttributes));
+    options.AddPolicy("TagUpdateActionAdministrativeUnits", policy =>
+        policy.Requirements.Add(DeviceTagOperations.UpdateAdministrativeUnits));
+    options.AddPolicy("DelegationStationAdmin", policy =>
+        policy.RequireRole(builder.Configuration["DefaultAdminGroupObjectId"]));
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();    
 });
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor()
     .AddMicrosoftIdentityConsentHandler();
+
+builder.Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
 builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
 builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
 
-builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
+//builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
+builder.Services.AddApplicationInsightsTelemetry(opt => opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
 var app = builder.Build();
 

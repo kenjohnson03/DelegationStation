@@ -7,41 +7,32 @@
 @inject ILogger<Tags> logger
 @inject NavigationManager nav
 @inject IConfiguration config
-
+@inject IAuthorizationService authorizationService
 
 @attribute [Authorize]
 
 <h3>Tags</h3>
 
-<AuthorizeView Context="adminAuthContext">
-  <Authorized>
-    @if (groups.Contains(defaultGroup))
-    {
-      <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-        <div class="mb-3">
-          <label for="TagName" class="form-label">Tag name</label>
-          <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
-        </div>
-        <div class="mb-3">
-          <label for="TagDescription" class="form-label">Tag description</label>
-          <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
-        </div>
-        <input type="submit" class="btn btn-primary mb-3" value="Add" />
-      </EditForm>
-    }
-    else
-    {
-      <p>You are not a member of the default admin group.  You will not be able to create or edit tags.</p>
-    }
-
-  </Authorized>
-  <NotAuthorized>
-    Not Authorized to create Tags
-  </NotAuthorized>
-</AuthorizeView>
-
+          <AuthorizeView Context="adminAuthContext" Policy="DelegationStationAdmin">
+            <Authorized>
+                    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <div class="mb-3">
+                            <label for="TagName" class="form-label">Tag name</label>
+                            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
+                        </div>
+                        <div class="mb-3">
+                            <label for="TagDescription" class="form-label">Tag description</label>
+                            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
+                        </div>
+                        <input type="submit" class="btn btn-primary mb-3" value="Add" />
+                    </EditForm>                
+            </Authorized>
+            <NotAuthorized>
+                Not Authorized to create Tags
+            </NotAuthorized>
+        </AuthorizeView>
 
 <AuthorizeView Context="authContext">
     <Authorized>
@@ -84,8 +75,7 @@
                             </td>
                         </tr>
                     }
-                }
-            </tbody>
+                
 
         <tr>
             <td colspan="3">
@@ -118,6 +108,8 @@
               </nav>
             </td>
         </tr>
+        }
+      </tbody>
 </table>
 
 
@@ -151,13 +143,14 @@
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
-    private AuthenticationState? authState;
+    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+    private string userId = string.Empty;
+    private string userName = string.Empty;
+
     private List<string> groups = new List<string>();
     private List<DeviceTag> deviceTags = new List<DeviceTag>();
     private DeviceTag newTag = new DeviceTag();
-    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
     private string userMessage = string.Empty;
-    private string defaultGroup = "";
     private bool tagsLoading = true;
     private int TotalTags = 0;
     private int TotalPages = 0;
@@ -167,17 +160,18 @@
 
     protected override async Task OnInitializedAsync()
     {
-        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (AuthState != null)
+        if (AuthState is not null)
         {
-            authState = await AuthState;
+            var authState = await AuthState;
+            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
         if (PageNumber < 1)
         {
             PageNumber = 1;
         }
         UpdateClaims();
-        UpdateUserRole();   
         await GetTags();
     }
   
@@ -220,38 +214,23 @@
       PageNumber = TotalPages;
       await GetTags();
     }
-  
-    private void UpdateUserRole()
-    {
-        if (string.IsNullOrEmpty(defaultGroup))
-        {
-            userRole = userRole.GetDefaultRole();
-        }
-        else if (groups.Contains(defaultGroup))
-        {
-            userRole = userRole.GetAdminRole();
-        }
-        else
-        {
-            userRole = userRole.GetDefaultRole();
-        }
-        StateHasChanged();
-    }
-  
+    
     private void UpdateClaims()
     {
         groups = new List<string>(); 
-  
-        var roleClaims = authState?.User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+        
+        var roleClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
         roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
         foreach (var c in roleClaims)
         {
             groups.Add(c.Value);
         }
+        userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
     }
   
     private async Task GetTags()
     {
+        Guid c = Guid.NewGuid();
         userMessage = "";
         try
         {
@@ -262,8 +241,8 @@
         }
         catch(Exception ex)
         {
-            userMessage = "Error: retreiving tags.";
-            logger.LogError($"{userMessage}\n{ex.Message}");
+            userMessage = $"Error: retrieving tags.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
         finally
         {
@@ -273,10 +252,18 @@
 
     private async Task AddTag()
     {
+        Guid c = Guid.NewGuid();
+        if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
+        {
+            userMessage = $"Error: Not authorized to add tags.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\nUser: {userName} {userId}");
+            return;
+        }
+
         userMessage = "";
         if (string.IsNullOrEmpty(newTag.Name))
         {
-            userMessage = "Tag name is required.";
+            userMessage = $"Tag name is required.\nCorrelation Id: {c.ToString()}";
             return;
         }        
   
@@ -284,12 +271,13 @@
         {
             DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
             newTag = new DeviceTag(); 
+            userMessage = "Tag added successfully.";
         }
         catch (Exception ex)
         {
-            Guid g = Guid.NewGuid();
-            userMessage = $"Error adding tag.\nCorrelation Id: {g.ToString()}";
-            logger.LogError($"{userMessage}\n{ex.Message}");
+            
+            userMessage = $"Error adding tag.\nCorrelation Id: {c.ToString()}";
+            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
             return;
         }
         await GetTags();
