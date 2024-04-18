@@ -110,7 +110,7 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: querying Cosmos DB for device {device.Manufacturer} {device.Model} {device.SerialNumber}.\n {ex.Message}", ex);
+              _logger.LogError($"{fullMethodName} Error: querying Cosmos DB for device {device.Manufacturer} {device.Model} {device.SerialNumber}.\n {ex.Message}");
             }
 
             if (deviceResults.Count < 1)
