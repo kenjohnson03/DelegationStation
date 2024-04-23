@@ -6,6 +6,7 @@
 @inject ILogger<RoleEdit> logger
 @inject IConfiguration config
 @inject IHttpContextAccessor httpContextAccessor
+@inject IAuthorizationService authorizationService
 
 
 @attribute [Authorize]
@@ -14,80 +15,76 @@
 
 <h3>Roles</h3>
 
-<AuthorizeView>
+<AuthorizeView Policy="DelegationStationAdmin">
     <Authorized>
-        @if(groups.Contains(defaultGroup))
-        {
-            @if (roles.Count > 0)
-            {
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Editable Attributes</th>
-                            <th>Edit Security Groups</th>
-                            <th>Edit Administrative Units</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (Role role in roles)
-                        {
-                            <tr>
-                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>@role.Name</td>
-                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                    @foreach (AllowedAttributes attr in role.Attributes.OrderBy(a => a))
-                                    {
-                                        <p>@attr</p>
-                                    }
-                                </td>
-                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                    @if (role.SecurityGroups)
-                                    {
-                                        <span>Yes</span>
-                                    }
-                                    else
-                                    {
-                                        <span>No</span>
-                                    }
-                                </td>
-                                <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
-                                    @if (role.AdministrativeUnits)
-                                    {
-                                        <span>Yes</span>
-                                    }
-                                    else
-                                    {
-                                        <span>No</span>
-                                    }
-                                </td>
-                                <td class="align-middle">
-                                    <button type="button" class="btn btn-danger text-nowrap" @onclick=@(() => RemoveRole(role))><span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section></button>
-                                </td>
-                            </tr>
 
-                        }
-                    </tbody>
-                </table>
-            }
-            else if (loading)
-            {
-                <p>Loading...</p>
-            }
-            else
-            {
-                <p>No roles found</p>
-            }
+        @if (roles.Count > 0)
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Editable Attributes</th>
+                        <th>Edit Security Groups</th>
+                        <th>Edit Administrative Units</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (Role role in roles)
+                    {
+                        <tr>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>@role.Name</td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                @foreach (AllowedAttributes attr in role.Attributes.OrderBy(a => a))
+                                {
+                                    <p>@attr</p>
+                                }
+                            </td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                @if (role.SecurityGroups)
+                                {
+                                    <span>Yes</span>
+                                }
+                                else
+                                {
+                                    <span>No</span>
+                                }
+                            </td>
+                            <td class="clickable" @onclick=@(() => nav.NavigateTo($"/Role/{role.Id.ToString()}"))>
+                                @if (role.AdministrativeUnits)
+                                {
+                                    <span>Yes</span>
+                                }
+                                else
+                                {
+                                    <span>No</span>
+                                }
+                            </td>
+                            <td class="align-middle">
+                                <button type="button" class="btn btn-danger text-nowrap" @onclick=@(() => RemoveRole(role))><span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section></button>
+                            </td>
+                        </tr>
+
+                    }
+                </tbody>
+            </table>
+        }
+        else if (loading)
+        {
+            <p>Loading...</p>
         }
         else
         {
-            <p>You are not a member of the default admin group.  You will not be able to create or edit roles.</p>
+            <p>No roles found</p>
         }
+
         
         <button class="btn btn-secondary" type="button" @onclick="@(() => nav.NavigateTo("/Role/" + Guid.Empty.ToString()))">New Role</button>
     </Authorized>
     <NotAuthorized>
-        <p>Not Authorized</p>
+        <h3>Not Authorized</h3>
+        <p>User is unable to view, create, or edit roles.</p>
     </NotAuthorized>
 </AuthorizeView>
 <br/>
@@ -100,87 +97,57 @@
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
+    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+    private string userId = string.Empty;
+    private string userName = string.Empty;
 
-    private AuthenticationState? authState;
-    private List<string> groups = new List<string>();
     private List<Role> roles = new List<Role>();
-    private Role userRole = (new Role()).GetDefaultRole();
-    private string defaultGroup = "";
-    private DeviceTag tag = new DeviceTag();
     private bool loading = true;
 
     private ConfirmMessage? ConfirmDelete;
 
     private string userMessage = "";
-    private bool popupIsVisible = false;
+    // private bool popupIsVisible = false;
     private string showClass = "hideModal";
     private bool userConfirmed = false;
     private Role deleteRole = new Role() { Id = Guid.Empty };
 
     protected override async Task OnInitializedAsync()
     {
-        defaultGroup = config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-        if (AuthState != null)
+        if (AuthState is not null)
         {
-            authState = await AuthState;
+            var authState = await AuthState;
+            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+            userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
 
-        UpdateClaims();
-        UpdateUserRole();
-
-        if (groups.Contains(defaultGroup))
+        Guid c = Guid.NewGuid();
+        try
         {
-            Guid c = Guid.NewGuid();
-            try
-            {
-                roles = await roleDBService.GetRolesAsync();
-            }
-            catch (Exception ex)
-            {
-                string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
-                logger.LogError(ex, message);
-                userMessage = message;
-            }
+            roles = await roleDBService.GetRolesAsync();
         }
-        else
+        catch (Exception ex)
         {
-            if (Models.ClaimsManager.IsValidRequest(authState?.User.Claims, httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString()))
-            {
-                logger.LogWarning($"Unauthorized access attempt.");
-            }
-
-            userMessage = "Error: Not Authorized";
+            string message = $"Correlation Id: {c.ToString()}\nError retrieving roles.";
+            logger.LogError(ex, message);
+            userMessage = message;
         }
-        loading = false;
-    }
-
-    private void UpdateUserRole()
-    {
-        if (string.IsNullOrEmpty(defaultGroup))
+        finally
         {
-            userRole = userRole.GetDefaultRole();
+            loading = false;
         }
-        else if (groups.Contains(defaultGroup))
-        {
-            userRole = userRole.GetAdminRole();
-        }
-        else
-        {
-            userRole = userRole.GetRole(groups, tag);
-        }
-        StateHasChanged();
-    }
-
-    private void UpdateClaims()
-    {
-        groups = new List<string>();
-        groups = Models.ClaimsManager.GetRoles(authState?.User.Claims);
     }
 
     private void RemoveRole(Role role)
     {
-        if (!userRole.IsAdminRole())
+        Guid c = Guid.NewGuid();
+
+        if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
         {
+            string message = $"Error deleting role {deleteRole.Name}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
+            logger.LogError($"{message}\nUser: {userName} {userId}");
+            userMessage = message;
             return;
         }
         deleteRole = role;
@@ -189,25 +156,32 @@
 
     private void DeleteRole()
     {      
-
+        Guid c = Guid.NewGuid();
         if(deleteRole.Id == Guid.Empty)
         {
             return;
         }
 
-        Guid c = Guid.NewGuid();
+        if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
+        {
+            string message = $"Error deleting role {deleteRole.Name}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
+            logger.LogError($"{message}\nUser: {userName} {userId}");
+            userMessage = message;
+            return;
+        }
+        
         try
         {
             roleDBService.DeleteRoleAsync(deleteRole);
             roles.Remove(deleteRole);
             string message = $"Correlation Id: {c.ToString()}\nRole {deleteRole.Name} deleted successfully";
             userMessage = "";
-            logger.LogInformation(message);
+            logger.LogInformation($"{message}\nUser: {userName} {userId}");
         }
         catch (Exception ex)
         {
             string message = $"Error deleting role {deleteRole.Name}.\nCorrelation Id: {c.ToString()}";
-            logger.LogError(ex, message);
+            logger.LogError(ex, $"{message}\nUser: {userName} {userId}");
             userMessage = message;
         }
         deleteRole = new Role() { Id = Guid.Empty };

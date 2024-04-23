@@ -1,7 +1,5 @@
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
-using Microsoft.Graph.Models.Security;
-using System.Configuration;
 
 namespace DelegationStation.Services
 {
@@ -107,7 +105,6 @@ namespace DelegationStation.Services
 
             QueryDefinition q = new QueryDefinition(queryBuilder);
 
-            //QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND (CONTAINS(d.Make, @make, true) OR CONTAINS(d.Model, @model, true) OR CONTAINS(d.SerialNumber, @serial, true))");
             q.WithParameter("@serial", serialNumber);
             q.WithParameter("@make", make);
             q.WithParameter("@model", model);
@@ -300,7 +297,7 @@ namespace DelegationStation.Services
 
             if (groupIds.Count() < 1)
             {
-                throw new Exception("DeviceDBService GetDevicesAsync no valid group ids sent.");
+              return devices;
             }
 
             // Get tags that the user has access to
