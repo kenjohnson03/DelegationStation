@@ -1,16 +1,9 @@
 ﻿using DelegationStation.Shared;
-using DelegationStationShared;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class LoginDisplayTest : Bunit.TestContext
+    public class LoginDisplayTests : Bunit.TestContext
     {
         [TestMethod]
         public void UnauthorizedShouldNotRender()
