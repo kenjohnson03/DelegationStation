@@ -1,21 +1,13 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bunit;
-using DelegationStation.Pages;
-using DelegationStation.Shared;
-using System.Security.Claims;
+﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using DelegationStation.Services;
-using Microsoft.Extensions.Logging;
-using DelegationStation.Fakes;
-using Microsoft.Graph.Models;
-using AngleSharp;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class TagTest : Bunit.TestContext
+    public class TagTests : Bunit.TestContext
     {
         [TestMethod]
         public void TagsShouldRender()
@@ -43,7 +35,11 @@ namespace DelegationStationTests.Pages
                 var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
-                        (groupIds) => Task.FromResult(deviceTags)
+                        (groupIds) => Task.FromResult(deviceTags),
+                  GetDeviceTagCountAsyncIEnumerableOfString =
+                        (groupIds) => Task.FromResult(2),
+                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                        (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 
                 var myConfiguration = new Dictionary<string, string>
@@ -99,7 +95,11 @@ namespace DelegationStationTests.Pages
                 var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
-                        (groupIds) => Task.FromResult(deviceTags)
+                        (groupIds) => Task.FromResult(deviceTags),
+                    GetDeviceTagCountAsyncIEnumerableOfString =
+                        (groupIds) => Task.FromResult(2),
+                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                        (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 
                 var myConfiguration = new Dictionary<string, string>
@@ -123,7 +123,7 @@ namespace DelegationStationTests.Pages
                 // Assert
                 cut.MarkupMatches(@"
 <h3>Tags</h3>
-
+Not Authorized to create Tags
 <p>Not Authorized</p>");
             }
         }

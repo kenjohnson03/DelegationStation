@@ -1,23 +1,14 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bunit;
-using DelegationStation.Pages;
-using DelegationStation.Shared;
-using System.Security.Claims;
+﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using DelegationStation.Services;
-using Microsoft.Extensions.Logging;
-using DelegationStation.Fakes;
-using Microsoft.Graph.Models;
-using AngleSharp;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
-using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Http;
 
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class RoleTest : Bunit.TestContext
+    public class RoleTests : Bunit.TestContext
     {
         [TestMethod]
         public void RolesShouldRender()
@@ -32,7 +23,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
+                authContext.SetPolicies("DelegationStationAdmin");
                 //      Create fake services
                 List<Role> roles = new List<Role>();
                 Role role = new Role();
