@@ -3,7 +3,6 @@ using DelegationStation.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 
@@ -52,6 +51,7 @@ builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
 builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
+builder.Services.AddSingleton<IPreloadDBService, PreloadDBService>();
 
 //builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 builder.Services.AddApplicationInsightsTelemetry(opt => opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);

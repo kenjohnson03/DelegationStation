@@ -2,7 +2,9 @@
 @using DelegationStation.Services;
 @using DelegationStationShared.Models;
 
+
 @inject IDeviceTagDBService deviceTagDBService
+@inject IPreloadDBService preloadDBService
 @inject IDeviceDBService deviceDBService
 @inject ILogger<Tags> logger
 @inject NavigationManager nav
@@ -83,16 +85,30 @@
             {
                 <p class="error-text">@deviceAddValidationMessage</p>
             }
-            <div class="mb-3">
-                <label for="DeviceMake" class="form-label">Device Make</label>
-                <InputText @bind-Value=newDevice.Make class="form-control" id="DeviceMake"></InputText>
-                <ValidationMessage For=@(() => newDevice.Make) />
-            </div>
+      <div class="mb-3">
+        <label for="DeviceMake" class="form-label">Device Make</label>
+        <InputText @bind-Value=newDevice.Make list="makeOptions" class="form-control" id="DeviceMake"></InputText>
+        <datalist id="makeOptions">
+          @foreach (var make in possibleMakes)
+          {
+            <option value="@make"></option>
+          }
+        </datalist>
+        <ValidationMessage For=@(() => newDevice.Make) />
+      </div>
+
             <div class="mb-3">
                 <label for="DeviceModel" class="form-label">Device Model</label>
-                <InputText @bind-Value=newDevice.Model class="form-control" id="DeviceModel"></InputText>
+                <InputText @bind-Value=newDevice.Model list="modelOptions" class="form-control" id="DeviceModel"></InputText>
+                 <datalist id="modelOptions">
+                   @foreach (var model in possibleModels)
+                   {
+                     <option value="@model"></option>
+                   }
+                 </datalist>
                 <ValidationMessage For=@(() => newDevice.Model) />
             </div>
+
             <div class="mb-3">
                 <label for="SerialNumber" class="form-label">Serial Number</label>
                 <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
@@ -142,89 +158,114 @@
 @code {
     [CascadingParameter]
     public Task<AuthenticationState>? AuthState { get; set; }
-    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
-    private string userId = string.Empty;
-    private string userName = string.Empty;
+  private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
+  private string userId = string.Empty;
+  private string userName = string.Empty;
 
-    private List<string> groups = new List<string>();
-    private List<Device> devices = new List<Device>();
-    private List<DeviceTag> deviceTags = new List<DeviceTag>();
-    private Device newDevice = new Device();
-    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
-    private string tagSearch = "";
-    private string deviceAddValidationMessage = "";
-    private int pageSize = 10;
-    private int currentPage = 0;
-    private string search = "";
-    private Device searchDevice = new Device();
-    private bool devicesLoading = true;
-    private string userMessage = string.Empty;
+  private List<string> groups = new List<string>();
+  private List<Device> devices = new List<Device>();
+  private List<DeviceTag> deviceTags = new List<DeviceTag>();
+  private Device newDevice = new Device();
+  private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
+  private string tagSearch = "";
+  private string deviceAddValidationMessage = "";
+  private int pageSize = 10;
+  private int currentPage = 0;
+  private string search = "";
+  private Device searchDevice = new Device();
+  private bool devicesLoading = true;
+  private string userMessage = string.Empty;
+
+  private List<string> possibleMakes = new List<string>();
+  private List<string> possibleModels = new List<string>();
 
 
-    protected override async Task OnInitializedAsync()
+  protected override async Task OnInitializedAsync()
+  {
+    if (AuthState is not null)
     {
-        if (AuthState is not null)
-        {
-            var authState = await AuthState;
-            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
-            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-        }
-
-        UpdateClaims();
-        await GetTags();
-        await GetDevices();        
+      var authState = await AuthState;
+      user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
+      userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
+      userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
     }
 
-    private void UpdateClaims()
+    UpdateClaims();
+    await GetTags();
+    await GetDevices();
+    await GetPreloads();
+  }
+
+  private void UpdateClaims()
+  {
+    groups = new List<string>();
+    var groupClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
+
+    if(groupClaims == null)
     {
-        groups = new List<string>();
-        var groupClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
-
-        if(groupClaims == null)
-        {
-            return;
-        }
-
-        foreach (var c in groupClaims)
-        {
-            groups.Add(c.Value);
-        }
+      return;
     }
 
-    private async Task GetTags()
+    foreach (var c in groupClaims)
     {
-        Guid c = new Guid();
-        userMessage = string.Empty;
-        try
-        {
-            deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
-        }
-        catch(Exception ex)
-        {
-            userMessage = $"Error retrieving tags.\nCorrelation Id: {c.ToString()}";
-            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
-        }
+      groups.Add(c.Value);
+    }
+  }
+
+  private async Task GetTags()
+  {
+    Guid c = new Guid();
+    userMessage = string.Empty;
+    try
+    {
+      deviceTags = await deviceTagDBService.GetDeviceTagsAsync(groups);
+    }
+    catch(Exception ex)
+    {
+      userMessage = $"Error retrieving tags.\nCorrelation Id: {c.ToString()}";
+      logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+    }
+  }
+
+  private async Task GetDevices()
+  {        
+    Guid c = new Guid();
+    userMessage = string.Empty;
+    try
+    {
+      devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
+    }
+    catch(Exception ex)
+    {
+      userMessage = $"Error retrieving Devices.\nCorrelation Id: {c.ToString()}";
+      logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+    }
+    finally
+    {
+      devicesLoading = false;
+    }
+  }
+
+  private async Task GetPreloads()
+  {
+    try
+    {
+      possibleMakes = await preloadDBService.GetPreLoadItems("Makes");
+    }
+    catch (Exception ex)
+    {
+      logger.LogError($"Error retrieving possible Makes from DB.\n{ex.Message}\nUser: {userName} {userId}");
     }
 
-    private async Task GetDevices()
-    {        
-        Guid c = new Guid();
-        userMessage = string.Empty;
-        try
-        {
-            devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
-        }
-        catch(Exception ex)
-        {
-            userMessage = $"Error retrieving Devices.\nCorrelation Id: {c.ToString()}";
-            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
-        }
-        finally
-        {
-            devicesLoading = false;
-        }
+    try
+    {
+      possibleModels = await preloadDBService.GetPreLoadItems("Models");
     }
+    catch(Exception ex)
+    {
+      logger.LogError($"Error retrieving possible Modesl from DB\n{ex.Message}\nUser: {userName} {userId}");
+    }
+  }
 
     private async Task GetDevicesSearch()
     {
