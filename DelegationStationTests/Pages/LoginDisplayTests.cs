@@ -3,7 +3,7 @@
 namespace DelegationStationTests.Pages
 {
     [TestClass]
-    public class LoginDisplayTest : Bunit.TestContext
+    public class LoginDisplayTests : Bunit.TestContext
     {
         [TestMethod]
         public void UnauthorizedShouldNotRender()

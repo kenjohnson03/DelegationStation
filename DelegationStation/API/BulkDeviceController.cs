@@ -1,4 +1,5 @@
-﻿using DelegationStation.Services;
+﻿using Azure;
+using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,12 +16,14 @@ namespace DelegationStation.API
         private IDeviceDBService _deviceDBService;
         private IDeviceTagDBService _deviceTagDBService;
         private readonly IConfiguration _config;
-        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger) 
+        private readonly IAuthorizationService _authorizationService;
+        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger, IAuthorizationService authorizationService) 
         {
             _logger = logger;
             _deviceDBService = deviceService;
             _deviceTagDBService = deviceTagDBService;
             _config = config;
+            _authorizationService = authorizationService;
         }
 
         [HttpGet("BulkDevice")]
@@ -41,7 +44,7 @@ namespace DelegationStation.API
                 return BadRequest("Tag Id Empty");
             }
 
-            DeviceTag tag = null;
+            DeviceTag? tag = null;
             try
             {
                 tag = await _deviceTagDBService.GetDeviceTagAsync(id);
@@ -57,12 +60,11 @@ namespace DelegationStation.API
                 return BadRequest("Unable to find tag");
             }
 
-            userRole = userRole.GetRole(groups, defaultGroup, tag);
-
-            if(userRole.IsDefaultRole())
+            if(_authorizationService.AuthorizeAsync(User, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded == false)
             {
                 return new UnauthorizedResult();
             }
+
             string fileName = "Devices.csv";
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
             StringBuilder sb = new StringBuilder();

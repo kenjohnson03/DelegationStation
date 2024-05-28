@@ -70,7 +70,7 @@ namespace DelegationStation.Services
 
           if (groupIds.Count() < 1)
           {
-            throw new Exception("DeviceTagDBService GetDeviceTagsAsync no valid group ids sent.");
+            return deviceTags;
           }
 
           System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -184,7 +184,7 @@ namespace DelegationStation.Services
 
           if (groupIds.Count() < 1)
           {
-            throw new Exception("DeviceTagDBService GetDeviceTagsAsync no valid group ids sent.");
+             return 0;
           }
 
           System.Text.StringBuilder sb = new System.Text.StringBuilder();

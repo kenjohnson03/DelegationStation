@@ -111,6 +111,7 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
+
                 _logger.DSLogException($"Failure querying Cosmos DB for device '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.\n", ex, fullMethodName );
             }
 
