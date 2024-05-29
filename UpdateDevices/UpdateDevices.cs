@@ -15,6 +15,7 @@ using DelegationStationShared.Models;
 using DelegationSharedLibrary;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.IdentityModel.Tokens;
+using UpdateDevices.Extensions;
 
 
 
@@ -48,32 +49,31 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation($"C# Timer trigger function {fullMethodName} executed at: {DateTime.Now}");
-            _logger.LogInformation($"Next timer schedule at: {timerInfo.ScheduleStatus.Next}");
+            _logger.DSLogInformation($"C# Timer trigger function executed at: {DateTime.Now}",fullMethodName);
+            _logger.DSLogInformation($"Next timer schedule at: {timerInfo.ScheduleStatus.Next}", fullMethodName);
 
 
             ConnectToCosmosDb();
-            _logger.LogInformation($"{fullMethodName} Connect to Cosmos DB called");
-            ConnectToGraph();
-            _logger.LogInformation($"{fullMethodName} Connect to Graph called");
-
             if (_container == null)
             {
-                _logger.LogError($"{fullMethodName} Error: Failed to connect to Cosmos DB, exiting");
+                _logger.DSLogError("Failed to connect to Cosmos DB, exiting.",fullMethodName);
                 return;
             }
+
+            ConnectToGraph();
             if (_graphClient == null)
             {
-                _logger.LogError($"{fullMethodName} Error: Failed to connect to Graph, exiting");
+                _logger.DSLogError("Failed to connect to Graph, exiting.",fullMethodName);
                 return;
             }
         
             FunctionSettings settings = await GetFunctionSettings();
             DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-_lastRunDays) : ((DateTime)settings.LastRun).AddHours(-1);
+
             List<Microsoft.Graph.Models.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
             if (devices == null)
             {
-                _logger.LogError($"{fullMethodName} Error: Failed to get new devices, exiting");
+                _logger.DSLogError("Failed to get new devices, exiting", fullMethodName);
                 return;
             }
             foreach (Microsoft.Graph.Models.ManagedDevice device in devices)
@@ -85,19 +85,22 @@ namespace UpdateDevices
 
         private async Task RunDeviceUpdateActionsAsync(Microsoft.Graph.Models.ManagedDevice device)
         {
-            List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
-
-            var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
-
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
+            _logger.DSLogInformation($"Processing enrolled device: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
+
+            List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
+
+            var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
+
             if (String.IsNullOrEmpty(defaultActionDisable))
             {
-                _logger.LogInformation($"{fullMethodName} DefaultActionDisable environment variable not set. Defaulting to false");
+                _logger.DSLogWarning("DefaultActionDisable environment variable not set. Defaulting to false.",fullMethodName);
             }
 
+            // Search CosmosDB for device with exact match on Make, Model, SerialNumber
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Make = @manufacturer AND c.Model = @model AND c.SerialNumber = @serialNumber")
                 .WithParameter("@manufacturer", device.Manufacturer.Trim())
                 .WithParameter("@model", device.Model.Trim())
@@ -113,26 +116,28 @@ namespace UpdateDevices
                     var response = await queryIterator.ReadNextAsync();
                     deviceResults.AddRange(response.ToList());
                 }
-                _logger.LogInformation($"{fullMethodName} Found {deviceResults.Count}");
             }
             catch (Exception ex)
             {
-              _logger.LogError($"{fullMethodName} Error: querying Cosmos DB for device {device.Manufacturer} {device.Model} {device.SerialNumber}.\n {ex.Message}");
+
+                _logger.DSLogException($"Failure querying Cosmos DB for device '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.\n", ex, fullMethodName );
             }
 
             if (deviceResults.Count < 1)
             {
+                _logger.LogWarning($"Did not find any matching devices in DB for: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
+
                 // TODO make personal / add to group / update attribute
                 if (defaultActionDisable == "true")
                 {
-                    _logger.LogInformation($"{fullMethodName} Information: DefaultActionDisable is true. Disabling device {device.AzureADDeviceId} {device.Manufacturer} {device.Model} {device.SerialNumber}");
-                    await UpdateAttributesOnDeviceAsync(device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction() { ActionType = DeviceUpdateActionType.Attribute, Name = "AccountEnabled", Value = "false" } });
+                    _logger.DSLogInformation($"DefaultActionDisable is true. Disabling device in AAD '{device.AzureADDeviceId}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'", fullMethodName);
+                    await UpdateAttributesOnDeviceAsync(device.Id, device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction() { ActionType = DeviceUpdateActionType.Attribute, Name = "AccountEnabled", Value = "false" } });
                 }
-                _logger.LogWarning($"{fullMethodName} Warning: Did not find any devices matching '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'\nDefaultActionDisable is false.");
                 return;
             }
 
             DelegationStationShared.Models.Device d = deviceResults.FirstOrDefault();
+            _logger.DSLogInformation($"Found matching device in DB for: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
 
             //Get device object ID from Graph which is needed for update actions
             var deviceObjectID = "";
@@ -149,15 +154,16 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
-              _logger.LogError($"{fullMethodName} Error: Failed to retrieve graph device ID using .\n {ex.Message}", ex);
+              _logger.DSLogException($"Failed to retrieve graph device ID using .\n", ex, fullMethodName);
               return;
             }
             if (deviceObjectID.IsNullOrEmpty())
             {
-              _logger.LogError($"{fullMethodName} Error: Failed to retrieve graph device ID using .\n");
+              _logger.DSLogError("Failed to retrieve graph device ID using .\n",fullMethodName);
               return;
             }
 
+            _logger.DSLogInformation($"Retrieved Entra Object ID '{deviceObjectID}' for device. DeviceID: '{device.AzureADDeviceId}', ManagedDeviceID: '{device.Id}'",fullMethodName);
 
             foreach (string tagId in d.Tags)
             {
@@ -166,15 +172,18 @@ namespace UpdateDevices
                 {
                     ItemResponse<DeviceTag> tagResponse = await _container.ReadItemAsync<DeviceTag>(tagId, new PartitionKey("DeviceTag"));
                     tag = tagResponse.Resource;
-                    _logger.LogInformation($"{fullMethodName} Information: Found tag {tag.Name}", tag);
+                    _logger.DSLogInformation($"Device {device.Id} is assigned to: {tag.Name}",fullMethodName);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"{fullMethodName} Error: Get tag {tagId} failed.\n {ex.Message}", ex);
+                    _logger.DSLogException($"Get tag {tagId} failed.\n", ex, fullMethodName);
                 }
 
-                // Check the enrollment user and ensure there is a match
+                //
+                // To prevent PAWs from being updated, check the enrollment user and ensure there is a match to permitted regex
+                // Intended to protect against PAW users using this to apply changes to their PAW
                 // Allow any where the user is not set
+                // 
                 try
                 {
                     if (!string.IsNullOrEmpty(tag.AllowedUserPrincipalName))
@@ -182,32 +191,39 @@ namespace UpdateDevices
                         // If the user principal name is not in the allowed list, skip the tag
                         if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
                         {
-                            _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} did not match Tag Id {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}");
+                            _logger.DSLogWarning($"Primary user {device.UserPrincipalName} on ManagedDevice Id {device.Id} does not match Tag {tag.Name} allowed user principal names regex '{tag.AllowedUserPrincipalName}'.", fullMethodName);
                             return;
                         }
                     }
                 } 
-                catch (System.ArgumentException ex)
-                {
-                    _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}. Argument exception thrown: {ex.Message}");
-                    return;
-                }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"{fullMethodName} Error: UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}. Exception thrown: {ex.Message}");
+                    _logger.DSLogException($"UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}.", ex, fullMethodName);
                     return;
                 }
+
+                if(tag.UpdateActions == null || tag.UpdateActions.Count < 1)
+        {
+                    _logger.DSLogWarning($"No update actions configured for {tag.Name}.  No updates applied for device {device.Id}.", fullMethodName);
+                    return;
+                }
+
+
+                //
+                // Applying update actions based on tag
+                // 
+                _logger.DSLogInformation($"Apply update actions to device {device.Id} configured for tag {tag.Name}...",fullMethodName);
                 
 
                 foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.AdministrativeUnit))
                 {
                     try
                     {
-                        await AddDeviceToAzureAdministrativeUnit(deviceObjectID, deviceUpdateAction.Value);
+                        await AddDeviceToAzureAdministrativeUnit(device.Id, deviceObjectID, deviceUpdateAction);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"{fullMethodName} Error: AddDeviceToAzureAdministrativeUnit failed.\n {ex.Message}", ex);
+                        _logger.DSLogException($"Unable to add Device {device.Id} (as {deviceObjectID}) to Administrative Unit: {deviceUpdateAction.Name} ({deviceUpdateAction.Value}).", ex, fullMethodName);
                     }
                 }
 
@@ -215,27 +231,28 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await AddDeviceToAzureADGroup(deviceObjectID, deviceUpdateAction.Value);
+                        await AddDeviceToAzureADGroup(device.Id, deviceObjectID, deviceUpdateAction);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"{fullMethodName} Error: AddDeviceToAzureADGroup failed.\n {ex.Message}", ex);
+                        _logger.DSLogException($"Unable to add device {device.Id} (as {deviceObjectID}) to Group: {deviceUpdateAction.Name} ({deviceUpdateAction.Value}).", ex, fullMethodName);
                     }
                 }
 
                 try
-                {
-                    await UpdateAttributesOnDeviceAsync(deviceObjectID, tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList());
+                { 
+                    var attributeList = tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList();
+                    await UpdateAttributesOnDeviceAsync(device.Id, deviceObjectID, attributeList);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"{fullMethodName} Error: UpdateAttributesOnDeviceAsync failed.\n {ex.Message}", ex);
+                    _logger.DSLogException("Unable to update attributes for device {device.Id} (as {deviceObjectID}).", ex, fullMethodName);
                 }                
             }
         }
 
 
-        private async Task UpdateAttributesOnDeviceAsync(string deviceId, List<DeviceUpdateAction> updateActions)
+        private async Task UpdateAttributesOnDeviceAsync(string deviceId, string objectDeviceId, List<DeviceUpdateAction> updateActions)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
@@ -243,17 +260,17 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceId) || updateActions == null)
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId or updateActions is null or empty. DeviceId: {deviceId};");
+                _logger.DSLogError($"DeviceId or updateActions is null or empty. DeviceId: {objectDeviceId};", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                _logger.DSLogError($"DeviceId is not a valid GUID. DeviceId: {objectDeviceId}", fullMethodName);
                 return;
             }
             if (updateActions.Count < 1)
             {
-                _logger.LogWarning($"{fullMethodName} Warning: No update actions configured for {deviceId}");
+                _logger.DSLogWarning($"No update actions configured for {objectDeviceId}", fullMethodName);
                 return;
             }
 
@@ -286,17 +303,16 @@ namespace UpdateDevices
 
             try
             {
-                var result = await _graphClient.Devices[$"{deviceId}"].PatchAsync(requestBody);
-                _logger.LogInformation($"Updated attributes on DeviceId {deviceId}");
+                var result = await _graphClient.Devices[$"{objectDeviceId}"].PatchAsync(requestBody);
+                _logger.DSLogAudit($"Applied Attributes to Device {deviceId}: [{string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value))}]", fullMethodName);
             }
             catch(Exception ex)
             {
-                _logger.LogError($"Unable to update ExtenstionAttributes to DeviceId {deviceId}");
-                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+                _logger.DSLogException($"Unable to apply ExtensionAttributes to DeviceId {deviceId}: [{string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value))}]", ex, fullMethodName);
             }
         }
 
-        private async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
+        private async Task AddDeviceToAzureADGroup(string deviceId, string deviceObjectId, DeviceUpdateAction group)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
@@ -304,19 +320,26 @@ namespace UpdateDevices
 
             var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
 
-            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(groupId))
+            string groupId = group.Value;
+
+            if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId or GroupId is null or empty. DeviceId: {deviceId} GroupId: {groupId}");
+                _logger.DSLogError($"DeviceObjectId is null or empty.", fullMethodName);
                 return;
             }
-            if (Regex.IsMatch(deviceId, _guidRegex) == false)
+            if (string.IsNullOrEmpty(groupId))
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                _logger.DSLogError($"GroupId is null or empty.", fullMethodName);
+                return;
+            }
+            if (Regex.IsMatch(deviceObjectId, _guidRegex) == false)
+            {
+                _logger.DSLogError($"DeviceId is not a valid GUID. DeviceId: {deviceId}", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(groupId, _guidRegex) == false)
             {
-                _logger.LogError($"{fullMethodName} Error: GroupId is not a valid GUID. GroupId: {groupId}");
+                _logger.DSLogError($"GroupId is not a valid GUID. GroupId: {groupId}", fullMethodName);
                 return;
             }
 
@@ -324,40 +347,52 @@ namespace UpdateDevices
             {
                 var requestBody = new ReferenceCreate
                 {
-                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceId}"
+                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceObjectId}"
                 };
                 await _graphClient.Groups[$"{groupId}"].Members.Ref.PostAsync(requestBody);
-                _logger.LogInformation($"Added DeviceId {deviceId} to Group {groupId}");
+                _logger.DSLogAudit($"Added DeviceId {deviceId} (as Object ID {deviceObjectId}) to Group {group.Name} ({groupId}).", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to add DeviceId {deviceId} to Group {groupId}");
-                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+                if (ex.Message.Contains("already exist"))
+                {
+                    _logger.DSLogInformation($"DeviceId {deviceId} (as Object ID {deviceObjectId}) already exists in Group {group.Name} ({groupId}).", fullMethodName);
+                }
+                else
+                {
+                    _logger.DSLogException($"Unable to add DeviceId {deviceId} (as Object ID {deviceObjectId}) to Group {group.Name} ({groupId}).", ex, fullMethodName);
+                }
             }
 
         }
 
-        private async Task AddDeviceToAzureAdministrativeUnit(string deviceId, string auId)
+        private async Task AddDeviceToAzureAdministrativeUnit(string deviceId, string deviceObjectId, DeviceUpdateAction adminUnit)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             var graphEndpoint = Environment.GetEnvironmentVariable("GraphEndpoint", EnvironmentVariableTarget.Process);
+            string auId = adminUnit.Value;
 
-            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(auId))
+            if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId or AU Id is null or empty. DeviceId: {deviceId} AU Id: {auId}");
+                _logger.DSLogError($"Device Object Id is null or empty.", fullMethodName);
+                return;
+            }
+            if (string.IsNullOrEmpty(auId))
+            {
+                _logger.DSLogError($"AU Id is null or empty.", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
-                _logger.LogError($"{fullMethodName} Error: DeviceId is not a valid GUID. DeviceId: {deviceId}");
+                _logger.DSLogError($"Device Object Id is not a valid GUID. DeviceId: {deviceObjectId}", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(auId, _guidRegex) == false)
             {
-                _logger.LogError($"{fullMethodName} Error: AU Id is not a valid GUID. AU Id: {auId}");
+                _logger.DSLogError($"AU Id is not a valid GUID. AU Id: {auId}", fullMethodName);
                 return;
             }
 
@@ -365,15 +400,21 @@ namespace UpdateDevices
             {
                 var requestBody = new ReferenceCreate
                 {
-                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceId}"
+                    OdataId = $"{graphEndpoint}v1.0/devices/{deviceObjectId}"
                 };
                 await _graphClient.Directory.AdministrativeUnits[$"{auId}"].Members.Ref.PostAsync(requestBody);
-                _logger.LogInformation($"Added DeviceId {deviceId} to Administrative Unit {auId}");
+                _logger.DSLogAudit($"Added Device {deviceId} (as Object ID {deviceObjectId}) to Administrative Unit {adminUnit.Name} ({auId}).", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to add DeviceId {deviceId} to Administrative Unit {auId}");
-                _logger.LogError($"Error: {ex.Message}");
+                if (ex.Message.Contains("conflicting object"))
+                {
+                   _logger.DSLogInformation($"Device {deviceId} (as Object ID {deviceObjectId}) already exists in Administrative Unit {adminUnit.Name} ({auId}).", fullMethodName);
+                }
+                else
+                {
+                   _logger.DSLogException($"Unable to add Device {deviceId} (as Object ID {deviceObjectId}) to Administrative Unit: {adminUnit.Name} ({auId}).", ex, fullMethodName);
+                }
             }
         }
 
@@ -383,7 +424,7 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation($"{fullMethodName} Getting new devices since {dateTime} UTC");
+            _logger.DSLogInformation($"Getting devices enrolled since {dateTime:MM/dd/yyyy HH:mm:ss} UTC", fullMethodName);
 
 
             List<Microsoft.Graph.Models.ManagedDevice> devices = new List<Microsoft.Graph.Models.ManagedDevice>();
@@ -407,11 +448,11 @@ namespace UpdateDevices
 
                 await pageIterator.IterateAsync();
 
-                _logger.LogInformation($"Intune device information\nFound {devices.Count} new devices since {dateTime} UTC");
+                _logger.DSLogInformation($"Found {devices.Count} new enrolled devices since {dateTime:MM/dd/yyyy HH:mm:ss} UTC", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+                _logger.DSLogException("Unable to retrieve managed devices from Graph", ex, fullMethodName);
             }
 
             return devices;
@@ -427,12 +468,12 @@ namespace UpdateDevices
             try
             {
                 settings = await _container.ReadItemAsync<FunctionSettings>(settings.Id.ToString(), new PartitionKey(settings.PartitionKey));
-                _logger.LogInformation($"{fullMethodName} Successfully retrieved function settings");
+                _logger.DSLogInformation($"Successfully retrieved function settings.",fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
-            }
+                _logger.DSLogException($"Unable to retrieve function settings.",ex, fullMethodName);
+      }
             finally
             {
                 if (settings == null)
@@ -455,61 +496,65 @@ namespace UpdateDevices
             try
             {
                 var response = await _container.UpsertItemAsync<FunctionSettings>(settings, new PartitionKey(settings.PartitionKey));
-                _logger.LogInformation($"{fullMethodName} Successfully updated function settings");
+                _logger.DSLogInformation($"Successfully updated function settings.", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: {ex.Message}");
+                _logger.DSLogException("Unable to update function settings.",ex,fullMethodName);
             }
         }
 
         private void ConnectToCosmosDb()
         {
-            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
-            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
-
-            if (string.IsNullOrEmpty(containerName))
-            {
-                _logger.LogWarning("COSMOS_CONTAINER_NAME is null or empty, using default value of DeviceData");
-                containerName = "DeviceData";
-            }
-            if(string.IsNullOrEmpty(databaseName))
-            {
-                _logger.LogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData");
-                databaseName = "DelegationStationData";
-            }
-
-            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
-            var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            if (String.IsNullOrEmpty(connectionString) || String.IsNullOrEmpty(defaultActionDisable))
+            _logger.DSLogInformation("Connecting to Cosmos DB...", fullMethodName);
+
+            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
+            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
+            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
+
+            if (string.IsNullOrEmpty(containerName))
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine($"{fullMethodName} Error: Missing required environment variables. Please check the following environment variables are set:");
-                sb.Append(String.IsNullOrEmpty(connectionString) ? "COSMOS_CONNECTION_STRING\n" : "");
-                sb.Append(String.IsNullOrEmpty(defaultActionDisable) ? "DefaultActionDisable\n" : "");
-                _logger.LogError(sb.ToString());
+                _logger.DSLogWarning("COSMOS_CONTAINER_NAME is null or empty, using default value of DeviceData",fullMethodName);
+                containerName = "DeviceData";
+            }
+            if(string.IsNullOrEmpty(databaseName))
+            {
+                _logger.DSLogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData", fullMethodName);
+                databaseName = "DelegationStationData";
+            }
+            if (String.IsNullOrEmpty(connectionString))
+            {
+                _logger.DSLogError("Cannot connect to CosmosDB. Missing required environment variable COSMOS_CONNECTION_STRING", fullMethodName);
                 return;
             }
+
             try
             {
-                CosmosClient client = new(
-                    connectionString: connectionString
-                );
+                CosmosClient client = new(connectionString: connectionString);
                 _container = client.GetContainer(databaseName, containerName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"{fullMethodName} Error: Failed to connect to Cosmos DB\n{ex.Message}");
+                _logger.DSLogException($"Failed to connect to CosmosDB",ex, fullMethodName);
             }
+
+            _logger.DSLogInformation($"Connected to Cosmos DB database {databaseName} container {containerName}.", fullMethodName);
         }
 
         private void ConnectToGraph()
         {
+
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation("Connecting to Graph...", fullMethodName);
+      
 
             var subject = Environment.GetEnvironmentVariable("CertificateDistinguishedName", EnvironmentVariableTarget.Process);
             var TenantId = Environment.GetEnvironmentVariable("AzureAd:TenantId", EnvironmentVariableTarget.Process);
@@ -531,22 +576,22 @@ namespace UpdateDevices
             if (string.IsNullOrEmpty(TenantId) || string.IsNullOrEmpty(ClientId) || (string.IsNullOrEmpty(ClientSecret) && string.IsNullOrEmpty(subject)))
             {
                 StringBuilder sb = new StringBuilder();
-                sb.AppendLine($"Missing required environment variables. Please check the following environment variables are set:");
-                sb.Append(string.IsNullOrEmpty(TenantId) ? "AzureAd:TenantId\n" : "");
-                sb.Append(string.IsNullOrEmpty(ClientId) ? "AzureAd:ClientId\n" : "");
-                sb.Append(string.IsNullOrEmpty(ClientSecret) && string.IsNullOrEmpty(subject) ? "AzureApp:ClientSecret or CertificateDistinguishedName\n" : "");
-                _logger.LogError(sb.ToString());
+                sb.Append("Missing required environment variables. Please check the following environment variables are set:");
+                sb.Append(string.IsNullOrEmpty(TenantId) ? "AzureAd:TenantId, " : "");
+                sb.Append(string.IsNullOrEmpty(ClientId) ? "AzureAd:ClientId, " : "");
+                sb.Append(string.IsNullOrEmpty(ClientSecret) && string.IsNullOrEmpty(subject) ? "AzureApp:ClientSecret or CertificateDistinguishedName" : "");
+                _logger.DSLogError(sb.ToString(),fullMethodName);
                 return;
             }
 
 
             if (!string.IsNullOrEmpty(subject))
             {
-                _logger.LogInformation("Using certificate authentication: ");
-                _logger.LogDebug("TenantId: " + TenantId);
-                _logger.LogDebug("ClientId: " + ClientId);
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using certificate authentication: ", fullMethodName);
+                _logger.DSLogDebug("TenantId: " + TenantId, fullMethodName);
+                _logger.DSLogDebug("ClientId: " + ClientId, fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
 
@@ -563,11 +608,11 @@ namespace UpdateDevices
             }
             else
             {
-                _logger.LogInformation("Using client secret authentication: ");
-                _logger.LogDebug("TenantId: " + TenantId);
-                _logger.LogDebug("ClientId: " + ClientId);
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using client secret authentication: ", fullMethodName);
+                _logger.DSLogDebug("TenantId: " + TenantId, fullMethodName);
+                _logger.DSLogDebug("ClientId: " + ClientId, fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
                 var clientSecretCredential = new ClientSecretCredential(
                     TenantId,
                     ClientId,
@@ -578,6 +623,8 @@ namespace UpdateDevices
                 _graphClient = new GraphServiceClient(clientSecretCredential,scopes,baseUrl);
 
             }
+
+            _logger.DSLogInformation($"Connected to Graph endpoint: {graphEndpoint}.", fullMethodName);
         }
 
         public class TimerInfo
