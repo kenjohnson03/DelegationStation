@@ -36,11 +36,12 @@
                         <InputText @bind-Value=tag.Name class="form-control"></InputText>
                         <label>Description:</label>
                         <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
-                              <label class="my-1">Allowed User Principal Name REGEX:</label>
-<InputText @bind-Value=tag.AllowedUserPrincipalName class="form-control"></InputText>
+                              <label class="my-1">Allowed User Principal Name RegEx:</label>
+<InputText @bind-Value=tag.AllowedUserPrincipalName @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
 <div class="border rounded my-3 p-3">
-    <h4>Test enrollment user</h4>
-    <InputText @bind-Value=testEnrollmentUser class="form-control" placeholder="Test user to validate REGEX"></InputText>
+    <h4>Validate RegEx</h4>
+    <label>Enter Test User Principal Name:</label>
+    <InputText @bind-Value=testEnrollmentUser @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
     <button type="button" @onclick=@ValidateTestEnrollmentUser class="btn btn-primary my-2">Test</button>
     @if (displayTestResult)
     {
@@ -1332,7 +1333,7 @@
 
     private void ValidateTestEnrollmentUser()
     {
-        if(!string.IsNullOrEmpty(testEnrollmentUser))
+        if(testEnrollmentUser != null)
         {
             if(IsRegexPatternValid(tag.AllowedUserPrincipalName))
             {
@@ -1349,6 +1350,11 @@
             testEnrollmentUserResult = true;
         }
         displayTestResult = true;
+    }
+
+    private void ClearTestEnrollmentResult()
+    {
+        displayTestResult = false;
     }
 
     private void RoleSearchSecurityGroupsKeyUp(KeyboardEventArgs e)
