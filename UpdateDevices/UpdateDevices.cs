@@ -25,12 +25,20 @@ namespace UpdateDevices
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
         private static Microsoft.Azure.Cosmos.Container _container = null;
         private GraphServiceClient _graphClient;
+        private int _lastRunDays = 30;
 
         private readonly ILogger _logger;
 
         public UpdateDevices(ILoggerFactory loggerFactory)
         {
           _logger = loggerFactory.CreateLogger<UpdateDevices>();
+
+          bool parseConfig = int.TryParse(Environment.GetEnvironmentVariable("FirstRunPastDays", EnvironmentVariableTarget.Process), out _lastRunDays);
+          if (!parseConfig)
+          {
+            _lastRunDays = 30;
+            _logger.LogWarning($"UpdateDevices()  FirstRunPastDays environment variable not set. Defaulting to 30 days");
+          }
         }
 
         [Function("UpdateDevices")]
@@ -59,10 +67,9 @@ namespace UpdateDevices
                 _logger.LogError($"{fullMethodName} Error: Failed to connect to Graph, exiting");
                 return;
             }
-
-
+        
             FunctionSettings settings = await GetFunctionSettings();
-            DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-30) : ((DateTime)settings.LastRun).AddHours(-1);
+            DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-_lastRunDays) : ((DateTime)settings.LastRun).AddHours(-1);
             List<Microsoft.Graph.Models.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
             if (devices == null)
             {
