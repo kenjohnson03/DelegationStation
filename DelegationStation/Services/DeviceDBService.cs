@@ -250,6 +250,13 @@ namespace DelegationStation.Services
             {
                 throw new Exception("DeviceDBService AddOrUpdateDeviceAsync was sent null device");
             }
+
+            // Scrubbing whitespace before entry
+            device.Make = device.Make.Trim();
+            device.Model = device.Model.Trim();
+            device.SerialNumber = device.SerialNumber.Trim();
+
+            // Confirm DB does not already contain device
             List<Device> devices = new List<Device>();
             QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
             q.WithParameter("@serial", device.SerialNumber);
