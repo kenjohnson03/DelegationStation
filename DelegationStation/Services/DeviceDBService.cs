@@ -264,8 +264,7 @@ namespace DelegationStation.Services
             }
             if(devices.Count != 0)
             {
-                throw new Exception("Duplicate device found in database. Remove device first then add.");
-                
+              throw new Exception("Device already exists.");
             }
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);

@@ -79,9 +79,9 @@
             <DataAnnotationsValidator />
             <ValidationSummary />
             <h4>Add device</h4>
-            @if (!string.IsNullOrEmpty(deviceAddValidationMessage))
+            @if ((deviceAddValidationMessage.Value != null) && !deviceAddValidationMessage.Value.Equals(""))
             {
-                <p class="error-text">@deviceAddValidationMessage</p>
+                <p class="text-danger">@deviceAddValidationMessage</p>
             }
             <div class="mb-3">
                 <label for="DeviceMake" class="form-label">Device Make</label>
@@ -152,7 +152,7 @@
     private Device newDevice = new Device();
     private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
     private string tagSearch = "";
-    private string deviceAddValidationMessage = "";
+    private MarkupString deviceAddValidationMessage = new MarkupString("");
     private int pageSize = 10;
     private int currentPage = 0;
     private string search = "";
@@ -249,12 +249,12 @@
         {
             if (newDevice.Tags.Count < 1)
             {
-                deviceAddValidationMessage = "Device must have at least one Tag";
+                deviceAddValidationMessage = (MarkupString) "Device must have at least one Tag";
                 return;
             } 
             else if(newDevice.Tags.Count > 1)
             {
-                deviceAddValidationMessage = "Device must only have one Tag";
+                deviceAddValidationMessage = (MarkupString) "Device must only have one Tag";
                 return;
             }
             DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
@@ -270,11 +270,11 @@
             Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
             devices.Add(resp);
             newDevice = new Device();
-            deviceAddValidationMessage = "";
+            deviceAddValidationMessage = (MarkupString) "";
         }
         catch (Exception ex)
         {
-            deviceAddValidationMessage = $"Error adding tags.\nCorrelation Id:{c.ToString()}";
+            deviceAddValidationMessage = (MarkupString) $"Error adding device: {ex.Message} <br />Correlation Id:{c.ToString()}";
             logger.LogError($"{deviceAddValidationMessage}\n{ex.Message}\nUser: {userName} {userId}");
         }
     }
