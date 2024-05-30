@@ -1,12 +1,16 @@
 ﻿@page "/DevicesBulkAction"
 @using System
 @using System.IO
+@using System.Globalization
 @* @using Microsoft.AspNetCore.Components.QuickGrid *@
 @using Microsoft.AspNetCore.Hosting
 @using Microsoft.Extensions.Logging
 @using System.ComponentModel.DataAnnotations;
 @using DelegationStation.Services;
+@using DelegationStation.Models;
 @using DelegationStationShared.Models;
+@using CsvHelper;
+@using CsvHelper.Configuration;
 @inject ILogger<DeviceBulkAction> logger
 @inject IWebHostEnvironment Environment
 @inject IDeviceDBService deviceDBService
@@ -76,7 +80,10 @@ else
                     <ol>
                         @foreach (var error in fileError)
                         {
-                            <li class="flashError">@error</li>
+                            @* <li class="flashError">@error</li> *@
+                            <li>
+                              <span style="white-space: pre-line" class="flashError">@error</span>
+                            </li>
                         }
                     </ol>
                 </div>
@@ -336,46 +343,42 @@ else
                 fs.Dispose();
 
                 // Read the file and parse it line by line.
-                using (StreamReader newFile = new(path))
+                var config = new CsvConfiguration(CultureInfo.InvariantCulture)
                 {
-                    string ln;
-                    int line = 0;
+                    HasHeaderRecord = false
+                };
+                using (var reader = new StreamReader(path))
+                using (var csv = new CsvReader(reader,config))
+                {
 
-                    while ((ln = newFile.ReadLine()!) != null)
+                    List<BulkDeviceEntry> bulkDevices = csv.GetRecords<BulkDeviceEntry>().ToList();
+                    if (bulkDevices[0].Make == "Make" || bulkDevices[0].Model == "Model" || bulkDevices[0].SerialNumber == "SerialNumber" || bulkDevices[0].Action == "Action")
                     {
-                        line++;
-                        // parse CSV and add to devices list
-                        // Make,Model,SerialNumber,Action
-                        if(ln.StartsWith("Make,"))
-                        {
-                            continue;
-                        }
-                        var input = ln.Split(',');
-                        if(input.Length != 4)
-                        {
-                            var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
-                            fileError.Add(message);
-                            logger.LogError($"{message}\nUser: {userName} {userId}");
-                            isLoading = false;
-                            return;
-                        }
-                        try
-                        {
+                       // Remove header if present
+                        bulkDevices.RemoveAt(0);
+                    }
+
+                    foreach (BulkDeviceEntry entry in bulkDevices)
+                    {
+
                             // Validate Make, Model, SerialNumber, Action
-                            if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
+                            if(entry.Action.ToLower() != "add" && entry.Action.ToLower() != "remove")
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
+                                var message = $"File parsing error.\nFile Name: {file.Name}\nDevice Entry: {entry.Make},{entry.Model},{entry.SerialNumber},{entry.Action}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
                                 logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                 continue;
                             }
 
+                        try
+                        {
+
                             var newDevice = new DeviceBulk()
                                 {
-                                    Make = input[0],
-                                    Model = input[1],
-                                    SerialNumber = input[2],
-                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))                                    
+                                    Make = entry.Make,
+                                    Model = entry.Model,
+                                    SerialNumber = entry.SerialNumber,
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (entry.Action.ToLower()))                                    
                                 };
                             var context = new ValidationContext(newDevice, null, null);
                             var results = new List<ValidationResult>();
@@ -383,7 +386,7 @@ else
                             if (!Validator.TryValidateObject(newDevice, context, results, true))
                             {
                                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
-                                sb.Append($"Line {line}. Invalid input\n");
+                                sb.Append($"Device Entry: {entry.Make},{entry.Model},{entry.SerialNumber},{entry.Action}\n. Invalid input\n");
                                 foreach(var result in results)
                                 {
                                     sb.Append("\t" + result.ErrorMessage + "\n" ?? "");
@@ -398,7 +401,7 @@ else
                         } 
                         catch (Exception ex)
                         {
-                            var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}.\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                            var message = $"File parsing error.\nFile Name: {file.Name}\nDevice Entry: {entry.Make},{entry.Model},{entry.SerialNumber},{entry.Action}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
                             fileError.Add(message);
                             logger.LogError($"{message}\nUser: {userName} {userId}");
                             isLoading = false;
