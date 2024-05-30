@@ -1,8 +1,11 @@
 ﻿using Azure;
+using CsvHelper;
+using DelegationStation.Models;
 using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using System.Text;
 
 namespace DelegationStation.API
@@ -65,21 +68,35 @@ namespace DelegationStation.API
                 return new UnauthorizedResult();
             }
 
-            string fileName = "Devices.csv";
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("Make,Model,SerialNumber,Action,AddedBy");
-            if (!string.IsNullOrEmpty(id))
+
+            List<BulkDeviceDownloadEntry> entries = new List<BulkDeviceDownloadEntry>();
+
+            foreach (Device device in devices)
             {
-                foreach (Device device in devices)
-                {
-                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},,{device.AddedBy}");
-                }
-            }            
+               BulkDeviceDownloadEntry entry = new() {
+                 Make = device.Make,
+                 Model = device.Model,
+                 SerialNumber = device.SerialNumber,
+                 Action = "",
+                 AddedBy = device.AddedBy
+               };
+               entries.Add(entry);
+            }
+ 
+            var stream = new MemoryStream();
+            using (var writer = new StreamWriter(stream))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteHeader<BulkDeviceDownloadEntry>();
+                csv.NextRecord();
 
-            byte[] fileBytes = Encoding.ASCII.GetBytes(sb.ToString());
+                csv.WriteRecords(entries);
+            }
+            var content = stream.ToArray();
 
-            return File(fileBytes, "text/csv", fileName);
+            string fileName = "Devices.csv";
+            return File(content, "text/csv", fileName);
         }
     }
 }

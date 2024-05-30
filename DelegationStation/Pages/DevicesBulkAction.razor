@@ -351,14 +351,14 @@ else
                 using (var csv = new CsvReader(reader,config))
                 {
 
-                    List<BulkDeviceEntry> bulkDevices = csv.GetRecords<BulkDeviceEntry>().ToList();
+                    List<BulkDeviceUpdateEntry> bulkDevices = csv.GetRecords<BulkDeviceUpdateEntry>().ToList();
                     if (bulkDevices[0].Make == "Make" || bulkDevices[0].Model == "Model" || bulkDevices[0].SerialNumber == "SerialNumber" || bulkDevices[0].Action == "Action")
                     {
                        // Remove header if present
                         bulkDevices.RemoveAt(0);
                     }
 
-                    foreach (BulkDeviceEntry entry in bulkDevices)
+                    foreach (BulkDeviceUpdateEntry entry in bulkDevices)
                     {
 
                             // Validate Make, Model, SerialNumber, Action
