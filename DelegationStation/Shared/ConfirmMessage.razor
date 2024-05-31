@@ -23,7 +23,7 @@
     [Parameter]
     public string MessageTitle { get; set; } = "Are you sure?";
     [Parameter]
-    public string MessageBody { get; set; } = "This action is permanent";
+    public MarkupString MessageBody { get; set; } = (MarkupString) "This action is permanent";
     [Parameter]
     public Action? ConfirmAction { get; set; }
     [Parameter]
