@@ -86,9 +86,9 @@
             <DataAnnotationsValidator />
             <ValidationSummary />
             <h4>Add device</h4>
-            @if (!string.IsNullOrEmpty(deviceAddValidationMessage))
+            @if ((deviceAddValidationMessage.Value != null) && !deviceAddValidationMessage.Value.Equals(""))
             {
-                <p class="error-text">@deviceAddValidationMessage</p>
+                <p class="text-danger">@deviceAddValidationMessage</p>
             }
             <div class="mb-3">
                 <label for="DeviceMake" class="form-label">Device Make</label>
@@ -153,19 +153,19 @@
   private string userId = string.Empty;
   private string userName = string.Empty;
 
-  private List<string> groups = new List<string>();
-  private List<Device> devices = new List<Device>();
-  private List<DeviceTag> deviceTags = new List<DeviceTag>();
-  private Device newDevice = new Device();
-  private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
-  private string tagSearch = "";
-  private string deviceAddValidationMessage = "";
-  private int pageSize = 10;
-  private int currentPage = 0;
-  private string search = "";
-  private Device searchDevice = new Device();
-  private bool devicesLoading = true;
-  private string userMessage = string.Empty;
+    private List<string> groups = new List<string>();
+    private List<Device> devices = new List<Device>();
+    private List<DeviceTag> deviceTags = new List<DeviceTag>();
+    private Device newDevice = new Device();
+    private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() {}, SecurityGroups = false, AdministrativeUnits = false };
+    private string tagSearch = "";
+    private MarkupString deviceAddValidationMessage = new MarkupString("");
+    private int pageSize = 10;
+    private int currentPage = 0;
+    private string search = "";
+    private Device searchDevice = new Device();
+    private bool devicesLoading = true;
+    private string userMessage = string.Empty;
 
   private ConfirmMessage? ConfirmDelete;
   private Device deleteDevice = new Device() { Id = Guid.Empty };
@@ -251,43 +251,43 @@
     }
   }
 
-  private async Task AddDevice()
-  {
-    Guid c = new Guid();
-    userMessage = string.Empty;
-    try
+    private async Task AddDevice()
     {
-      if (newDevice.Tags.Count < 1)
-      {
-        deviceAddValidationMessage = "Device must have at least one Tag";
-        return;
-      } 
-      else if(newDevice.Tags.Count > 1)
-      {
-        deviceAddValidationMessage = "Device must only have one Tag";
-        return;
-      }
-      DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
-      if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
-      {
-        userMessage = $"Error: Not authorized to add devices to tag {tag.Id} {tag.Name}.\nCorrelation Id: {c.ToString()}";
-        logger.LogError($"{userMessage}\nUser: {userName} {userId}");
-        return;
-      }
+        Guid c = new Guid();
+        userMessage = string.Empty;
+        try
+        {
+            if (newDevice.Tags.Count < 1)
+            {
+                deviceAddValidationMessage = (MarkupString) "Device must have at least one Tag";
+                return;
+            } 
+            else if(newDevice.Tags.Count > 1)
+            {
+                deviceAddValidationMessage = (MarkupString) "Device must only have one Tag";
+                return;
+            }
+            DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
+            if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+            {
+                userMessage = $"Error: Not authorized to add devices to tag {tag.Id} {tag.Name}.\nCorrelation Id: {c.ToString()}";
+                logger.LogError($"{userMessage}\nUser: {userName} {userId}");
+                return;
+            }
 
-      newDevice.ModifiedUTC = DateTime.UtcNow;
-      newDevice.AddedBy = userId;
-      Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
-      devices.Add(resp);
-      newDevice = new Device();
-      deviceAddValidationMessage = "";
+            newDevice.ModifiedUTC = DateTime.UtcNow;
+            newDevice.AddedBy = userId;
+            Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
+            devices.Add(resp);
+            newDevice = new Device();
+            deviceAddValidationMessage = (MarkupString) "";
+        }
+        catch (Exception ex)
+        {
+            deviceAddValidationMessage = (MarkupString) $"Error adding device: {ex.Message} <br />Correlation Id:{c.ToString()}";
+            logger.LogError($"{deviceAddValidationMessage}\n{ex.Message}\nUser: {userName} {userId}");
+        }
     }
-    catch (Exception ex)
-    {
-      deviceAddValidationMessage = $"Error adding tags.\nCorrelation Id:{c.ToString()}";
-      logger.LogError($"{deviceAddValidationMessage}\n{ex.Message}\nUser: {userName} {userId}");
-    }
-  }
 
   private void AddRemoveTag(DeviceTag tag)
   {
