@@ -10,14 +10,17 @@ namespace DelegationStationShared.Models
         public Guid Id { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Make is Required")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)\s]+$", ErrorMessage = "Only use letters, numbers, -, _, &, (, ) or . for Make value.")]
         public string Make { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Model is Required")]
 
+        [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)\s]+$", ErrorMessage = "Use letters, numbers, -, _, &, (, ) or . for Model value.")]
         public string Model { get; set; }
 
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Serial Number is Required")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for SerialNumber value.")]
         public string SerialNumber { get; set; }
 
         [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$",ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
