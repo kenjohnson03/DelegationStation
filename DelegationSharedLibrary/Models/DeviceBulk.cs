@@ -10,7 +10,7 @@ namespace DelegationStationShared.Models
         public string Make { get; set; }
 
         [Required(AllowEmptyStrings = false)] 
-        [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)\s]+$", ErrorMessage = "Use letters, numbers, -, _, &, (, ) or . for Model value.")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)+\s]+$", ErrorMessage = "Use letters, numbers, -, _, &, (, ), + or . for Model value.")]
 
         public string Model { get; set; }
 
