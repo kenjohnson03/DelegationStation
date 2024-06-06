@@ -316,7 +316,7 @@
     Show();
   }
 
-  private void DeleteDevice()
+  private async Task DeleteDevice()
   {
     Guid c = Guid.NewGuid();
     if (deleteDevice.Id == Guid.Empty)
@@ -334,7 +334,7 @@
 
     try
     {
-      deviceDBService.DeleteDeviceAsync(deleteDevice);
+      await deviceDBService.DeleteDeviceAsync(deleteDevice);
       devices.Remove(deleteDevice);
       string message = $"Correlation Id: {c.ToString()}\nDevice {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber} deleted successfully";
       userMessage = "";
