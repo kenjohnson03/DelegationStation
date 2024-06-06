@@ -84,7 +84,6 @@
         </div>
         <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-5">
             <DataAnnotationsValidator />
-            <ValidationSummary />
             <h4>Add device</h4>
             @if ((deviceAddValidationMessage.Value != null) && !deviceAddValidationMessage.Value.Equals(""))
             {
