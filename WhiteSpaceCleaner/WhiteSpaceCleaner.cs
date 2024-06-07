@@ -1,50 +1,39 @@
-using DelegationSharedLibrary;
-using Microsoft.Azure.Functions.Worker;
+﻿using DelegationSharedLibrary;
 using Microsoft.Extensions.Logging;
-using System;
-using UpdateDevices.Extensions;
-using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+using DelegationStationShared.Models;
 
-namespace UpdateDevices
+namespace DelegationStation.WhiteSpaceCleaner
 {
   public class WhiteSpaceCleaner
   {
-    private readonly ILogger<WhiteSpaceCleaner> _logger;
-    private static Microsoft.Azure.Cosmos.Container _container = null;
+    private readonly ILogger _logger;
+    private static Container? _container = null;
 
-    public WhiteSpaceCleaner(ILogger<WhiteSpaceCleaner> logger)
+    public WhiteSpaceCleaner(ILoggerFactory loggerFactory)
     {
-      _logger = logger;
+      _logger = loggerFactory.CreateLogger<WhiteSpaceCleaner>();
     }
 
-    [Function("WhiteSpaceCleaner")]
-    public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Admin, "post")] HttpRequest req)
+    internal void Run()
     {
       string methodName = ExtensionHelper.GetMethodName();
       string className = this.GetType().Name;
       string fullMethodName = className + "." + methodName;
 
-      _logger.DSLogInformation("C# HTTP trigger function processed a request.", fullMethodName);
+      _logger.DSLogInformation("WhiteSpaceCleaner starting....", fullMethodName);
 
 
       ConnectToCosmosDb();
       if (_container == null)
       {
         _logger.DSLogError("Failed to connect to Cosmos DB, exiting.", fullMethodName);
-        var errorObjectResult = new ObjectResult("Server Error");
-        errorObjectResult.StatusCode = StatusCodes.Status500InternalServerError;
-        return errorObjectResult;
+        Environment.Exit(1);
       }
 
-      int result = await UpdateDevices();
-      _logger.DSLogInformation($"Updated {result} devices." , fullMethodName);
+      int result = UpdateDevices();
+      _logger.DSLogInformation($"WhiteSpaceCleaner done:  Updated {result} devices.", fullMethodName);
       
-      string responseMessage = $"Updated {result} devices.";
-      return new OkObjectResult(responseMessage);
     }
 
     private void ConnectToCosmosDb()
@@ -56,9 +45,12 @@ namespace UpdateDevices
 
       _logger.DSLogInformation("Connecting to Cosmos DB...", fullMethodName);
 
-      string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
-      string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
-      var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
+      //string? containerName = System.Configuration.ConfigurationManager.AppSettings["COSMOS_CONTAINER_NAME"];
+      //string? databaseName = System.Configuration.ConfigurationManager.AppSettings["COSMOS_DATABASE_NAME"];
+      //var connectionString = System.Configuration.ConfigurationManager.AppSettings["COSMOS_CONNECTION_STRING"];
+      string? containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME");
+      string? databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME");
+      var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING");
 
       if (string.IsNullOrEmpty(containerName))
       {
@@ -88,8 +80,7 @@ namespace UpdateDevices
 
       _logger.DSLogInformation($"Connected to Cosmos DB database {databaseName} container {containerName}.", fullMethodName);
     }
-
-    private async Task<int> UpdateDevices()
+    private int UpdateDevices()
     {
       string methodName = ExtensionHelper.GetMethodName();
       string className = GetType().Name;
@@ -105,8 +96,8 @@ namespace UpdateDevices
 
       while (queryIterator.HasMoreResults)
       {
-        var response = await queryIterator.ReadNextAsync();
-        _logger.DSLogInformation($"Retrieved devices found with whitespace in Make/Model/SerialNumber field: {response.Count}",  fullMethodName);
+        var response = queryIterator.ReadNextAsync().Result;
+        _logger.DSLogInformation($"Retrieved devices found with whitespace in Make/Model/SerialNumber field: {response.Count}", fullMethodName);
 
         foreach (var device in response)
         {
@@ -116,7 +107,8 @@ namespace UpdateDevices
           device.Make = device.Make.Trim();
           device.Model = device.Model.Trim();
           device.SerialNumber = device.SerialNumber.Trim();
-          await _container.ReplaceItemAsync(device, device.Id.ToString());
+
+          _container.ReplaceItemAsync(device, device.Id.ToString()).Wait();
           _logger.DSLogInformation($"Device {device.Id} After Update -  Make: '{device.Make}' Model: '{device.Model}' SerialNumber: '{device.SerialNumber}'", fullMethodName);
           deviceUpdated++;
         }
