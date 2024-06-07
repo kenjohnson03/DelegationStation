@@ -73,6 +73,19 @@ namespace DelegationStation.API
             {
                 foreach (Device device in devices)
                 {
+                    if(device.Make.Contains(","))
+                    {
+                      device.Make = "\"" + device.Make + "\"";
+                    }
+                    if(device.Model.Contains(","))
+                    {
+                      device.Model= "\"" + device.Model+ "\"";
+                    }
+                    if(device.SerialNumber.Contains(","))
+                    {
+                      device.SerialNumber = "\"" + device.SerialNumber+ "\"";
+                    }
+
                     sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},,{device.AddedBy}");
                 }
             }            
