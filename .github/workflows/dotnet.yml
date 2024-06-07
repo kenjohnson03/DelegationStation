@@ -12,6 +12,15 @@ env:
   DOTNET_CORE_VERSION: 6.0.x
   SRC_DIR: .
 
+  AZURE_APP_PACKAGE_PATH: .\DelegationStation\published
+  AZURE_APP_PKG_NAME: webapp
+
+  AZURE_UPDATE_FUNCTION_PACKAGE_PATH: .\UpdateDevices\published
+  AZURE_UPDATE_FUNCTION_PKG_NAME: update-function
+
+  AZURE_WEBJOB_PACKAGE_PATH: .\WhiteSpaceCleaner\published
+  AZURE_WEBJOB_PKG_NAME: webjob
+
 jobs:
   build:
 
@@ -29,10 +38,32 @@ jobs:
       
     - name: Build
       run: |
-        dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURIATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURIATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURIATION}} --no-restore
-        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURIATION}} --no-restore
+        dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
+        dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
+        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore
+        dotnet build ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-restore
+        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURATION}} --no-restore
+
+    - name: Publish
+      run: |
+        dotnet publish ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_APP_PACKAGE_PATH }}"
+        dotnet publish ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
+        dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
       
-   # - name: Test
-   #   run: dotnet test --no-build --verbosity normal
+    - name: Upload WebApp Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ $env.AZURE_APP_PKG_NAME }}
+        path: ${{ $env.AZURE_APP_PACKAGE_PATH }}
+
+    - name: Upload WebJob Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ $env.AZURE_WEBJOB_PKG_NAME }}
+        path: ${{ $env.AZURE_WEBJOB_PACKAGE_PATH }}
+
+    - name: Upload Update Function Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ $env.AZURE_UPDATE_FUNCTION_PKG_NAME }}
+        path: ${{ $env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}
