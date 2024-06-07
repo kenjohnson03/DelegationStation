@@ -53,17 +53,17 @@ jobs:
     - name: Upload WebApp Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ $env.AZURE_APP_PKG_NAME }}
-        path: ${{ $env.AZURE_APP_PACKAGE_PATH }}
+        name: ${{ env.AZURE_APP_PKG_NAME }}
+        path: ${{ env.AZURE_APP_PACKAGE_PATH }}
 
     - name: Upload WebJob Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ $env.AZURE_WEBJOB_PKG_NAME }}
-        path: ${{ $env.AZURE_WEBJOB_PACKAGE_PATH }}
+        name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
+        path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
 
     - name: Upload Update Function Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ $env.AZURE_UPDATE_FUNCTION_PKG_NAME }}
-        path: ${{ $env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}
+        name: ${{ env.AZURE_UPDATE_FUNCTION_PKG_NAME }}
+        path: ${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}
