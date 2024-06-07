@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Hosting
 @using Microsoft.Extensions.Logging
 @using System.ComponentModel.DataAnnotations;
+@using System.Text.RegularExpressions;
 @using DelegationStation.Services;
 @using DelegationStationShared.Models;
 @inject ILogger<DeviceBulkAction> logger
@@ -344,13 +345,19 @@ else
                     while ((ln = newFile.ReadLine()!) != null)
                     {
                         line++;
+
                         // parse CSV and add to devices list
                         // Make,Model,SerialNumber,Action
                         if(ln.StartsWith("Make,"))
                         {
+                            //Ignore the header if present
                             continue;
                         }
-                        var input = ln.Split(',');
+                        
+                        // Using Regex to split on commas, but ignore commas within quotes
+                        string splitOn = ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
+                        var input = Regex.Split(ln, splitOn);
+
                         if(input.Length != 4)
                         {
                             var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
@@ -359,12 +366,19 @@ else
                             isLoading = false;
                             return;
                         }
+
+                        // clean up any extra "" from the input
+                        for (int i = 0; i < input.Length; i++)
+                        {
+                          input[i] = input[i].Trim('"');
+                        }
+
                         try
                         {
                             // Validate Make, Model, SerialNumber, Action
                             if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
+                                var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
                                 logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                 continue;
