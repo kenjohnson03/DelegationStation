@@ -488,8 +488,6 @@ else
                 return;                
             }
 
-            try
-            {
                 if (device.Action == DeviceBulkAction.add)
                 {
                     Device d = new Device();
@@ -499,17 +497,31 @@ else
                     d.ModifiedUTC = DateTime.UtcNow;
                     d.AddedBy = userId;
                     d.Tags.Add(tagToApply);
-                    var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
-                    if(deviceResult == null)
+                    Device? deviceResult = null;
+
+                    try
                     {
-                        var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                      deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                    }
+                    catch(Exception ex)
+                    {
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else if (device.Action == DeviceBulkAction.remove)
                 {
-                    Device? d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                    Device? d= null;
+                    try
+                    {
+                      d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                    }
+                    catch(Exception ex)
+                    {
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                        logger.LogError($"{message}\nUser: {userName} {userId}");
+                    }
                     if(d != null)
                     {
                         // Validate the applied tag is on the device
@@ -527,25 +539,18 @@ else
                     }
                     else
                     {
-                        var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nDevice not found.\nCorrelation Id: {c.ToString()}";
+                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else
                 {
-                    var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                    var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
                     updateErrors.Add(message);
                     logger.LogError($"{message}\nUser: {userName} {userId}");
                 }
-            }
-            catch (Exception ex)
-            {
-                var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
-                updateErrors.Add(message);
-                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
-            }
-
+         
             completedDevices++;
             StateHasChanged();
         }

@@ -92,7 +92,7 @@
 
 <DisplayMessage Message="@userMessage" />
 
-<ConfirmMessage MessageBody="This will permanently delete the role and any delegations." ConfirmAction="@(() => DeleteRole())" @ref="ConfirmDelete" />
+<ConfirmMessage MessageBody=@((MarkupString) "This will permanently delete the role and any delegations.") ConfirmAction="@(() => DeleteRole())" @ref="ConfirmDelete" />
 
 @code {
     [CascadingParameter]
