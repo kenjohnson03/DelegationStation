@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Hosting
 @using Microsoft.Extensions.Logging
 @using System.ComponentModel.DataAnnotations;
+@using System.Text.RegularExpressions;
 @using DelegationStation.Services;
 @using DelegationStationShared.Models;
 @inject ILogger<DeviceBulkAction> logger
@@ -344,13 +345,19 @@ else
                     while ((ln = newFile.ReadLine()!) != null)
                     {
                         line++;
+
                         // parse CSV and add to devices list
                         // Make,Model,SerialNumber,Action
                         if(ln.StartsWith("Make,"))
                         {
+                            //Ignore the header if present
                             continue;
                         }
-                        var input = ln.Split(',');
+                        
+                        // Using Regex to split on commas, but ignore commas within quotes
+                        string splitOn = ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
+                        var input = Regex.Split(ln, splitOn);
+
                         if(input.Length != 4)
                         {
                             var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
@@ -359,12 +366,19 @@ else
                             isLoading = false;
                             return;
                         }
+
+                        // clean up any extra "" from the input
+                        for (int i = 0; i < input.Length; i++)
+                        {
+                          input[i] = input[i].Trim('"');
+                        }
+
                         try
                         {
                             // Validate Make, Model, SerialNumber, Action
                             if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
+                                var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
                                 logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                 continue;
@@ -488,8 +502,6 @@ else
                 return;                
             }
 
-            try
-            {
                 if (device.Action == DeviceBulkAction.add)
                 {
                     Device d = new Device();
@@ -499,17 +511,31 @@ else
                     d.ModifiedUTC = DateTime.UtcNow;
                     d.AddedBy = userId;
                     d.Tags.Add(tagToApply);
-                    var deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
-                    if(deviceResult == null)
+                    Device? deviceResult = null;
+
+                    try
                     {
-                        var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                      deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                    }
+                    catch(Exception ex)
+                    {
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else if (device.Action == DeviceBulkAction.remove)
                 {
-                    Device? d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                    Device? d= null;
+                    try
+                    {
+                      d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                    }
+                    catch(Exception ex)
+                    {
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                        logger.LogError($"{message}\nUser: {userName} {userId}");
+                    }
                     if(d != null)
                     {
                         // Validate the applied tag is on the device
@@ -527,25 +553,18 @@ else
                     }
                     else
                     {
-                        var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nDevice not found.\nCorrelation Id: {c.ToString()}";
+                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else
                 {
-                    var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                    var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
                     updateErrors.Add(message);
                     logger.LogError($"{message}\nUser: {userName} {userId}");
                 }
-            }
-            catch (Exception ex)
-            {
-                var message = $"Bulk Updating Devices Error:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
-                updateErrors.Add(message);
-                logger.LogError($"{message}\n{ex.Message}\nUser: {userName} {userId}");
-            }
-
+         
             completedDevices++;
             StateHasChanged();
         }
