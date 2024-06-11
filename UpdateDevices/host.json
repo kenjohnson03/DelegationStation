@@ -11,5 +11,6 @@
       },
       "enableLiveMetricsFilters": true
     }
-  }
+  },
+  "functionTimeout": "06:00:00"
 }
