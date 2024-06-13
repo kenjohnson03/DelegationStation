@@ -1,7 +1,7 @@
 ﻿@page "/DevicesBulkAction"
 @using System
 @using System.IO
-@* @using Microsoft.AspNetCore.Components.QuickGrid *@
+@using Microsoft.AspNetCore.Components.QuickGrid
 @using Microsoft.AspNetCore.Hosting
 @using Microsoft.Extensions.Logging
 @using System.ComponentModel.DataAnnotations;
@@ -158,43 +158,18 @@ else
         </div>
     }
 
-
-    @if(devices.Count > 0)
+    @if (devices.Count > 0)
     {
-        <b>Device data preview</b>
-        <table class="table table-striped table-sm">
-            <thead>
-                <tr>
-                    <th>Make</th>
-                    <th>Model</th>
-                    <th>Serial Number</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (DeviceBulk device in devices)
-                {
-                    <tr>
-                        <td>@device.Make</td>
-                        <td>@device.Model</td>
-                        <td>@device.SerialNumber</td>
-                        <td>@device.Action</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-
-        <div>
-       @*    Swap out table with quick grid when we switch back to .NET8
+      <div>
     <Microsoft.AspNetCore.Components.QuickGrid.QuickGrid Items="@loadedDevices" Pagination="@pagination" Class="table table-striped table-sm">
         <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Make" Property="@(p => p.Make)" />
         <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Model" Property="@(p => p.Model)" />
         <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Serial Number" Property="@(p => p.SerialNumber)" />
         <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Action" Property="@(p => p.Action)" />
     </Microsoft.AspNetCore.Components.QuickGrid.QuickGrid>
- *@    </div>
-    @* <Paginator State="@pagination" /> *@
+    </div>
+    <Paginator State="@pagination" />
+    }
 }
 </div>
 @code {
@@ -216,7 +191,7 @@ else
     private bool isLoading;
     private List<DeviceBulk> devices = new();
     private IQueryable<DeviceBulk> loadedDevices = new List<DeviceBulk>().AsQueryable();
-    // PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
+    PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
     private List<string> fileError = new();
     private int completedDevices = 0;
     private int totalDevices = 0;
@@ -225,7 +200,6 @@ else
     private string userMessage = string.Empty;
 
 
-    // private double percent = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -234,26 +208,13 @@ else
             var authState = await AuthState;
             user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
             userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            //userId = user.Claims.Where(c => c.Issuer == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
             userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
         }
 
         UpdateClaims();
         await GetTags();
-        // pagination.TotalItemCountChanged += (sender, eventArgs) => StateHasChanged();
+        pagination.TotalItemCountChanged += (sender, eventArgs) => StateHasChanged();
     }
-
-    private async Task GoToPageAsync(int pageIndex)
-    {
-        // await pagination.SetCurrentPageIndexAsync(pageIndex);
-    }
-
-    // private string? PageButtonClass(int pageIndex)
-    //     => pagination.CurrentPageIndex == pageIndex ? "current" : null;
-
-    // private string? AriaCurrentValue(int pageIndex)
-    //     => pagination.CurrentPageIndex == pageIndex ? "page" : null;
-
 
     private void UpdateClaims()
     {
