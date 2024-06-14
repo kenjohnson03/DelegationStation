@@ -54,23 +54,23 @@
             </p>
         </div>
     </div>
-  
 
 
 
-@if (isLoading)
-{
+
+    @if (isLoading)
+    {
         <div class="row align-items-start mt-3">
             <div class="col">
                 <p>Uploading...</p>
             </div>
-        </div>    
-}
-else
-{
-    
-    @if(fileError.Count > 0)
+        </div>
+    }
+    else
     {
+
+        @if (fileError.Count > 0)
+        {
             <div class="row align-items-start mt-2 mb-2">
                 <div class="col-6 error-ui">
                     <p>File Errors:</p>
@@ -82,9 +82,9 @@ else
                     </ol>
                 </div>
             </div>
-            
-    }
-    
+
+        }
+
         <div class="row align-items-start mt-2">
             <div class="col-6">
                 <label for="Tags" class="form-label">Tags:</label>
@@ -106,71 +106,70 @@ else
             </div>
         </div>
 
-    <div class="pt-2 pb-2">
-        
-    </div>
+        <div class="pt-2 pb-2">
+        </div>
 
-    @if (!string.IsNullOrEmpty(userMessage))
-    {
-        @if (userMessage.ToLower().Contains("error"))
+        @if (!string.IsNullOrEmpty(userMessage))
         {
-            <div class="alert alert-danger" role="alert">
-                @userMessage
+            @if (userMessage.ToLower().Contains("error"))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @userMessage
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success" role="alert">
+                    @userMessage
+                </div>
+            }
+        }
+
+        @if (isUpdating || completedDevices > 0)
+        {
+            @if (isUpdating)
+            {
+                <p>Running</p>
+            }
+            else
+            {
+                <p>Complete</p>
+            }
+            <p>Currently completed @(completedDevices) devices out of @(devices.Count).</p>
+
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info progress-data" style="width: calc((@completedDevices / @totalDevices) * 100%);" role="progressbar" aria-label="Progress uploading" aria-valuenow="@completedDevices" aria-valuemin="0" aria-valuemax="@totalDevices"></div>
+            </div>
+
+        }
+        @if (updateErrors.Count > 0)
+        {
+            <div class="error-ui mt-3 mb-3">
+                Update Errors:
+                <ol>
+                    @foreach (var updateError in updateErrors)
+                    {
+                        <li>
+                            <span style="white-space: pre-line" class="flashError">@updateError</span>
+                        </li>
+                    }
+                </ol>
             </div>
         }
-        else
+
+        @if (devices.Count > 0)
         {
-            <div class="alert alert-success" role="alert">
-                @userMessage
+            <div>
+                <Microsoft.AspNetCore.Components.QuickGrid.QuickGrid Items="@loadedDevices" Pagination="@pagination" Class="table table-striped table-sm">
+                    <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Make" Property="@(p => p.Make)" />
+                    <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Model" Property="@(p => p.Model)" />
+                    <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Serial Number" Property="@(p => p.SerialNumber)" />
+                    <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Action" Property="@(p => p.Action)" />
+                </Microsoft.AspNetCore.Components.QuickGrid.QuickGrid>
             </div>
+            <Paginator State="@pagination" />
         }
     }
-
-    @if(isUpdating || completedDevices > 0)
-    {
-        @if(isUpdating)
-        {
-            <p>Running</p>
-        }
-        else
-        {
-            <p>Complete</p>
-        }
-        <p>Currently completed @(completedDevices) devices out of @(devices.Count).</p>
-
-        <div class="progress">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info progress-data" style="width: calc((@completedDevices / @totalDevices) * 100%);" role="progressbar" aria-label="Progress uploading" aria-valuenow="@completedDevices" aria-valuemin="0" aria-valuemax="@totalDevices"></div>
-        </div>
-          
-    }
-    @if(updateErrors.Count > 0)
-    {
-        <div class="error-ui mt-3 mb-3">
-            Update Errors:
-            <ol>
-                @foreach (var updateError in updateErrors)
-                {
-                    <li>
-                        <span style="white-space: pre-line" class="flashError">@updateError</span>
-                    </li>
-                }
-            </ol>
-        </div>
-    }
-
-    @if (devices.Count > 0)
-    {
-      <div>
-    <Microsoft.AspNetCore.Components.QuickGrid.QuickGrid Items="@loadedDevices" Pagination="@pagination" Class="table table-striped table-sm">
-        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Make" Property="@(p => p.Make)" />
-        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Model" Property="@(p => p.Model)" />
-        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Serial Number" Property="@(p => p.SerialNumber)" />
-        <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Action" Property="@(p => p.Action)" />
-    </Microsoft.AspNetCore.Components.QuickGrid.QuickGrid>
-    </div>
-    <Paginator State="@pagination" />
-    }
-}
 </div>
 @code {
     [CascadingParameter]
@@ -234,7 +233,7 @@ else
 
     private async Task GetTags()
     {
-        Guid c= new Guid();
+        Guid c = new Guid();
         userMessage = string.Empty;
         try
         {
@@ -242,8 +241,8 @@ else
         }
         catch (Exception ex)
         {
-      logger.LogError($"Error retrieving tags.\n{ex.Message}\nUser: {userName} {userId}.\nCorrelation Id:{c.ToString()}");
-      }
+            logger.LogError($"Error retrieving tags.\n{ex.Message}\nUser: {userName} {userId}.\nCorrelation Id:{c.ToString()}");
+        }
     }
 
     private void AddRemoveTag(DeviceTag tag)
@@ -309,17 +308,17 @@ else
 
                         // parse CSV and add to devices list
                         // Make,Model,SerialNumber,Action
-                        if(ln.StartsWith("Make,"))
+                        if (ln.StartsWith("Make,"))
                         {
                             //Ignore the header if present
                             continue;
                         }
-                        
+
                         // Using Regex to split on commas, but ignore commas within quotes
                         string splitOn = ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
                         var input = Regex.Split(ln, splitOn);
 
-                        if(input.Length != 4)
+                        if (input.Length != 4)
                         {
                             var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
                             fileError.Add(message);
@@ -331,13 +330,13 @@ else
                         // clean up any extra "" from the input
                         for (int i = 0; i < input.Length; i++)
                         {
-                          input[i] = input[i].Trim('"');
+                            input[i] = input[i].Trim('"');
                         }
 
                         try
                         {
                             // Validate Make, Model, SerialNumber, Action
-                            if(input[3].ToLower() != "add" && input[3].ToLower() != "remove")
+                            if (input[3].ToLower() != "add" && input[3].ToLower() != "remove")
                             {
                                 var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
@@ -350,7 +349,7 @@ else
                                     Make = input[0],
                                     Model = input[1],
                                     SerialNumber = input[2],
-                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))                                    
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))
                                 };
                             var context = new ValidationContext(newDevice, null, null);
                             var results = new List<ValidationResult>();
@@ -359,7 +358,7 @@ else
                             {
                                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
                                 sb.Append($"Line {line}. Invalid input\n");
-                                foreach(var result in results)
+                                foreach (var result in results)
                                 {
                                     sb.Append("\t" + result.ErrorMessage + "\n" ?? "");
                                 };
@@ -370,7 +369,7 @@ else
                             }
 
                             devices.Add(newDevice);
-                        } 
+                        }
                         catch (Exception ex)
                         {
                             var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}.\n{ex.Message}\nCorrelation Id: {c.ToString()}";
@@ -425,16 +424,16 @@ else
         updateErrors = new();
 
         string tagToApply = appliedTags.FirstOrDefault() ?? "";
-        if(string.IsNullOrEmpty(tagToApply))
+        if (string.IsNullOrEmpty(tagToApply))
         {
             updateErrors.Add("Must select at least one tag.");
             isUpdating = false;
             return;
         }
 
-        foreach(DeviceBulk device in devices)
+        foreach (DeviceBulk device in devices)
         {
-            if(string.IsNullOrEmpty(userId))
+            if (string.IsNullOrEmpty(userId))
             {
                 var message = $"Error: User ID not found. {userId}\nCorrelation Id: {c.ToString()}";
                 updateErrors.Add(message);
@@ -443,7 +442,7 @@ else
                 return;
             }
 
-            if(deviceTags.Any(t => t.Id.ToString() == tagToApply) == false)
+            if (deviceTags.Any(t => t.Id.ToString() == tagToApply) == false)
             {
                 var message = $"Error: Tag {tagToApply} not found.\nCorrelation Id: {c.ToString()}";
                 updateErrors.Add(message);
@@ -460,72 +459,72 @@ else
                 updateErrors.Add(message);
                 logger.LogError($"{message}\nUser: {userName} {userId}");
                 isUpdating = false;
-                return;                
+                return;
             }
 
-                if (device.Action == DeviceBulkAction.add)
-                {
-                    Device d = new Device();
-                    d.Make = device.Make;
-                    d.Model = device.Model;
-                    d.SerialNumber = device.SerialNumber;
-                    d.ModifiedUTC = DateTime.UtcNow;
-                    d.AddedBy = userId;
-                    d.Tags.Add(tagToApply);
-                    Device? deviceResult = null;
+            if (device.Action == DeviceBulkAction.add)
+            {
+                Device d = new Device();
+                d.Make = device.Make;
+                d.Model = device.Model;
+                d.SerialNumber = device.SerialNumber;
+                d.ModifiedUTC = DateTime.UtcNow;
+                d.AddedBy = userId;
+                d.Tags.Add(tagToApply);
+                Device? deviceResult = null;
 
-                    try
+                try
+                {
+                    deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                }
+                catch (Exception ex)
+                {
+                    var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                    updateErrors.Add(message);
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
+                }
+            }
+            else if (device.Action == DeviceBulkAction.remove)
+            {
+                Device? d = null;
+                try
+                {
+                    d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+                }
+                catch (Exception ex)
+                {
+                    var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
+                }
+                if (d != null)
+                {
+                    // Validate the applied tag is on the device
+                    if (!d.Tags.Contains(tagToApply))
                     {
-                      deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
-                    }
-                    catch(Exception ex)
-                    {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                        var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
-                    }
-                }
-                else if (device.Action == DeviceBulkAction.remove)
-                {
-                    Device? d= null;
-                    try
-                    {
-                      d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
-                    }
-                    catch(Exception ex)
-                    {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
-                        logger.LogError($"{message}\nUser: {userName} {userId}");
-                    }
-                    if(d != null)
-                    {
-                        // Validate the applied tag is on the device
-                        if(!d.Tags.Contains(tagToApply))
-                        {
-                            var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
-                            updateErrors.Add(message);
-                            logger.LogError($"{message}\nUser: {userName} {userId}");
-                        }
-                        else
-                        {
-                            await deviceDBService.DeleteDeviceAsync(d);
-                            logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
-                        }                        
                     }
                     else
                     {
-                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
-                        updateErrors.Add(message);
-                        logger.LogError($"{message}\nUser: {userName} {userId}");
+                        await deviceDBService.DeleteDeviceAsync(d);
+                        logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
                     }
                 }
                 else
                 {
-                    var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                    var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
                     updateErrors.Add(message);
                     logger.LogError($"{message}\nUser: {userName} {userId}");
                 }
-         
+            }
+            else
+            {
+                var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
+            }
+
             completedDevices++;
             StateHasChanged();
         }
@@ -541,5 +540,5 @@ else
         completedDevices = 0;
         totalDevices = 0;
     }
-    
+
 }

@@ -3,7 +3,6 @@ using DelegationStation.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 
@@ -40,7 +39,7 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(builder.Configuration["DefaultAdminGroupObjectId"]));
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .Build();    
+        .Build();
 });
 
 builder.Services.AddRazorPages();
@@ -53,7 +52,6 @@ builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
 builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
 
-//builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 builder.Services.AddApplicationInsightsTelemetry(opt => opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
 var app = builder.Build();

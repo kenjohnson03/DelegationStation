@@ -79,7 +79,7 @@
             <p>No roles found</p>
         }
 
-        
+
         <button class="btn btn-secondary" type="button" @onclick="@(() => nav.NavigateTo("/Role/" + Guid.Empty.ToString()))">New Role</button>
     </Authorized>
     <NotAuthorized>
@@ -87,8 +87,8 @@
         <p>User is unable to view, create, or edit roles.</p>
     </NotAuthorized>
 </AuthorizeView>
-<br/>
-<br/>
+<br />
+<br />
 
 <DisplayMessage Message="@userMessage" />
 
@@ -155,9 +155,9 @@
     }
 
     private void DeleteRole()
-    {      
+    {
         Guid c = Guid.NewGuid();
-        if(deleteRole.Id == Guid.Empty)
+        if (deleteRole.Id == Guid.Empty)
         {
             return;
         }
@@ -169,7 +169,7 @@
             userMessage = message;
             return;
         }
-        
+
         try
         {
             roleDBService.DeleteRoleAsync(deleteRole);

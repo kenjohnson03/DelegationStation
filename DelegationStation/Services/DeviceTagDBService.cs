@@ -64,60 +64,60 @@ namespace DelegationStation.Services
         public async Task<List<DeviceTag>> GetDeviceTagsByPageAsync(IEnumerable<string> groupIds, int pageNumber, int pageSize)
         {
 
-          List<DeviceTag> deviceTags = new List<DeviceTag>();
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
 
-          groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
 
-          if (groupIds.Count() < 1)
-          {
+            if (groupIds.Count() < 1)
+            {
+                return deviceTags;
+            }
+
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
+
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            }
+            else
+            {
+                sb.Append("SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            sb.Append($" OFFSET {(pageNumber - 1) * pageSize} LIMIT {pageSize}");
+
+
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
+            }
+
+            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            while (queryIterator.HasMoreResults)
+            {
+                var response = await queryIterator.ReadNextAsync();
+                deviceTags.AddRange(response.ToList());
+            }
+
             return deviceTags;
-          }
-
-          System.Text.StringBuilder sb = new System.Text.StringBuilder();
-          int argCount = 0;
-
-          if (groupIds.Contains(_DefaultGroup))
-          {
-            sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-          }
-          else
-          {
-            sb.Append("SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
-    
-            foreach (string groupId in groupIds)
-            {
-              sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-              if (groupId != groupIds.Last())
-              {
-                sb.Append("OR ");
-              }
-              argCount++;
-            }
-            sb.Append(")");
-          }
-          sb.Append($" OFFSET {(pageNumber-1)*pageSize} LIMIT {pageSize}");
-
-
-          argCount = 0;
-          QueryDefinition q = new QueryDefinition(sb.ToString());
-
-          if (!groupIds.Contains(_DefaultGroup))
-          {
-            foreach (string groupId in groupIds)
-            {
-              q.WithParameter($"@arg{argCount}", groupId);
-              argCount++;
-            }
-          }
-
-          var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
-          while (queryIterator.HasMoreResults)
-          {
-            var response = await queryIterator.ReadNextAsync();
-            deviceTags.AddRange(response.ToList());
-          }
-
-          return deviceTags;
 
         }
 
@@ -153,83 +153,83 @@ namespace DelegationStation.Services
                     argCount++;
                 }
                 sb.Append(")");
-            }          
-            
+            }
+
 
             argCount = 0;
             QueryDefinition q = new QueryDefinition(sb.ToString());
 
-            if(!groupIds.Contains(_DefaultGroup)) 
+            if (!groupIds.Contains(_DefaultGroup))
             {
                 foreach (string groupId in groupIds)
                 {
                     q.WithParameter($"@arg{argCount}", groupId);
                     argCount++;
                 }
-            }            
-            
+            }
+
             var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
-            while(queryIterator.HasMoreResults)
+            while (queryIterator.HasMoreResults)
             {
                 var response = await queryIterator.ReadNextAsync();
                 deviceTags.AddRange(response.ToList());
             }
-            
+
             return deviceTags;
         }
         public async Task<int> GetDeviceTagCountAsync(IEnumerable<string> groupIds)
         {
-          int numTags = 0;
-          groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+            int numTags = 0;
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
 
-          if (groupIds.Count() < 1)
-          {
-             return 0;
-          }
-
-          System.Text.StringBuilder sb = new System.Text.StringBuilder();
-          int argCount = 0;
-
-          if (groupIds.Contains(_DefaultGroup))
-          {
-            sb.Append("SELECT VALUE COUNT(1) FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-          }
-          else
-          {
-            sb.Append("SELECT VALUE COUNT(1) FROM (SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
-
-            foreach (string groupId in groupIds)
+            if (groupIds.Count() < 1)
             {
-              sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-              if (groupId != groupIds.Last())
-              {
-                sb.Append("OR ");
-              }
-              argCount++;
+                return 0;
             }
-            sb.Append("))");
-          }
 
-          argCount = 0;
-          QueryDefinition q = new QueryDefinition(sb.ToString());
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
 
-          if (!groupIds.Contains(_DefaultGroup))
-          {
-            foreach (string groupId in groupIds)
+            if (groupIds.Contains(_DefaultGroup))
             {
-              q.WithParameter($"@arg{argCount}", groupId);
-              argCount++;
+                sb.Append("SELECT VALUE COUNT(1) FROM t WHERE t.PartitionKey = \"DeviceTag\"");
             }
-          }
-    
-          var queryIterator = this._container.GetItemQueryIterator<int>(q);
-          if (queryIterator.HasMoreResults)
-          {
-            FeedResponse<int> response = await queryIterator.ReadNextAsync();
-            numTags = response.FirstOrDefault();
-          }
+            else
+            {
+                sb.Append("SELECT VALUE COUNT(1) FROM (SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
 
-          return numTags;
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append("))");
+            }
+
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
+            }
+
+            var queryIterator = this._container.GetItemQueryIterator<int>(q);
+            if (queryIterator.HasMoreResults)
+            {
+                FeedResponse<int> response = await queryIterator.ReadNextAsync();
+                numTags = response.FirstOrDefault();
+            }
+
+            return numTags;
 
         }
 
@@ -272,7 +272,7 @@ namespace DelegationStation.Services
 
             QueryDefinition q = new QueryDefinition("SELECT VALUE COUNT(d.id) FROM d WHERE d.Type = \"Device\" AND ARRAY_CONTAINS(d.Tags, @tagId, true)");
             q.WithParameter("@tagId", tagId);
-            
+
             FeedIterator<int> queryIterator = this._container.GetItemQueryIterator<int>(q);
             FeedResponse<int> response = await queryIterator.ReadNextAsync();
 

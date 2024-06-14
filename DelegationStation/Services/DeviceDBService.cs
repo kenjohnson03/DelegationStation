@@ -22,15 +22,15 @@ namespace DelegationStation.Services
         public DeviceDBService(IConfiguration configuration, ILogger<DeviceDBService> logger)
         {
             this._logger = logger;
-            if(configuration == null)
+            if (configuration == null)
             {
                 throw new Exception("DeviceDBService appsettings configuration is null.");
             }
-            if(string.IsNullOrEmpty(configuration.GetSection("COSMOS_CONNECTION_STRING").Value))
+            if (string.IsNullOrEmpty(configuration.GetSection("COSMOS_CONNECTION_STRING").Value))
             {
                 throw new Exception("DeviceDBService appsettings COSMOS_CONNECTION_STRING is null or empty");
             }
-            if(string.IsNullOrEmpty(configuration.GetSection("DefaultAdminGroupObjectId").Value))
+            if (string.IsNullOrEmpty(configuration.GetSection("DefaultAdminGroupObjectId").Value))
             {
                 throw new Exception("DefaultAdminGroupObjectId appsettings is null or empty");
             }
@@ -74,7 +74,7 @@ namespace DelegationStation.Services
                 var qIresponse = await deviceQueryIterator.ReadNextAsync();
                 devices.AddRange(qIresponse.ToList());
             }
-            if(devices.Count == 0)
+            if (devices.Count == 0)
             {
                 throw new Exception($"Device not found.");
             }
@@ -88,7 +88,7 @@ namespace DelegationStation.Services
         {
             List<Device> devices = new List<Device>();
             string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
-            if(!string.IsNullOrEmpty(make.Trim()))
+            if (!string.IsNullOrEmpty(make.Trim()))
             {
                 queryBuilder += "AND CONTAINS(d.Make, @make, true) ";
             }
@@ -147,7 +147,7 @@ namespace DelegationStation.Services
             List<DeviceTag> deviceTags = new List<DeviceTag>();
             groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
 
-            if(groupIds.Count() < 1)
+            if (groupIds.Count() < 1)
             {
                 throw new Exception("DeviceDBService GetDevicesAsync no valid group ids sent.");
             }
@@ -162,7 +162,7 @@ namespace DelegationStation.Services
             }
             else
             {
-                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");                
+                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
 
                 foreach (string groupId in groupIds)
                 {
@@ -246,7 +246,7 @@ namespace DelegationStation.Services
 
         public async Task<Device> AddOrUpdateDeviceAsync(Device device)
         {
-            if(device == null)
+            if (device == null)
             {
                 throw new Exception("DeviceDBService AddOrUpdateDeviceAsync was sent null device");
             }
@@ -269,9 +269,9 @@ namespace DelegationStation.Services
                 var qIresponse = await deviceQueryIterator.ReadNextAsync();
                 devices.AddRange(qIresponse.ToList());
             }
-            if(devices.Count != 0)
+            if (devices.Count != 0)
             {
-              throw new Exception("Device already exists.");
+                throw new Exception("Device already exists.");
             }
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
@@ -280,12 +280,12 @@ namespace DelegationStation.Services
 
         public async Task<Device> GetDeviceAsync(string deviceId)
         {
-            if(deviceId == null)
+            if (deviceId == null)
             {
                 throw new Exception("DeviceDBService GetDeviceAsync was sent null deviceId");
             }
 
-            if(!System.Text.RegularExpressions.Regex.Match(deviceId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            if (!System.Text.RegularExpressions.Regex.Match(deviceId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
             {
                 throw new Exception($"DeviceDBService GetDeviceAsync deviceId did not match GUID format {deviceId}");
             }
@@ -303,7 +303,7 @@ namespace DelegationStation.Services
 
             if (groupIds.Count() < 1)
             {
-              return devices;
+                return devices;
             }
 
             // Get tags that the user has access to
@@ -329,7 +329,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            
+
 
             argCount = 0;
             QueryDefinition q = new QueryDefinition(sb.ToString());
@@ -402,7 +402,7 @@ namespace DelegationStation.Services
 
             return devices;
         }
-        
+
         public async Task DeleteDeviceAsync(Device device)
         {
             await this._container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));

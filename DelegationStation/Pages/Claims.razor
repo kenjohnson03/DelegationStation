@@ -30,11 +30,10 @@
     public Task<AuthenticationState>? AuthState { get; set; }
     private AuthenticationState? authState;
     private List<string> roles = new List<string>();
-    // private string defaultGroup = "";
 
     protected override async Task OnInitializedAsync()
     {
-        if(AuthState != null)
+        if (AuthState != null)
         {
             authState = await AuthState;
         }
@@ -43,7 +42,7 @@
 
     private void UpdateClaims()
     {
-        if(authState == null)
+        if (authState == null)
         {
             return;
         }

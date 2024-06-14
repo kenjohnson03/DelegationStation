@@ -81,7 +81,7 @@
             <p>Role not found</p>
         }
 
-        
+
     </Authorized>
     <NotAuthorized>
         <h3>Not Authorized</h3>
@@ -115,12 +115,12 @@
 
         Guid g = Guid.NewGuid();
 
-        if(Id == null)
+        if (Id == null)
         {
             return;
         }
 
-        if(Id == Guid.Empty.ToString())
+        if (Id == Guid.Empty.ToString())
         {
             return;
         }
@@ -129,13 +129,13 @@
         {
             role = await roleDBService.GetRoleAsync(Id);
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
             logger.LogError(e, $"{erMessage}\nUser: {userName} {userId}");
             Console.WriteLine(erMessage);
             userMessage = erMessage;
-        }    
+        }
     }
 
     private async Task SaveRole()
@@ -152,30 +152,30 @@
 
         try
         {
-            role.Attributes.Where(a => a == AllowedAttributes.All ).ToList().ForEach(a => role.Attributes.Remove(a));
+            role.Attributes.Where(a => a == AllowedAttributes.All).ToList().ForEach(a => role.Attributes.Remove(a));
             role = await roleDBService.AddOrUpdateRoleAsync(role);
             var message = $"Correlation Id: {g.ToString()}\nSaved role.";
             logger.LogInformation($"{message}\nUser: {userName} {userId}");
             nav.NavigateTo("/Roles");
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             var erMessage = $"Correlation Id: {g.ToString()}\nError getting role by id";
             logger.LogError(e, $"{erMessage}\nUser: {userName} {userId}");
             userMessage = erMessage;
-        }          
+        }
     }
 
     private void AttributesChanged(AllowedAttributes attr, ChangeEventArgs e)
     {
         var value = e?.Value?.ToString();
 
-        if(string.IsNullOrEmpty(value))
+        if (string.IsNullOrEmpty(value))
         {
             return;
         }
 
-        if(Convert.ToBoolean(value) && !role.Attributes.Contains(attr))
+        if (Convert.ToBoolean(value) && !role.Attributes.Contains(attr))
         {
             role.Attributes.Add(attr);
         }

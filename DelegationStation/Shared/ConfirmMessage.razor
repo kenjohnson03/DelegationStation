@@ -1,7 +1,7 @@
 ﻿@namespace DelegationStation.Shared
 
 <div class="modal fade @backDrop " aria-modal="true" role="dialog" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" >
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">@MessageTitle</h5>
@@ -23,7 +23,7 @@
     [Parameter]
     public string MessageTitle { get; set; } = "Are you sure?";
     [Parameter]
-    public MarkupString MessageBody { get; set; } = (MarkupString) "This action is permanent";
+    public MarkupString MessageBody { get; set; } = (MarkupString)"This action is permanent";
     [Parameter]
     public Action? ConfirmAction { get; set; }
     [Parameter]
@@ -38,7 +38,7 @@
         popupIsVisible = false;
         showClass = "";
         backDrop = "hideModal";
-        CancelAction?.Invoke();    
+        CancelAction?.Invoke();
     }
 
     private void Confirm()

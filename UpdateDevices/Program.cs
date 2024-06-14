@@ -6,7 +6,7 @@ namespace UpdateDevices
     internal class Program
     {
         static void Main(string[] args)
-        {            
+        {
             var host = new HostBuilder()
                 .ConfigureFunctionsWebApplication()
                 .ConfigureLogging(logging =>
