@@ -31,11 +31,11 @@ namespace DelegationStationShared.Models
         public bool AdministrativeUnits { get; set; }
         public string PartitionKey { get; set; }
 
-        public Role () 
-        { 
+        public Role()
+        {
             Id = Guid.NewGuid();
             Name = string.Empty;
-            Attributes = new List<AllowedAttributes> ();
+            Attributes = new List<AllowedAttributes>();
             SecurityGroups = false;
             AdministrativeUnits = false;
             PartitionKey = typeof(Role).Name;
@@ -43,7 +43,7 @@ namespace DelegationStationShared.Models
 
         public Role DeepCopyKeepId()
         {
-            Role other = (Role) this.MemberwiseClone();
+            Role other = (Role)this.MemberwiseClone();
             other.Attributes = new List<AllowedAttributes>(this.Attributes);
             return other;
         }
@@ -90,7 +90,7 @@ namespace DelegationStationShared.Models
         }
         public Role GetRole(List<string> userGroups, string defaultAdminGroup, DeviceTag tag)
         {
-            Role userRole = GetDefaultRole();            
+            Role userRole = GetDefaultRole();
 
             if (tag == null)
             {
@@ -105,7 +105,7 @@ namespace DelegationStationShared.Models
             if (userGroups == null)
             {
                 return userRole;
-            }            
+            }
 
             if (userGroups.Any(g => g == defaultAdminGroup))
             {
