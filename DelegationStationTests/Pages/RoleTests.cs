@@ -13,7 +13,7 @@ namespace DelegationStationTests.Pages
         [TestMethod]
         public void RolesShouldRender()
         {
-            using (ShimsContext.Create()) 
+            using (ShimsContext.Create())
             {
                 // Arrange
                 // Add Dependent Services
@@ -42,7 +42,7 @@ namespace DelegationStationTests.Pages
                 var fakeDeviceRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
                 {
                     GetRolesAsync = () => Task.FromResult(roles)
-                };                
+                };
 
                 var myConfiguration = new Dictionary<string, string>
                 {
@@ -54,7 +54,7 @@ namespace DelegationStationTests.Pages
                 var configuration = new ConfigurationBuilder()
                     .AddInMemoryCollection(myConfiguration)
                     .Build();
-                
+
                 var httpContext = new HttpContextAccessor();
                 httpContext.HttpContext = new DefaultHttpContext();
 

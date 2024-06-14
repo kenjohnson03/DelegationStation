@@ -4,7 +4,6 @@ using DelegationStation.Services;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
-using Microsoft.Graph.Reports.GetGroupArchivedPrintJobsWithGroupIdWithStartDateTimeWithEndDateTime;
 using Microsoft.AspNetCore.Authorization;
 using DelegationStation.Authorization;
 
@@ -16,7 +15,7 @@ namespace DelegationStationTests.Pages
         [TestMethod]
         public void TagShouldRender()
         {
-            using (ShimsContext.Create()) 
+            using (ShimsContext.Create())
             {
                 // Arrange
                 // Add Dependent Services
@@ -55,7 +54,7 @@ namespace DelegationStationTests.Pages
                 authContext.SetAuthorized("TEST USER", AuthorizationState.Authorized);
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-                authContext.SetPolicies("TagView","TagUpdate");
+                authContext.SetPolicies("TagView", "TagUpdate");
 
                 // Act
                 var cut = RenderComponent<TagEdit>(parameters => parameters
@@ -291,7 +290,7 @@ namespace DelegationStationTests.Pages
             // Act
             var cut = RenderComponent<TagEdit>();
             var buttonElement = cut.Find("#SaveButton");
-            
+
             // Assert
             Assert.IsNull(buttonElement);
         }
@@ -344,7 +343,7 @@ namespace DelegationStationTests.Pages
             {
                 GetDeviceTagsAsyncIEnumerableOfString =
                     (groupIds) => Task.FromResult<List<DeviceTag>>(deviceTags),
-                GetDeviceTagAsyncString = 
+                GetDeviceTagAsyncString =
                     (input) => Task.FromResult(deviceTag1)
             };
 
@@ -391,10 +390,10 @@ namespace DelegationStationTests.Pages
                 .AddInMemoryCollection(myConfiguration)
                 .Build();
 
-            
+
 
             //      Add Dependent Services
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration); 
+            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
             Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
             Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
             Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
@@ -452,7 +451,7 @@ namespace DelegationStationTests.Pages
                     Task.FromResult(devices)
             };
 
-            
+
 
             var fakeRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
             {

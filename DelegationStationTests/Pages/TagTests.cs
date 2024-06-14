@@ -12,7 +12,7 @@ namespace DelegationStationTests.Pages
         [TestMethod]
         public void TagsShouldRender()
         {
-            using (ShimsContext.Create()) 
+            using (ShimsContext.Create())
             {
                 // Arrange
                 // Add Dependent Services
@@ -36,9 +36,9 @@ namespace DelegationStationTests.Pages
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(deviceTags),
-                  GetDeviceTagCountAsyncIEnumerableOfString =
+                    GetDeviceTagCountAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(2),
-                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
                         (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 
@@ -52,7 +52,7 @@ namespace DelegationStationTests.Pages
                 var configuration = new ConfigurationBuilder()
                     .AddInMemoryCollection(myConfiguration)
                     .Build();
-          
+
 
                 //      Add Dependent Services
                 Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
@@ -98,7 +98,7 @@ namespace DelegationStationTests.Pages
                         (groupIds) => Task.FromResult(deviceTags),
                     GetDeviceTagCountAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(2),
-                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
                         (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 
