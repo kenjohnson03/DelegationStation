@@ -1,4 +1,5 @@
 using DelegationStation.Authorization;
+using DelegationStation.Interfaces;
 using DelegationStation.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;

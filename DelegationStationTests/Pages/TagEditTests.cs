@@ -1,11 +1,11 @@
 ﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using DelegationStation.Services;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using DelegationStation.Authorization;
+using DelegationStation.Interfaces;
 
 namespace DelegationStationTests.Pages
 {
@@ -339,7 +339,7 @@ namespace DelegationStationTests.Pages
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
                 GetDeviceTagsAsyncIEnumerableOfString =
                     (groupIds) => Task.FromResult<List<DeviceTag>>(deviceTags),
@@ -355,7 +355,7 @@ namespace DelegationStationTests.Pages
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
             devices.Add(device1);
-            var fakeDeviceDBService = new DelegationStation.Services.Fakes.StubIDeviceDBService()
+            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
                 GetDevicesAsyncIEnumerableOfStringStringInt32Int32 = (a, b, c, d) =>
                     Task.FromResult(devices)
@@ -369,12 +369,12 @@ namespace DelegationStationTests.Pages
             role.AdministrativeUnits = true;
             roles.Add(role);
 
-            var fakeRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
+            var fakeRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
             {
                 GetRolesAsync = () => Task.FromResult<List<Role>>(roles)
             };
 
-            var fakeGraphService = new DelegationStation.Services.Fakes.StubIGraphService()
+            var fakeGraphService = new DelegationStation.Interfaces.Fakes.StubIGraphService()
             {
                 GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };
@@ -429,7 +429,7 @@ namespace DelegationStationTests.Pages
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
                 GetDeviceTagsAsyncIEnumerableOfString =
                     (groupIds) => Task.FromResult<List<DeviceTag>>(deviceTags),
@@ -445,7 +445,7 @@ namespace DelegationStationTests.Pages
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
             devices.Add(device1);
-            var fakeDeviceDBService = new DelegationStation.Services.Fakes.StubIDeviceDBService()
+            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
                 GetDevicesAsyncIEnumerableOfStringStringInt32Int32 = (a, b, c, d) =>
                     Task.FromResult(devices)
@@ -453,12 +453,12 @@ namespace DelegationStationTests.Pages
 
 
 
-            var fakeRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
+            var fakeRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
             {
                 GetRolesAsync = () => Task.FromResult<List<Role>>(roles)
             };
 
-            var fakeGraphService = new DelegationStation.Services.Fakes.StubIGraphService()
+            var fakeGraphService = new DelegationStation.Interfaces.Fakes.StubIGraphService()
             {
                 GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };

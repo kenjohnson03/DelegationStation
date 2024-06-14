@@ -3,24 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace DelegationStationShared.Models
 {
-    public interface IRole
-    {
-        Guid Id { get; set; }
-        string Name { get; set; }
-        List<AllowedAttributes> Attributes { get; set; }
-        bool SecurityGroups { get; set; }
-        bool AdministrativeUnits { get; set; }
-        string PartitionKey { get; set; }
-
-        Role GetRole(List<string> groups, DeviceTag tag);
-        Role GetRole(List<string> userGroups, string defaultAdminGroup, DeviceTag tag);
-        Role GetDefaultRole();
-        Role GetAdminRole();
-
-        bool IsAdminRole();
-        bool IsDefaultRole();
-    }
-    public class Role : IRole
+    public class Role
     {
         [Required]
         [JsonProperty(PropertyName = "id")]

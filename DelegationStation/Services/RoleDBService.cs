@@ -1,16 +1,9 @@
+using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Services
 {
-    public interface IRoleDBService
-    {
-        Task<Role> AddOrUpdateRoleAsync(Role role);
-        Task<List<Role>> GetRolesAsync();
-        Task<Role> GetRoleAsync(string roleId);
-
-        Task DeleteRoleAsync(Role role);
-    }
     public class RoleDBService : IRoleDBService
     {
         private readonly ILogger<DeviceDBService> _logger;

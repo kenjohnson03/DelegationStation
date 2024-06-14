@@ -1,8 +1,9 @@
 ﻿@page "/Role/{Id}"
 @using DelegationStationShared.Models;
 @using DelegationStation.Shared;
+@using DelegationStation.Interfaces;
 
-@inject Services.IRoleDBService roleDBService
+@inject IRoleDBService roleDBService
 @inject NavigationManager nav
 @inject ILogger<RoleEdit> logger
 @inject IHttpContextAccessor httpContextAccessor

@@ -1,18 +1,10 @@
+using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Services
 {
-    public interface IDeviceDBService
-    {
-        Task<Device> AddOrUpdateDeviceAsync(Device device);
-        Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds);
-        Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber);
-        Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0);
-        Task<Device?> GetDeviceAsync(string make, string model, string serialNumber);
-        Task<List<Device>> GetDevicesByTagAsync(string tagId);
-        Task DeleteDeviceAsync(Device device);
-    }
+ 
     public class DeviceDBService : IDeviceDBService
     {
         private readonly ILogger<DeviceDBService> _logger;

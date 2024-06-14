@@ -1,8 +1,8 @@
 ﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using DelegationStation.Services;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
+using DelegationStation.Interfaces;
 
 namespace DelegationStationTests.Pages
 {
@@ -32,7 +32,7 @@ namespace DelegationStationTests.Pages
                 deviceTag2.Name = "testName2";
                 deviceTag2.Description = "testDescription2";
                 deviceTags.Add(deviceTag2);
-                var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(deviceTags),
@@ -92,7 +92,7 @@ namespace DelegationStationTests.Pages
                 deviceTag2.Name = "testName2";
                 deviceTag2.Description = "testDescription2";
                 deviceTags.Add(deviceTag2);
-                var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(deviceTags),

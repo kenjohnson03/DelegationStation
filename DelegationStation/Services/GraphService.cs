@@ -1,4 +1,5 @@
 ﻿using Azure.Identity;
+using DelegationStation.Interfaces;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.IdentityModel.Tokens;
@@ -6,12 +7,6 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
 {
-    public interface IGraphService
-    {
-        Task<string> GetSecurityGroupName(string groupId);
-        Task<List<AdministrativeUnit>> SearchAdministrativeUnitAsync(string query);
-        Task<List<Group>> SearchGroupAsync(string query);
-    }
     public class GraphService : IGraphService
     {
         private readonly ILogger<GraphService> _logger;

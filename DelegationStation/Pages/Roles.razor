@@ -1,7 +1,8 @@
 ﻿@page "/Roles"
 @using Microsoft.AspNetCore.Components.Authorization
+@using DelegationStation.Interfaces
 
-@inject Services.IRoleDBService roleDBService
+@inject IRoleDBService roleDBService
 @inject NavigationManager nav
 @inject ILogger<RoleEdit> logger
 @inject IConfiguration config

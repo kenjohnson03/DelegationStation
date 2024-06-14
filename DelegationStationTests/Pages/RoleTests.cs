@@ -1,6 +1,6 @@
 ﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using DelegationStation.Services;
+using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
@@ -39,7 +39,7 @@ namespace DelegationStationTests.Pages
                 roleDelegation.SecurityGroupId = userGroupId.ToString();
                 roleDelegation.Role = role;
 
-                var fakeDeviceRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
+                var fakeDeviceRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
                 {
                     GetRolesAsync = () => Task.FromResult(roles)
                 };
@@ -109,7 +109,7 @@ namespace DelegationStationTests.Pages
                 roleDelegation.SecurityGroupId = userGroupId.ToString();
                 roleDelegation.Role = role;
 
-                var fakeDeviceRoleDBService = new DelegationStation.Services.Fakes.StubIRoleDBService()
+                var fakeDeviceRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
                 {
                     GetRolesAsync = () => Task.FromResult(roles)
                 };

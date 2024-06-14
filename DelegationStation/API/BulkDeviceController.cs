@@ -1,4 +1,4 @@
-﻿using DelegationStation.Services;
+﻿using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
