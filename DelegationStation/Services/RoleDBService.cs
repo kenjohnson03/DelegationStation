@@ -1,16 +1,9 @@
+using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Services
 {
-    public interface IRoleDBService
-    {
-        Task<Role> AddOrUpdateRoleAsync(Role role);
-        Task<List<Role>> GetRolesAsync();
-        Task<Role> GetRoleAsync(string roleId);
-
-        Task DeleteRoleAsync(Role role);
-    }
     public class RoleDBService : IRoleDBService
     {
         private readonly ILogger<DeviceDBService> _logger;
@@ -78,7 +71,7 @@ namespace DelegationStation.Services
 
         public async Task<Role> AddOrUpdateRoleAsync(Role role)
         {
-            if(role == null)
+            if (role == null)
             {
                 throw new Exception("RoleDBService AddOrUpdateRoleAsync was sent null role");
             }
@@ -90,12 +83,12 @@ namespace DelegationStation.Services
 
         public async Task<Role> GetRoleAsync(string roleId)
         {
-            if(roleId == null)
+            if (roleId == null)
             {
                 throw new Exception("RoleDBService GetRoleAsync was sent null roleId");
             }
 
-            if(!System.Text.RegularExpressions.Regex.Match(roleId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            if (!System.Text.RegularExpressions.Regex.Match(roleId, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
             {
                 throw new Exception($"DeviceDBService GetDeviceAsync deviceId did not match GUID format {roleId}");
             }

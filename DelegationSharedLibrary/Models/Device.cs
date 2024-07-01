@@ -23,7 +23,7 @@ namespace DelegationStationShared.Models
         [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for SerialNumber value.")]
         public string SerialNumber { get; set; }
 
-        [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$",ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
+        [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
         public string MacAddress { get; set; }
         public string PartitionKey { get; set; }
 
@@ -50,7 +50,7 @@ namespace DelegationStationShared.Models
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
         }
-        
+
         public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
         {
             Id = Guid.NewGuid();

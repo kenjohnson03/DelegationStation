@@ -1,17 +1,8 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bunit;
-using DelegationStation.Pages;
-using DelegationStation.Shared;
-using System.Security.Claims;
+﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using DelegationStation.Services;
-using Microsoft.Extensions.Logging;
-using DelegationStation.Fakes;
-using Microsoft.Graph.Models;
-using AngleSharp;
+using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
-using System.Drawing.Text;
 using System.Text.RegularExpressions;
 
 namespace DelegationStationTests.Pages
@@ -78,7 +69,7 @@ namespace DelegationStationTests.Pages
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
                 GetDeviceTagsAsyncIEnumerableOfString =
                     (groupIds) => Task.FromResult(deviceTags)
@@ -92,7 +83,7 @@ namespace DelegationStationTests.Pages
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
             devices.Add(device1);
-            var fakeDevicDBService = new DelegationStation.Services.Fakes.StubIDeviceDBService()
+            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
                 GetDevicesAsyncIEnumerableOfStringStringInt32Int32 = (a, b, c, d) =>
                     Task.FromResult(devices)
@@ -112,7 +103,7 @@ namespace DelegationStationTests.Pages
 
             //      Add Dependent Services
             Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDevicDBService);
+            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
             Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
         }
     }

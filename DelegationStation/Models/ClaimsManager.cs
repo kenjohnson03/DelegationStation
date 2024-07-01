@@ -7,7 +7,7 @@ namespace DelegationStation.Models
         public static List<string> GetRoles(IEnumerable<Claim>? claims)
         {
             List<string> roles = new List<string>();
-            if(claims == null)
+            if (claims == null)
             {
                 return roles;
             }

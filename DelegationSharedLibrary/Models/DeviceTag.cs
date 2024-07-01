@@ -20,7 +20,7 @@ namespace DelegationStationShared.Models
         [Required(AllowEmptyStrings = false)]
         public string PartitionKey { get; set; }
 
-        public DeviceTag () 
+        public DeviceTag()
         {
             Id = Guid.NewGuid();
             Name = string.Empty;
@@ -34,14 +34,14 @@ namespace DelegationStationShared.Models
 
         public DeviceTag DeepCopyKeepId()
         {
-            DeviceTag other = (DeviceTag) this.MemberwiseClone();
+            DeviceTag other = (DeviceTag)this.MemberwiseClone();
             other.RoleDelegations = new List<RoleDelegation>();
-            foreach(RoleDelegation roleDelegation in this.RoleDelegations)
+            foreach (RoleDelegation roleDelegation in this.RoleDelegations)
             {
                 other.RoleDelegations.Add(roleDelegation.DeepCopyKeepId());
             }
             other.UpdateActions = new List<DeviceUpdateAction>();
-            foreach(DeviceUpdateAction updateAction in this.UpdateActions)
+            foreach (DeviceUpdateAction updateAction in this.UpdateActions)
             {
                 other.UpdateActions.Add(updateAction.DeepCopyKeepId());
             }

@@ -1,4 +1,5 @@
 ﻿using Azure.Identity;
+using DelegationStation.Interfaces;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.IdentityModel.Tokens;
@@ -6,18 +7,12 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
 {
-    public interface IGraphService
-    {
-        Task<string> GetSecurityGroupName(string groupId);
-        Task<List<AdministrativeUnit>> SearchAdministrativeUnitAsync(string query);
-        Task<List<Group>> SearchGroupAsync(string query);
-    }
     public class GraphService : IGraphService
     {
         private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
 
-        public GraphService(IConfiguration configuration, ILogger<GraphService> logger) 
+        public GraphService(IConfiguration configuration, ILogger<GraphService> logger)
         {
             this._logger = logger;
 
@@ -34,11 +29,11 @@ namespace DelegationStation.Services
 
             var certDN = configuration.GetSection("AzureAd:ClientCertificates:CertificateDistinguishedName").Value;
 
-            if(!certDN.IsNullOrEmpty())
+            if (!certDN.IsNullOrEmpty())
             {
-               _logger.LogInformation("Using certificate authentication: ");
-               _logger.LogDebug("AzureCloud: " + azureCloud);
-               _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.LogInformation("Using certificate authentication: ");
+                _logger.LogDebug("AzureCloud: " + azureCloud);
+                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
 
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
@@ -52,8 +47,8 @@ namespace DelegationStation.Services
                     options
                 );
                 store.Close();
-                this._graphClient = new GraphServiceClient(clientCertCredential,scopes,baseUrl);
-            } 
+                this._graphClient = new GraphServiceClient(clientCertCredential, scopes, baseUrl);
+            }
             else
             {
                 _logger.LogInformation("Using Client Secret for Graph service");
@@ -68,7 +63,7 @@ namespace DelegationStation.Services
                     options
                 );
 
-                this._graphClient = new GraphServiceClient(clientSecretCredential,scopes,baseUrl);
+                this._graphClient = new GraphServiceClient(clientSecretCredential, scopes, baseUrl);
             }
         }
 
@@ -96,7 +91,7 @@ namespace DelegationStation.Services
                 throw new Exception("GraphService SearchGroupAsync was sent null query");
             }
 
-            if(System.Text.RegularExpressions.Regex.Match(query, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            if (System.Text.RegularExpressions.Regex.Match(query, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
             {
                 var groupsById = await _graphClient.Groups.GetAsync((requestConfiguration) =>
                 {
@@ -121,7 +116,7 @@ namespace DelegationStation.Services
                 requestConfiguration.QueryParameters.Orderby = new string[] { "displayName" };
                 requestConfiguration.QueryParameters.Select = new string[] { "id", "displayName", "description" };
                 requestConfiguration.QueryParameters.Top = 5;
-                requestConfiguration.Headers.Add("ConsistencyLevel", "eventual");                
+                requestConfiguration.Headers.Add("ConsistencyLevel", "eventual");
             });
 
             if (groups == null)

@@ -49,7 +49,7 @@ namespace DelegationStationTests.Pages
             // Assert
             bool test = cut.Markup.Contains(userName);
             Assert.IsTrue(test, $"Markup should contain {userName}");
-            
+
         }
     }
 }

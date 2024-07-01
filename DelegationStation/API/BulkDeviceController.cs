@@ -1,5 +1,4 @@
-﻿using Azure;
-using DelegationStation.Services;
+﻿using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +16,7 @@ namespace DelegationStation.API
         private IDeviceTagDBService _deviceTagDBService;
         private readonly IConfiguration _config;
         private readonly IAuthorizationService _authorizationService;
-        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger, IAuthorizationService authorizationService) 
+        public BulkDeviceController(IDeviceDBService deviceService, IDeviceTagDBService deviceTagDBService, IConfiguration config, ILogger<BulkDeviceController> logger, IAuthorizationService authorizationService)
         {
             _logger = logger;
             _deviceDBService = deviceService;
@@ -39,7 +38,7 @@ namespace DelegationStation.API
             Role userRole = new Role();
             string defaultGroup = _config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
 
-            if(string.IsNullOrEmpty(id))
+            if (string.IsNullOrEmpty(id))
             {
                 return BadRequest("Tag Id Empty");
             }
@@ -54,13 +53,13 @@ namespace DelegationStation.API
                 _logger.LogError($"BulkDeviceController Download error getting tag {id}.\nError: {ex.Message}");
                 return BadRequest("Unable to find tag");
             }
-            
+
             if (tag == null)
             {
                 return BadRequest("Unable to find tag");
             }
 
-            if(_authorizationService.AuthorizeAsync(User, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded == false)
+            if (_authorizationService.AuthorizeAsync(User, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded == false)
             {
                 return new UnauthorizedResult();
             }
@@ -73,22 +72,22 @@ namespace DelegationStation.API
             {
                 foreach (Device device in devices)
                 {
-                    if(device.Make.Contains(","))
+                    if (device.Make.Contains(","))
                     {
-                      device.Make = "\"" + device.Make + "\"";
+                        device.Make = "\"" + device.Make + "\"";
                     }
-                    if(device.Model.Contains(","))
+                    if (device.Model.Contains(","))
                     {
-                      device.Model= "\"" + device.Model+ "\"";
+                        device.Model = "\"" + device.Model + "\"";
                     }
-                    if(device.SerialNumber.Contains(","))
+                    if (device.SerialNumber.Contains(","))
                     {
-                      device.SerialNumber = "\"" + device.SerialNumber+ "\"";
+                        device.SerialNumber = "\"" + device.SerialNumber + "\"";
                     }
 
                     sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},,{device.AddedBy}");
                 }
-            }            
+            }
 
             byte[] fileBytes = Encoding.ASCII.GetBytes(sb.ToString());
 

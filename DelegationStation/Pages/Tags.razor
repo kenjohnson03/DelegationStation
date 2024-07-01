@@ -1,6 +1,6 @@
 ﻿@page "/Tags/{PageNumber:int}"
 @page "/Tags"
-@using DelegationStation.Services;
+@using DelegationStation.Interfaces;
 @using DelegationStationShared.Models;
 
 @inject IDeviceTagDBService deviceTagDBService
@@ -13,26 +13,26 @@
 
 <h3>Tags</h3>
 
-          <AuthorizeView Context="adminAuthContext" Policy="DelegationStationAdmin">
-            <Authorized>
-                    <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
-                        <div class="mb-3">
-                            <label for="TagName" class="form-label">Tag name</label>
-                            <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
-                        </div>
-                        <div class="mb-3">
-                            <label for="TagDescription" class="form-label">Tag description</label>
-                            <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
-                        </div>
-                        <input type="submit" class="btn btn-primary mb-3" value="Add" />
-                    </EditForm>                
-            </Authorized>
-            <NotAuthorized>
-                Not Authorized to create Tags
-            </NotAuthorized>
-        </AuthorizeView>
+<AuthorizeView Context="adminAuthContext" Policy="DelegationStationAdmin">
+    <Authorized>
+        <EditForm Model="@newTag" OnValidSubmit="AddTag" class="form-control mb-3">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="mb-3">
+                <label for="TagName" class="form-label">Tag name</label>
+                <InputText @bind-Value=newTag.Name class="form-control" id="TagName"></InputText>
+            </div>
+            <div class="mb-3">
+                <label for="TagDescription" class="form-label">Tag description</label>
+                <InputTextArea @bind-Value=newTag.Description class="form-control" id="TagDescription"></InputTextArea>
+            </div>
+            <input type="submit" class="btn btn-primary mb-3" value="Add" />
+        </EditForm>
+    </Authorized>
+    <NotAuthorized>
+        Not Authorized to create Tags
+    </NotAuthorized>
+</AuthorizeView>
 
 <AuthorizeView Context="authContext">
     <Authorized>
@@ -46,7 +46,7 @@
             </thead>
             <tbody>
                 @if (tagsLoading)
-                {                    
+                {
                     <tr>
                         <td colspan="3">
                             <div class="spinner-border" role="status">
@@ -71,49 +71,49 @@
                             <td>
                                 <button type="button" class="btn btn-primary" @onclick=@(() => nav.NavigateTo($"/TagEdit/{tag.Id}"))>
                                     <span class="oi oi-pencil" aria-hidden="true"></span> Edit
-                                </button> 
+                                </button>
                             </td>
                         </tr>
                     }
-                
-
-        <tr>
-            <td colspan="3">
-              <nav aria-label="Page navigation example">
-                <ul class="pagination justify-content-center">
-                  <li class="page-item">
-                    <a class="page-link" href="Tags" aria-label="First" @onclick="FirstPage">
-                      <span aria-hidden="true">&laquo;</span>
-                    </a>
-                  </li>
-                  <li class="page-item">
-                    <a class="page-link" href="Tags" aria-label="First" @onclick="PreviousPage">
-                      <span aria-hidden="true">&lsaquo;</span>
-                    </a>
-                  </li>
-
-                    <li class="page-item"><a class="page-link"> @PageNumber of @TotalPages</a></li>
-                  <li class="page-item">
-                    <a class="page-link" href="Tags" aria-label="First" @onclick="NextPage">
-                      <span aria-hidden="true">&rsaquo;</span>
-                    </a>
-                  </li>
-
-                    <li class="page-item">
-                    <a class="page-link" href="Tags" aria-label="Last" @onclick="LastPage">
-                      <span aria-hidden="true">&raquo;</span>
-                    </a>
-                  </li>
-                </ul>
-              </nav>
-            </td>
-        </tr>
-        }
-      </tbody>
-</table>
 
 
-        
+                    <tr>
+                        <td colspan="3">
+                            <nav aria-label="Page navigation example">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item">
+                                        <a class="page-link" href="Tags" aria-label="First" @onclick="FirstPage">
+                                            <span aria-hidden="true">&laquo;</span>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="Tags" aria-label="First" @onclick="PreviousPage">
+                                            <span aria-hidden="true">&lsaquo;</span>
+                                        </a>
+                                    </li>
+
+                                    <li class="page-item"><a class="page-link"> @PageNumber of @TotalPages</a></li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="Tags" aria-label="First" @onclick="NextPage">
+                                            <span aria-hidden="true">&rsaquo;</span>
+                                        </a>
+                                    </li>
+
+                                    <li class="page-item">
+                                        <a class="page-link" href="Tags" aria-label="Last" @onclick="LastPage">
+                                            <span aria-hidden="true">&raquo;</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+
+
         @if (!string.IsNullOrEmpty(userMessage))
         {
             @if (userMessage.ToLower().Contains("error"))
@@ -140,148 +140,4 @@
 
 
 
-@code {
-    [CascadingParameter]
-    public Task<AuthenticationState>? AuthState { get; set; }
-    private System.Security.Claims.ClaimsPrincipal user = new System.Security.Claims.ClaimsPrincipal();
-    private string userId = string.Empty;
-    private string userName = string.Empty;
 
-    private List<string> groups = new List<string>();
-    private List<DeviceTag> deviceTags = new List<DeviceTag>();
-    private DeviceTag newTag = new DeviceTag();
-    private string userMessage = string.Empty;
-    private bool tagsLoading = true;
-    private int TotalTags = 0;
-    private int TotalPages = 0;
-    private int PageSize = 10;
-
-    [Parameter] public int PageNumber { get; set; }
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (AuthState is not null)
-        {
-            var authState = await AuthState;
-            user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
-            userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-        }
-        if (PageNumber < 1)
-        {
-            PageNumber = 1;
-        }
-        UpdateClaims();
-        await GetTags();
-    }
-  
-    protected override async Task OnParametersSetAsync()
-    {
-      if (PageNumber < 1 || PageNumber > TotalPages)
-      {
-          PageNumber = 1;
-      }
-      deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize);
-    }
-  
-  
-    private async Task NextPage()
-    {
-      if (PageNumber < TotalPages)
-      {
-          PageNumber++;
-      }
-      await GetTags();
-    }
-  
-    private async Task PreviousPage()
-    {
-      if(PageNumber > 1)
-      {
-          PageNumber--;
-      }
-      await GetTags();
-    }
-  
-    private async Task FirstPage()
-    {
-      PageNumber = 1;
-      await GetTags();
-    }
-  
-    private async Task LastPage()
-    {
-      PageNumber = TotalPages;
-      await GetTags();
-    }
-    
-    private void UpdateClaims()
-    {
-        groups = new List<string>(); 
-        
-        var roleClaims = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" || c.Type == "roles");
-        roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
-        foreach (var c in roleClaims)
-        {
-            groups.Add(c.Value);
-        }
-        userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-    }
-  
-    private async Task GetTags()
-    {
-        Guid c = Guid.NewGuid();
-        userMessage = "";
-        try
-        {
-            TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups);
-            TotalPages = (int)Math.Ceiling((decimal) TotalTags/PageSize);
-  
-            deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize);
-        }
-        catch(Exception ex)
-        {
-            userMessage = $"Error: retrieving tags.\nCorrelation Id: {c.ToString()}";
-            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
-        }
-        finally
-        {
-            tagsLoading = false;
-        }
-    }
-
-    private async Task AddTag()
-    {
-        Guid c = Guid.NewGuid();
-        if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
-        {
-            userMessage = $"Error: Not authorized to add tags.\nCorrelation Id: {c.ToString()}";
-            logger.LogError($"{userMessage}\nUser: {userName} {userId}");
-            return;
-        }
-
-        userMessage = "";
-        if (string.IsNullOrEmpty(newTag.Name))
-        {
-            userMessage = $"Tag name is required.\nCorrelation Id: {c.ToString()}";
-            return;
-        }        
-  
-        try
-        {
-            DeviceTag resp = await deviceTagDBService.AddOrUpdateDeviceTagAsync(newTag);
-            newTag = new DeviceTag(); 
-            userMessage = "Tag added successfully.";
-        }
-        catch (Exception ex)
-        {
-            
-            userMessage = $"Error adding tag.\nCorrelation Id: {c.ToString()}";
-            logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
-            return;
-        }
-        await GetTags();
-        await LastPage();
-  
-    }    
-}
