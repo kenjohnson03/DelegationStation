@@ -20,9 +20,6 @@ namespace DelegationStation.Pages
         private ConfirmMessage? ConfirmDelete;
 
         private string userMessage = "";
-        // private bool popupIsVisible = false;
-        private string showClass = "hideModal";
-        private bool userConfirmed = false;
         private Role deleteRole = new Role() { Id = Guid.Empty };
 
         protected override async Task OnInitializedAsync()

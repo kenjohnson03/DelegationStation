@@ -32,7 +32,6 @@ namespace DelegationStation.Pages
         private DeviceUpdateAction deviceUpdateAction = new DeviceUpdateAction();
         private string defaultGroup = "";
         private string deviceUpdateActionsValidationMessage = "";
-        private string addDeviceUpdateState = "";
         private string tagErrorMessage = "";
         private string tagSuccessMessage = "";
         private EditContext? deviceUpdateActionEditContext;
@@ -379,14 +378,12 @@ namespace DelegationStation.Pages
         private void AddDeviceUpdateAction(EditContext editContext)
         {
             deviceUpdateActionsValidationMessage = "";
-            addDeviceUpdateState = "disabled";
             deviceUpdateAction.Name = deviceUpdateAction.Name.Trim();
             deviceUpdateAction.Value = deviceUpdateAction.Value.Trim();
 
             if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Group && !System.Text.RegularExpressions.Regex.Match(deviceUpdateAction.Value, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
             {
                 deviceUpdateActionsValidationMessage = $"When using a group update action value must be a valid GUID";
-                addDeviceUpdateState = "";
                 return;
             }
 
@@ -395,7 +392,6 @@ namespace DelegationStation.Pages
                 if (string.IsNullOrEmpty(deviceUpdateAction.Name))
                 {
                     deviceUpdateActionsValidationMessage = $"Failed to find group id {deviceUpdateAction.Value}";
-                    addDeviceUpdateState = "";
                     return;
                 }
             }
@@ -405,14 +401,12 @@ namespace DelegationStation.Pages
                 if (string.IsNullOrEmpty(deviceUpdateAction.Name))
                 {
                     deviceUpdateActionsValidationMessage = $"Administrative Unit Name is required";
-                    addDeviceUpdateState = "";
                     return;
                 }
 
                 if (string.IsNullOrEmpty(deviceUpdateAction.Value))
                 {
                     deviceUpdateActionsValidationMessage = $"Administrative Unit Id is required";
-                    addDeviceUpdateState = "";
                     return;
                 }
             }
@@ -422,12 +416,10 @@ namespace DelegationStation.Pages
             if (tag.UpdateActions.Where(u => u.ActionType == deviceUpdateAction.ActionType && u.Name == deviceUpdateAction.Name).Count() > 0)
             {
                 deviceUpdateActionsValidationMessage = $"Duplicate update action {deviceUpdateAction.ActionType} {deviceUpdateAction.Value}";
-                addDeviceUpdateState = "";
                 return;
             }
             tag.UpdateActions.Add(deviceUpdateAction);
             deviceUpdateAction = new DeviceUpdateAction();
-            addDeviceUpdateState = "";
         }
 
         private async Task<bool> ChangesSinceLoad(Guid CorrelationId)

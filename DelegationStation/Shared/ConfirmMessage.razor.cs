@@ -13,29 +13,22 @@ namespace DelegationStation.Shared
         [Parameter]
         public Action? CancelAction { get; set; }
 
-        private bool popupIsVisible = false;
-        private string showClass = "";
         private string backDrop = "hideModal";
 
         private void Close()
         {
-            popupIsVisible = false;
-            showClass = "";
             backDrop = "hideModal";
             CancelAction?.Invoke();
         }
 
         private void Confirm()
         {
-            popupIsVisible = false;
-            showClass = "";
             backDrop = "hideModal";
             ConfirmAction?.Invoke();
         }
 
         public void Show()
         {
-            showClass = "showModal";
             backDrop = "show showModal modalBackdrop";
         }
     }
