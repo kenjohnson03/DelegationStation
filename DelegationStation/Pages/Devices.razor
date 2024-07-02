@@ -303,16 +303,8 @@
 
   private void RemoveDevice(Device device)
   {
-    Guid c = Guid.NewGuid();
-
-    if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
-    {
-      string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
-      logger.LogError($"{message}\nUser: {userName} {userId}");
-      userMessage = message;
-      return;
-    }
     deleteDevice = device;
+
     Show();
   }
 
@@ -324,14 +316,7 @@
       return;
     }
 
-    if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
-    {
-      string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
-      logger.LogError($"{message}\nUser: {userName} {userId}");
-      userMessage = message;
-      return;
-    }
-
+    
     try
     {
       await deviceDBService.DeleteDeviceAsync(deleteDevice);
