@@ -34,11 +34,15 @@ namespace UpdateDevices
         {
           _logger = loggerFactory.CreateLogger<UpdateDevices>();
 
+          string methodName = ExtensionHelper.GetMethodName();
+          string className = this.GetType().Name;
+          string fullMethodName = className + "." + methodName;
+
           bool parseConfig = int.TryParse(Environment.GetEnvironmentVariable("FirstRunPastDays", EnvironmentVariableTarget.Process), out _lastRunDays);
           if (!parseConfig)
           {
             _lastRunDays = 30;
-            _logger.LogWarning($"UpdateDevices()  FirstRunPastDays environment variable not set. Defaulting to 30 days");
+            _logger.DSLogWarning("FirstRunPastDays environment variable not set. Defaulting to 30 days", fullMethodName);
           }
         }
 
@@ -154,7 +158,7 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
-              _logger.DSLogException($"Failed to retrieve graph device ID using .\n", ex, fullMethodName);
+              _logger.DSLogException("Failed to retrieve graph device ID using .\n", ex, fullMethodName);
               return;
             }
             if (deviceObjectID.IsNullOrEmpty())
@@ -324,12 +328,12 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.DSLogError($"DeviceObjectId is null or empty.", fullMethodName);
+                _logger.DSLogError("DeviceObjectId is null or empty.", fullMethodName);
                 return;
             }
             if (string.IsNullOrEmpty(groupId))
             {
-                _logger.DSLogError($"GroupId is null or empty.", fullMethodName);
+                _logger.DSLogError("GroupId is null or empty.", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceObjectId, _guidRegex) == false)
@@ -377,12 +381,12 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.DSLogError($"Device Object Id is null or empty.", fullMethodName);
+                _logger.DSLogError("Device Object Id is null or empty.", fullMethodName);
                 return;
             }
             if (string.IsNullOrEmpty(auId))
             {
-                _logger.DSLogError($"AU Id is null or empty.", fullMethodName);
+                _logger.DSLogError("AU Id is null or empty.", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
@@ -468,11 +472,11 @@ namespace UpdateDevices
             try
             {
                 settings = await _container.ReadItemAsync<FunctionSettings>(settings.Id.ToString(), new PartitionKey(settings.PartitionKey));
-                _logger.DSLogInformation($"Successfully retrieved function settings.",fullMethodName);
+                _logger.DSLogInformation("Successfully retrieved function settings.",fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.DSLogException($"Unable to retrieve function settings.",ex, fullMethodName);
+                _logger.DSLogException("Unable to retrieve function settings.",ex, fullMethodName);
       }
             finally
             {
@@ -496,7 +500,7 @@ namespace UpdateDevices
             try
             {
                 var response = await _container.UpsertItemAsync<FunctionSettings>(settings, new PartitionKey(settings.PartitionKey));
-                _logger.DSLogInformation($"Successfully updated function settings.", fullMethodName);
+                _logger.DSLogInformation("Successfully updated function settings.", fullMethodName);
             }
             catch (Exception ex)
             {
@@ -540,7 +544,7 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
-                _logger.DSLogException($"Failed to connect to CosmosDB",ex, fullMethodName);
+                _logger.DSLogException("Failed to connect to CosmosDB",ex, fullMethodName);
             }
 
             _logger.DSLogInformation($"Connected to Cosmos DB database {databaseName} container {containerName}.", fullMethodName);
