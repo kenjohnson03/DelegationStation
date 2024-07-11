@@ -37,11 +37,15 @@ namespace UpdateDevices
           _logger = loggerFactory.CreateLogger<UpdateDevices>();
           _dbService = dbService;
 
+          string methodName = ExtensionHelper.GetMethodName();
+          string className = this.GetType().Name;
+          string fullMethodName = className + "." + methodName;
+
           bool parseConfig = int.TryParse(Environment.GetEnvironmentVariable("FirstRunPastDays", EnvironmentVariableTarget.Process), out _lastRunDays);
           if (!parseConfig)
           {
             _lastRunDays = 30;
-            _logger.LogWarning($"UpdateDevices()  FirstRunPastDays environment variable not set. Defaulting to 30 days");
+            _logger.DSLogWarning("FirstRunPastDays environment variable not set. Defaulting to 30 days", fullMethodName);
           }
         }
 
@@ -126,7 +130,7 @@ namespace UpdateDevices
             }
             catch (Exception ex)
             {
-              _logger.DSLogException($"Failed to retrieve graph device ID using .\n", ex, fullMethodName);
+              _logger.DSLogException("Failed to retrieve graph device ID using .\n", ex, fullMethodName);
               return;
             }
             if (deviceObjectID.IsNullOrEmpty())
@@ -291,12 +295,12 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.DSLogError($"DeviceObjectId is null or empty.", fullMethodName);
+                _logger.DSLogError("DeviceObjectId is null or empty.", fullMethodName);
                 return;
             }
             if (string.IsNullOrEmpty(groupId))
             {
-                _logger.DSLogError($"GroupId is null or empty.", fullMethodName);
+                _logger.DSLogError("GroupId is null or empty.", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceObjectId, _guidRegex) == false)
@@ -344,12 +348,12 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceObjectId))
             {
-                _logger.DSLogError($"Device Object Id is null or empty.", fullMethodName);
+                _logger.DSLogError("Device Object Id is null or empty.", fullMethodName);
                 return;
             }
             if (string.IsNullOrEmpty(auId))
             {
-                _logger.DSLogError($"AU Id is null or empty.", fullMethodName);
+                _logger.DSLogError("AU Id is null or empty.", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
@@ -424,6 +428,7 @@ namespace UpdateDevices
 
             return devices;
         }
+
 
         private void ConnectToGraph()
         {
