@@ -165,15 +165,6 @@ namespace DelegationStation.Pages
 
         private void RemoveDevice(Device device)
         {
-            Guid c = Guid.NewGuid();
-
-            if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
-            {
-                string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
-                logger.LogError($"{message}\nUser: {userName} {userId}");
-                userMessage = message;
-                return;
-            }
             deleteDevice = device;
             Show();
         }
@@ -183,14 +174,6 @@ namespace DelegationStation.Pages
             Guid c = Guid.NewGuid();
             if (deleteDevice.Id == Guid.Empty)
             {
-                return;
-            }
-
-            if (authorizationService.AuthorizeAsync(user, "DelegationStationAdmin").Result.Succeeded == false)
-            {
-                string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}. Insufficient access.";
-                logger.LogError($"{message}\nUser: {userName} {userId}");
-                userMessage = message;
                 return;
             }
 
