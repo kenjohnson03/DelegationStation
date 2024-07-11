@@ -9,8 +9,8 @@ namespace DelegationStationShared.Models
         [JsonProperty(PropertyName = "id")]
         public Guid Id { get; set; }
         public Role Role { get; set; }
-        [RegularExpression("^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$", ErrorMessage ="Security Group Id must be a valid GUID")]
-        public string SecurityGroupId { get; set; }  
+        [RegularExpression("^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$", ErrorMessage = "Security Group Id must be a valid GUID")]
+        public string SecurityGroupId { get; set; }
         public string SecurityGroupName { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string PartitionKey { get; set; }
