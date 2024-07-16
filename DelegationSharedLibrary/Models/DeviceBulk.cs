@@ -9,7 +9,7 @@ namespace DelegationStationShared.Models
         [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)\s]+$", ErrorMessage = "Use letters, numbers, -, _, &, (, ) or . for Make value.")]
         public string Make { get; set; }
 
-        [Required(AllowEmptyStrings = false)] 
+        [Required(AllowEmptyStrings = false)]
         [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)+\s]+$", ErrorMessage = "Use letters, numbers, -, _, &, (, ), + or . for Model value.")]
 
         public string Model { get; set; }
@@ -28,7 +28,7 @@ namespace DelegationStationShared.Models
             SerialNumber = string.Empty;
             Action = DeviceBulkAction.add;
         }
-    }    
+    }
 
     public enum DeviceBulkAction
     {

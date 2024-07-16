@@ -1,21 +1,9 @@
 ﻿using DelegationStation.Authorization;
-using DelegationStation.Pages;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.QualityTools.Testing.Fakes;
-using Microsoft.VisualStudio.TestTools.UnitTesting.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
-using System.Reflection;
 
 namespace DelegationStationTests.Authorization;
 
@@ -60,7 +48,7 @@ public class DeviceTagAuthorizationHandlerTests
 
     [TestMethod]
     public async Task NoDefaultGroupShouldFail()
-    {       
+    {
         // Arrange: Create a DeviceTagAuthorizationHandler
         Guid defaultId = Guid.NewGuid();
         string delegatedGroupId = Guid.NewGuid().ToString();
@@ -74,7 +62,7 @@ public class DeviceTagAuthorizationHandlerTests
         List<OperationAuthorizationRequirement> reqs = new List<OperationAuthorizationRequirement>();
 
         reqs.Add(DeviceTagOperations.Read);
-        
+
         var context = new AuthorizationHandlerContext(reqs, claimsPrincipal, GetDeviceTag(TagRole.None, delegatedGroupId));
         var myConfiguration = new Dictionary<string, string>
                 {
@@ -119,7 +107,7 @@ public class DeviceTagAuthorizationHandlerTests
 
     public static DeviceTag GetDeviceTag(TagRole role, string securityGroupGuid)
     {
-        switch(role)
+        switch (role)
         {
             case TagRole.None:
                 return GetDeviceTagNone();
@@ -404,8 +392,8 @@ public class DeviceTagAuthorizationHandlerTests
                     {
                         new Claim("name", "TEST USER"),
                         new Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString())
-                    }, 
-                    defaultId, 
+                    },
+                    defaultId,
                     GetDeviceTag(TagRole.None, delegatedGroupId),
                     new List<OperationAuthorizationRequirement>
                     {
@@ -430,7 +418,7 @@ public class DeviceTagAuthorizationHandlerTests
                         DeviceTagOperations.UpdateExtensionAttribute10,
                         DeviceTagOperations.UpdateExtensionAttribute11,
                         DeviceTagOperations.UpdateExtensionAttribute12,
-                        DeviceTagOperations.UpdateExtensionAttribute13,                            
+                        DeviceTagOperations.UpdateExtensionAttribute13,
                         DeviceTagOperations.UpdateExtensionAttribute14,
                         DeviceTagOperations.UpdateExtensionAttribute15,
                     },
@@ -1019,7 +1007,7 @@ public class DeviceTagAuthorizationHandlerTests
                     defaultId,
                     GetDeviceTag(TagRole.NoAttributes_NoSecurityGroups_NoAdministrativeUnits, delegatedGroupId),
                     new List<OperationAuthorizationRequirement>
-                    {                        
+                    {
                         DeviceTagOperations.BulkUpload,
                         DeviceTagOperations.Read,
                     },
@@ -1261,5 +1249,5 @@ public class DeviceTagAuthorizationHandlerTests
         }
     }
 
-    
+
 }
