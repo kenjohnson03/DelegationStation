@@ -131,7 +131,7 @@ namespace UpdateDevices.Services
       try
       {
         settings = await _container.ReadItemAsync<FunctionSettings>(settings.Id.ToString(), new PartitionKey(settings.PartitionKey));
-        _logger.DSLogInformation($"Successfully retrieved function settings.", fullMethodName);
+        _logger.DSLogInformation($"Successfully retrieved function settings:  " + settings.ToString(), fullMethodName);
       }
       catch (Exception ex)
       {
@@ -148,18 +148,18 @@ namespace UpdateDevices.Services
       return settings;
     }
 
-    public async Task UpdateFunctionSettings()
+    public async Task UpdateFunctionSettings(DateTime thisRun)
     {
       string methodName = ExtensionHelper.GetMethodName();
       string className = this.GetType().Name;
       string fullMethodName = className + "." + methodName;
 
       FunctionSettings settings = new FunctionSettings();
-      settings.LastRun = DateTime.UtcNow;
+      settings.LastRun = thisRun;
       try
       {
         var response = await _container.UpsertItemAsync<FunctionSettings>(settings, new PartitionKey(settings.PartitionKey));
-        _logger.DSLogInformation($"Successfully updated function settings.", fullMethodName);
+        _logger.DSLogInformation($"Successfully updated function settings:  " + settings.ToString(), fullMethodName);
       }
       catch (Exception ex)
       {
