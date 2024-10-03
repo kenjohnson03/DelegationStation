@@ -69,9 +69,15 @@ namespace UpdateDevices
 
             FunctionSettings settings = await _dbService.GetFunctionSettings();
 
+            // If not set, use current time - value set for last run days 
+            // Otherwise subtract one hour from date saved in DB
             DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-_lastRunDays) : ((DateTime)settings.LastRun).AddHours(-1);
 
+            // Grabbing date before we pull devices to save off when function completes
+            DateTime thisRun = DateTime.UtcNow;
+
             List<Microsoft.Graph.Models.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
+
             if (devices == null)
             {
                 _logger.DSLogError("Failed to get new devices, exiting", fullMethodName);
@@ -82,7 +88,7 @@ namespace UpdateDevices
                 await RunDeviceUpdateActionsAsync(device);
             }
 
-            await _dbService.UpdateFunctionSettings();
+            await _dbService.UpdateFunctionSettings(thisRun);
         }
 
         private async Task RunDeviceUpdateActionsAsync(Microsoft.Graph.Models.ManagedDevice device)
