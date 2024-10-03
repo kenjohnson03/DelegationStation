@@ -36,10 +36,10 @@ jobs:
    build-test:
      runs-on: windows-latest
      steps:
-     - uses: actions/checkout@v3
+     - uses: actions/checkout@v4.2.0
 
      - name: Setup .NET SDK
-       uses: actions/setup-dotnet@v3
+       uses: actions/setup-dotnet@v4.0.1
        with:
          dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
 
@@ -52,8 +52,8 @@ jobs:
          dotnet build "${{ env.SRC_DIR }}/DelegationSharedLibrary" --configuration ${{ env.CONFIGURATION }} --no-restore
          dotnet build "${{ env.SRC_DIR }}/DelegationStation" --configuration ${{ env.CONFIGURATION }} --no-restore
          dotnet build "${{ env.SRC_DIR }}/UpdateDevices" --configuration ${{ env.CONFIGURATION }} --no-restore
-         dotnet build "${{ env.SRC_DIR }}/IntuneEnrollment" --configuration ${{ env.CONFIGURATION }} --no-restore
-         dotnet build ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-restore
+         # dotnet build "${{ env.SRC_DIR }}/IntuneEnrollment" --configuration ${{ env.CONFIGURATION }} --no-restore
+         # dotnet build ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-restore
 
     #  - name: Unit Test Setup
     #    shell: pwsh
@@ -78,23 +78,27 @@ jobs:
      - name: Publish
        run: |
          dotnet publish ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_APP_PACKAGE_PATH }}"
-         dotnet publish ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
+         # dotnet publish ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
          dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
          
      - name: Upload Update Function Artifact
-       uses: actions/upload-artifact@v3
+       uses: actions/upload-artifact@v4.4.0
        with:
          name: ${{ env.AZURE_UPDATE_FUNCTION_PKG_NAME}}
          path: ${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}
+         if-no-files-found: error
+         include-hidden-files: true
 
      - name: Upload WebApp Artifact
-       uses: actions/upload-artifact@v3
+       uses: actions/upload-artifact@v4.4.0
        with:
          name: ${{ env.AZURE_APP_PKG_NAME}}
          path: ${{ env.AZURE_APP_PACKAGE_PATH }}
+         if-no-files-found: error
 
-     - name: Upload WebJob Artifact
-       uses: actions/upload-artifact@v3
-       with:
-         name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
-         path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
+     #- name: Upload WebJob Artifact
+     #  uses: actions/upload-artifact@v4.4.0
+     #  with:
+     #    name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
+     #    path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
+     #    if-no-files-found: error
