@@ -18,5 +18,11 @@ namespace UpdateDevices.Models
             PartitionKey = "FunctionSettings";
             LastRun = null;
         }
+
+        public override string ToString()
+        {
+            string output = $"LastRun: {LastRun}";
+            return output;
+        }
     }
 }
