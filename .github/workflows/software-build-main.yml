@@ -15,7 +15,7 @@ on:
 env:
   AZ_ENVIRONMENT: AzureUSGovernment
   CONFIGURATION: Release
-  DOTNET_CORE_VERSION: 6.0.x
+  DOTNET_CORE_VERSION: 8.0.x
 
   AZURE_UPDATE_FUNCTION_NAME: sbx-netcom-delstation-update-fn
   AZURE_UPDATE_FUNCTION_PACKAGE_PATH: .\UpdateDevices\published
@@ -24,9 +24,6 @@ env:
   AZURE_APP_NAME: sbx-netcom-delstation-app
   AZURE_APP_PACKAGE_PATH: .\DelegationStation\published
   AZURE_APP_PKG_NAME: webapp
-
-  AZURE_WEBJOB_PACKAGE_PATH: .\WhiteSpaceCleaner\published
-  AZURE_WEBJOB_PKG_NAME: webjob
 
   SRC_DIR: .
   # TEST_DIR: ./src/WinGet.RestSource.UnitTest
@@ -53,7 +50,6 @@ jobs:
          dotnet build "${{ env.SRC_DIR }}/DelegationStation" --configuration ${{ env.CONFIGURATION }} --no-restore
          dotnet build "${{ env.SRC_DIR }}/UpdateDevices" --configuration ${{ env.CONFIGURATION }} --no-restore
          dotnet build "${{ env.SRC_DIR }}/IntuneEnrollment" --configuration ${{ env.CONFIGURATION }} --no-restore
-         dotnet build ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-restore
 
     #  - name: Unit Test Setup
     #    shell: pwsh
@@ -75,11 +71,13 @@ jobs:
     #      path: '${{ env.TEST_DIR }}/TestResults/*.trx'
     #      reporter: dotnet-trx
 
-     - name: Publish
+     - name: Publish Update Function
+       run: |
+         dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
+
+     - name: Publish App
        run: |
          dotnet publish ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_APP_PACKAGE_PATH }}"
-         dotnet publish ${{ env.SRC_DIR }}/WhiteSpaceCleaner --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
-         dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
          
      - name: Upload Update Function Artifact
        uses: actions/upload-artifact@v3
@@ -92,9 +90,3 @@ jobs:
        with:
          name: ${{ env.AZURE_APP_PKG_NAME}}
          path: ${{ env.AZURE_APP_PACKAGE_PATH }}
-
-     - name: Upload WebJob Artifact
-       uses: actions/upload-artifact@v3
-       with:
-         name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
-         path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
