@@ -1,8 +1,8 @@
 ﻿using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using DelegationStation.Services;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
+using DelegationStation.Interfaces;
 
 namespace DelegationStationTests.Pages
 {
@@ -12,7 +12,7 @@ namespace DelegationStationTests.Pages
         [TestMethod]
         public void TagsShouldRender()
         {
-            using (ShimsContext.Create()) 
+            using (ShimsContext.Create())
             {
                 // Arrange
                 // Add Dependent Services
@@ -32,13 +32,13 @@ namespace DelegationStationTests.Pages
                 deviceTag2.Name = "testName2";
                 deviceTag2.Description = "testDescription2";
                 deviceTags.Add(deviceTag2);
-                var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(deviceTags),
-                  GetDeviceTagCountAsyncIEnumerableOfString =
+                    GetDeviceTagCountAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(2),
-                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
                         (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 
@@ -52,7 +52,7 @@ namespace DelegationStationTests.Pages
                 var configuration = new ConfigurationBuilder()
                     .AddInMemoryCollection(myConfiguration)
                     .Build();
-          
+
 
                 //      Add Dependent Services
                 Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
@@ -92,13 +92,13 @@ namespace DelegationStationTests.Pages
                 deviceTag2.Name = "testName2";
                 deviceTag2.Description = "testDescription2";
                 deviceTags.Add(deviceTag2);
-                var fakeDeviceTagDBService = new DelegationStation.Services.Fakes.StubIDeviceTagDBService()
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
                 {
                     GetDeviceTagsAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(deviceTags),
                     GetDeviceTagCountAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(2),
-                  GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32 =
                         (groupIds, pageNumber, pageSize) => Task.FromResult(deviceTags)
                 };
 

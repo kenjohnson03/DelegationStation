@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 
 namespace DelegationStation.Authorization
-{  
+{
 
     public class DeviceTagAuthorizationHandler :
         AuthorizationHandler<OperationAuthorizationRequirement, DeviceTag>
@@ -61,7 +61,7 @@ namespace DelegationStation.Authorization
                             return Task.CompletedTask;
                         }
                     }
-                }                
+                }
             }
 
             if (requirement.Name == DeviceTagOperations.UpdateActions.Name)
@@ -72,8 +72,8 @@ namespace DelegationStation.Authorization
                     {
                         if (group == roleDelegation.SecurityGroupId)
                         {
-                            if (roleDelegation.Role.AdministrativeUnits | 
-                                roleDelegation.Role.SecurityGroups | 
+                            if (roleDelegation.Role.AdministrativeUnits |
+                                roleDelegation.Role.SecurityGroups |
                                 (roleDelegation.Role.Attributes.Count > 0 &&
                                     roleDelegation.Role.Attributes.Contains(AllowedAttributes.None) == false))
                             {
@@ -472,7 +472,7 @@ namespace DelegationStation.Authorization
                     }
                 }
             }
-            
+
             context.Fail(new AuthorizationFailureReason(this, $"{requirement.Name} not delegated to Tag {resource.Name} with Id {resource.Id}"));
             return Task.CompletedTask;
         }
