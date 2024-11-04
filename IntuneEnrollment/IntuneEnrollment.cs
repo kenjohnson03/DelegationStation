@@ -2,45 +2,40 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Configuration;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Graph;
-using Azure.Identity;
-using Microsoft.Graph.Models.ExternalConnectors;
 using System.Collections.Generic;
 using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using Microsoft.Azure.Cosmos;
 using System.Linq;
-using Microsoft.Graph.Chats.Item.SendActivityNotification;
-using Microsoft.Graph.Models;
 using System.Reflection;
 using DelegationStationShared.Models;
-using Microsoft.Graph.Models.TermStore;
 using System.Text;
-using Microsoft.Azure.Cosmos.Serialization.HybridRow.Layouts;
+using Microsoft.Azure.Functions.Worker;
 
 namespace DelegationStation.Function
 {
-    public static class IntuneEnrollmentFunction
+    public class IntuneEnrollmentFunction
     {
+        private readonly ILogger<IntuneEnrollmentFunction> _logger;
+
         private static GraphServiceClient _graphClient;
-        private static ILogger _logger;
         private static HttpClient _graphHttpClient;
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
 
-        [FunctionName("IntuneEnrollmentTrigger")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = "IntuneEnrollmentTrigger")] HttpRequest req,
-            ILogger log)
+        public IntuneEnrollmentFunction(ILogger<IntuneEnrollmentFunction> logger)
         {
-            _logger = log;
+            _logger = logger;
+        }
+
+        [Function("IntuneEnrollmentTrigger")]
+        public async Task<IActionResult> Run(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = "IntuneEnrollmentTrigger")] HttpRequest req)
+        {
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             _logger.LogDebug($"RequestBody: \n{requestBody}");
 
@@ -72,7 +67,7 @@ namespace DelegationStation.Function
         }
 
         
-        private static async Task RunDeviceUpdateActionsAsync(DeviceResponse device)
+        private  async Task RunDeviceUpdateActionsAsync(DeviceResponse device)
         {
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
             var databaseName = "DelegationStation";
@@ -163,7 +158,7 @@ namespace DelegationStation.Function
             return;
         }
 
-        private static async Task UpdateAttributesOnDeviceAsync(string deviceId, List<DeviceUpdateAction> updateActions)
+        private  async Task UpdateAttributesOnDeviceAsync(string deviceId, List<DeviceUpdateAction> updateActions)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -423,7 +418,7 @@ namespace DelegationStation.Function
             return;
         }
 
-        private static string GetLogAnalyticsUri(string requestBody)
+        private  string GetLogAnalyticsUri(string requestBody)
         {
             string logAnalyticsRegexPattern = @"\""linkToSearchResultsAPI\"":\s?\""(\S+)\""";
             Match logAnalyticsMatch = Regex.Match(requestBody, logAnalyticsRegexPattern);
@@ -440,7 +435,7 @@ namespace DelegationStation.Function
             return logUri;
         }
 
-        private static async Task<List<String>> GetDeviceIdsFromLogAnalyticsAsync(string logUri)
+        private  async Task<List<String>> GetDeviceIdsFromLogAnalyticsAsync(string logUri)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -474,7 +469,7 @@ namespace DelegationStation.Function
             return deviceIds;
         }
 
-        private static async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
+        private  async Task AddDeviceToAzureADGroup(string deviceId, string groupId)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -561,7 +556,7 @@ namespace DelegationStation.Function
             }            
         }
 
-        private static async Task AddDeviceToAzureAdministrativeUnit (string deviceId, string auId)
+        private  async Task AddDeviceToAzureAdministrativeUnit (string deviceId, string auId)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -645,7 +640,7 @@ namespace DelegationStation.Function
             _logger.LogInformation($"Administrative Unit Add Response: {response}");
         }
 
-        private static async Task<List<DeviceResponse>> GetDeviceManagementObjectsAsync(string[] deviceIds)
+        private  async Task<List<DeviceResponse>> GetDeviceManagementObjectsAsync(string[] deviceIds)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -696,7 +691,7 @@ namespace DelegationStation.Function
             return devices;
         }
 
-        private static async Task<String> GetAccessTokenAsync(string uri)
+        private  async Task<String> GetAccessTokenAsync(string uri)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
