@@ -2,7 +2,6 @@
 using DelegationStation.Interfaces;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
-using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
@@ -29,7 +28,7 @@ namespace DelegationStation.Services
 
             var certDN = configuration.GetSection("AzureAd:ClientCertificates:CertificateDistinguishedName").Value;
 
-            if (!certDN.IsNullOrEmpty())
+            if (!String.IsNullOrEmpty(certDN))
             {
                 _logger.LogInformation("Using certificate authentication: ");
                 _logger.LogDebug("AzureCloud: " + azureCloud);
