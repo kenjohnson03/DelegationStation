@@ -3,6 +3,8 @@ using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Graph.Beta.Models;
+using Device = DelegationStationShared.Models.Device;
 
 namespace DelegationStation.Pages
 {
@@ -136,10 +138,29 @@ namespace DelegationStation.Pages
                     return;
                 }
 
+                // Add Device to DB
                 newDevice.ModifiedUTC = DateTime.UtcNow;
                 newDevice.AddedBy = userId;
                 Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
                 devices.Add(resp);
+
+                // Update InTune
+                string identifier = $"{newDevice.Make},{newDevice.Model},{newDevice.SerialNumber}";
+                ImportedDeviceIdentity identity = await graphBetaService.AddCorporateIdentifer(identifier);
+
+                // Update device in DB
+                if(identity != null)
+                {
+                    newDevice.CorporateIdentity = identity.ImportedDeviceIdentifier;
+                    newDevice.CorporateIdentityID = identity.Id;
+                    newDevice.LastCorpIdentitySync = DateTime.UtcNow;
+                    Device updated = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
+                    
+                    // Update device in local list
+                    devices.Remove(resp);
+                    devices.Add(updated);
+                }
+
                 newDevice = new Device();
                 deviceAddValidationMessage = (MarkupString)"";
             }

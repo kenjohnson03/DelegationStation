@@ -1,11 +1,16 @@
+using DelegationStation.Interfaces;
+using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using Microsoft.Graph.Beta.Models;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
+using Device = DelegationStationShared.Models.Device;
+using ValidationResult = System.ComponentModel.DataAnnotations.ValidationResult;
 
 namespace DelegationStation.Pages
 {
@@ -312,9 +317,24 @@ namespace DelegationStation.Pages
                     d.Tags.Add(tagToApply);
                     Device? deviceResult = null;
 
+                    string identifier = $"{d.Make},{d.Model},{d.SerialNumber}";
+
+               
                     try
                     {
                         deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
+
+                        // Update InTune
+                        ImportedDeviceIdentity identity = await graphBetaService.AddCorporateIdentifer(identifier);
+
+                        // Update device in DB
+                        if (identity != null)
+                        {
+                            d.CorporateIdentity = identity.ImportedDeviceIdentifier;
+                            d.CorporateIdentityID = identity.Id;
+                            d.LastCorpIdentitySync = DateTime.UtcNow;
+                            Device updated = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                        }
                     }
                     catch (Exception ex)
                     {

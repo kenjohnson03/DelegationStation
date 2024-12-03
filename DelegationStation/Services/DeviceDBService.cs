@@ -261,10 +261,11 @@ namespace DelegationStation.Services
                 var qIresponse = await deviceQueryIterator.ReadNextAsync();
                 devices.AddRange(qIresponse.ToList());
             }
-            if (devices.Count != 0)
-            {
-                throw new Exception("Device already exists.");
-            }
+            // TODO:  Do we need to split this into two methods - add and update?
+            //if (devices.Count != 0)
+            //{
+            //    throw new Exception("Device already exists.");
+            //}
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
             return response;
