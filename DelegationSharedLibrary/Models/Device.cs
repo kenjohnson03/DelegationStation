@@ -23,10 +23,9 @@ namespace DelegationStationShared.Models
         [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Use letters, numbers, -, _, or . for SerialNumber value.")]
         public string SerialNumber { get; set; }
 
-        [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
-        public string MacAddress { get; set; }
         public string PartitionKey { get; set; }
 
+        // More than one tag is not currently supported
         public List<string> Tags { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string Type { get; private set; }
@@ -34,6 +33,16 @@ namespace DelegationStationShared.Models
         public DateTime ModifiedUTC { get; set; }
 
         public string? AddedBy { get; set; }
+
+        // Corporate Identifier related 
+        public string CorporateIdentity { get; set; }
+        public string CorporateIdentityType { get; set; }
+        public DateTime LastCorpIdentitySync { get; set; }
+        public string CorporateIdentityID { get; set; }
+
+        //NOTE:  The following settings are currently unused
+        [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
+        public string MacAddress { get; set; }
         public bool Update { get; set; }
         public List<DeviceUpdateAction> UpdateActions { get; set; }
 
@@ -49,8 +58,13 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
-        }
 
+            CorporateIdentity = string.Empty;
+            CorporateIdentityType = "manufacturerModelSerial";
+            LastCorpIdentitySync = DateTime.MinValue;
+            CorporateIdentityID = string.Empty;
+
+        }
         public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
         {
             Id = Guid.NewGuid();
@@ -63,6 +77,20 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
+
+            CorporateIdentity = string.Empty;
+            CorporateIdentityType = "manufacturerModelSerial";
+            LastCorpIdentitySync = DateTime.MinValue;
+            CorporateIdentityID = string.Empty;
+
         }
+
+        public void updateCorporateIdentityInfo(string identity, string identityID, DateTime syncTime)
+        {
+            CorporateIdentity = identity;
+            CorporateIdentityID = identityID;
+            LastCorpIdentitySync = syncTime;
+        }
+
     }
 }
