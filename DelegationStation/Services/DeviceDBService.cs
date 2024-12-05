@@ -236,7 +236,39 @@ namespace DelegationStation.Services
             return devices;
         }
 
-       
+        public async Task<Device> AddOrUpdateDeviceAsync(Device device)
+        {
+            if (device == null)
+            {
+                throw new Exception("DeviceDBService AddOrUpdateDeviceAsync was sent null device");
+            }
+
+            // Scrubbing whitespace before entry
+            device.Make = device.Make.Trim();
+            device.Model = device.Model.Trim();
+            device.SerialNumber = device.SerialNumber.Trim();
+
+            // Confirm DB does not already contain device
+            List<Device> devices = new List<Device>();
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
+            q.WithParameter("@serial", device.SerialNumber);
+            q.WithParameter("@make", device.Make);
+            q.WithParameter("@model", device.Model);
+
+            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(qIresponse.ToList());
+            }
+            if (devices.Count != 0)
+            {
+                throw new Exception("Device already exists.");
+            }
+
+            ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
+            return response;
+        }
 
         public async Task<Device> GetDeviceAsync(string deviceId)
         {
@@ -361,72 +393,6 @@ namespace DelegationStation.Services
             }
 
             return devices;
-        }
-
-        public async Task<Device> AddOrUpdateDeviceAsync(Device device)
-        {
-            if (device == null)
-            {
-                throw new Exception("DeviceDBService AddOrUpdateDeviceAsync was sent null device");
-            }
-
-            // Scrubbing whitespace before entry
-            device.Make = device.Make.Trim();
-            device.Model = device.Model.Trim();
-            device.SerialNumber = device.SerialNumber.Trim();
-
-            // Confirm DB does not already contain device
-            List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
-            q.WithParameter("@serial", device.SerialNumber);
-            q.WithParameter("@make", device.Make);
-            q.WithParameter("@model", device.Model);
-
-            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
-            while (deviceQueryIterator.HasMoreResults)
-            {
-                var qIresponse = await deviceQueryIterator.ReadNextAsync();
-                devices.AddRange(qIresponse.ToList());
-            }
-           
-            ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
-            return response;
-        }
-
-    
-
-        public async Task<Device> AddNewDeviceAsync(Device device)
-        {
-            if (device == null)
-            {
-                throw new Exception("DeviceDBService AddNewDeviceAsync was sent null device");
-            }
-
-            // Scrubbing whitespace before entry
-            device.Make = device.Make.Trim();
-            device.Model = device.Model.Trim();
-            device.SerialNumber = device.SerialNumber.Trim();
-
-            // Confirm DB does not already contain device
-            List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.SerialNumber = @serial AND d.Make = @make AND d.Model = @model");
-            q.WithParameter("@serial", device.SerialNumber);
-            q.WithParameter("@make", device.Make);
-            q.WithParameter("@model", device.Model);
-
-            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
-            while (deviceQueryIterator.HasMoreResults)
-            {
-                var qIresponse = await deviceQueryIterator.ReadNextAsync();
-                devices.AddRange(qIresponse.ToList());
-            }
-            if (devices.Count != 0)
-            {
-                throw new Exception("Device already exists.");
-            }
-
-            ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
-            return response;
         }
 
         public async Task DeleteDeviceAsync(Device device)

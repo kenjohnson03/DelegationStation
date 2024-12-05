@@ -51,7 +51,6 @@ builder.Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandl
 builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
-builder.Services.AddSingleton<IGraphBetaService, GraphBetaService>();
 builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
 
 builder.Services.AddApplicationInsightsTelemetry(opt => opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
