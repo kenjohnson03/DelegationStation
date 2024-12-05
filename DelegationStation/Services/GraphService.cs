@@ -146,5 +146,49 @@ namespace DelegationStation.Services
             }
             return administrativeUnits.Value ?? new List<AdministrativeUnit>();
         }
+
+
+
+        public async Task<ManagedDevice> GetManagedDevice(string manufacturer, string model, string serialNum)
+        {
+
+            ManagedDevice result = null;
+            try
+            {
+                var devices = await _graphClient.DeviceManagement.ManagedDevices.GetAsync((requestConfiguration) =>
+                {
+                    requestConfiguration.QueryParameters.Filter = $"manufacturer eq '{manufacturer}' and model eq '{model}' and serialNumber eq '{serialNum}'";
+                });
+                if(devices == null)
+                {
+                    return null;
+                }
+                else
+                {
+                    result = devices.Value.FirstOrDefault();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Unable to get device {manufacturer} {model} {serialNum} from Intune: " + ex);
+                return null;
+            }
+            return result;
+        }
+
+        public async Task<bool> DeleteManagedDevice(string ID)
+        {
+            try
+            {
+                await _graphClient.DeviceManagement.ManagedDevices[ID].DeleteAsync();
+                _logger.LogInformation($"Managed Device Deleted: {ID}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Unable to delete device {ID} from Intune: " + ex);
+                return false;
+            }
+        }
     }
 }

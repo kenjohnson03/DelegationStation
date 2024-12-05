@@ -116,7 +116,7 @@ namespace DelegationStation.Pages
 
         private async Task AddDevice()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -141,7 +141,7 @@ namespace DelegationStation.Pages
                 // Add Device to DB
                 newDevice.ModifiedUTC = DateTime.UtcNow;
                 newDevice.AddedBy = userId;
-                Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
+                Device resp = await deviceDBService.AddNewDeviceAsync(newDevice);
                 devices.Add(resp);
 
                 // Update InTune
@@ -198,23 +198,66 @@ namespace DelegationStation.Pages
                 return;
             }
 
-            try
+            // Remove from Managed Devices
+            Microsoft.Graph.Models.ManagedDevice managedDevice = await graphService.GetManagedDevice(deleteDevice.Make, deleteDevice.Model, deleteDevice.SerialNumber);
+            bool result = true;
+            if (managedDevice != null)
             {
-                await deviceDBService.DeleteDeviceAsync(deleteDevice);
-                devices.Remove(deleteDevice);
-                string message = $"Correlation Id: {c.ToString()}\nDevice {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber} deleted successfully";
-                userMessage = "";
-                logger.LogInformation($"{message}\nUser: {userName} {userId}");
+                // Will complete successfully if managed device not found
+                result = await graphService.DeleteManagedDevice(managedDevice.Id);
             }
-            catch (Exception ex)
+
+            if (!result)
             {
-                string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}";
-                logger.LogError(ex, $"{message}\nUser: {userName} {userId}");
+                string message = $"Error deleting managed device {deleteDevice.Id}.  Will not delete from DelegationStation or Corporate Identifiers.  \nCorrelation Id: {c.ToString()}";
+                logger.LogError($"{message}\nUser: {userName} {userId}");
                 userMessage = message;
+                return;
             }
-            deleteDevice = new Device() { Id = Guid.Empty };
-            confirmMessage = (MarkupString)"";
-            StateHasChanged();
+            else // Successfully deleted from managed devices
+            {
+
+                // Remove from Corporate Identifiers
+                // Will complete successfully if corporate identifier not found
+                bool result2 = true;
+                if (!String.IsNullOrEmpty(deleteDevice.CorporateIdentityID))
+                {
+                     result2 = await graphBetaService.DeleteCorporateIdentifier(deleteDevice.CorporateIdentityID);
+                }
+                else
+                {
+                    logger.LogWarning($"Corporate Identifier not found for ID {deleteDevice.CorporateIdentityID} - '{deleteDevice.CorporateIdentity}'");
+                }
+                if (!result2)
+                {
+                    string message = $"Error deleting corporate identifier {deleteDevice.CorporateIdentityID}.\nCorrelation Id: {c.ToString()}";
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
+                    userMessage = message;
+                    return;
+                }
+                else // Successfully deleted from corporate identifiers
+                {
+
+                    try
+                    {
+                        // Remove from DB
+                        await deviceDBService.DeleteDeviceAsync(deleteDevice);
+                        devices.Remove(deleteDevice);
+                        string message = $"Correlation Id: {c.ToString()}\nDevice {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber} deleted successfully";
+                        userMessage = "";
+                        logger.LogInformation($"{message}\nUser: {userName} {userId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        string message = $"Error deleting device {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber}.\nCorrelation Id: {c.ToString()}";
+                        logger.LogError(ex, $"{message}\nUser: {userName} {userId}");
+                        userMessage = message;
+                    }
+                    deleteDevice = new Device() { Id = Guid.Empty };
+                    confirmMessage = (MarkupString)"";
+                    StateHasChanged();
+                }
+            }
         }
 
         private void Show()

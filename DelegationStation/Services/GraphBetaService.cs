@@ -1,10 +1,10 @@
 ﻿using Azure.Identity;
 using DelegationSharedLibrary;
 using DelegationStation.Interfaces;
-using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;
 using Microsoft.Graph.Beta.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList;
 using Microsoft.Graph.Beta.Models;
+using Microsoft.Graph.Beta.Models.ODataErrors;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DelegationStation.Services
@@ -104,6 +104,34 @@ namespace DelegationStation.Services
             }
 
             return deviceIdentity;
+        }
+
+        public async Task<bool> DeleteCorporateIdentifier(string ID)
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.LogInformation($"Deleting identifier: {ID}");
+
+            try
+            {
+                await _graphClient.DeviceManagement.ImportedDeviceIdentities[ID].DeleteAsync();
+                _logger.LogInformation($"Identifier Deleted: {ID}");
+                return true;
+            }
+            catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
+            {
+                // This is the error returned when it tries to delete an object that's not found
+                // Return true since it's already not present
+                _logger.LogInformation($"Device corporate identifier {ID} not found in Graph: " + odataError);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Unable to delete device identifier {ID} from Graph: " + ex);
+                return false;
+            }
         }
     }
 }

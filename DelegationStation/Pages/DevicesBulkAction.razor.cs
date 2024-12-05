@@ -1,5 +1,3 @@
-using DelegationStation.Interfaces;
-using DelegationStation.Services;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -259,7 +257,7 @@ namespace DelegationStation.Pages
 
         private async Task UpdateDevices()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isUpdating = true;
@@ -308,74 +306,11 @@ namespace DelegationStation.Pages
 
                 if (device.Action == DeviceBulkAction.add)
                 {
-                    Device d = new Device();
-                    d.Make = device.Make;
-                    d.Model = device.Model;
-                    d.SerialNumber = device.SerialNumber;
-                    d.ModifiedUTC = DateTime.UtcNow;
-                    d.AddedBy = userId;
-                    d.Tags.Add(tagToApply);
-                    Device? deviceResult = null;
-
-                    string identifier = $"{d.Make},{d.Model},{d.SerialNumber}";
-
-               
-                    try
-                    {
-                        deviceResult = await deviceDBService.AddOrUpdateDeviceAsync(d);
-
-                        // Update InTune
-                        ImportedDeviceIdentity identity = await graphBetaService.AddCorporateIdentifer(identifier);
-
-                        // Update device in DB
-                        if (identity != null)
-                        {
-                            d.CorporateIdentity = identity.ImportedDeviceIdentifier;
-                            d.CorporateIdentityID = identity.Id;
-                            d.LastCorpIdentitySync = DateTime.UtcNow;
-                            Device updated = await deviceDBService.AddOrUpdateDeviceAsync(d);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
-                        updateErrors.Add(message);
-                        logger.LogError($"{message}\nUser: {userName} {userId}");
-                    }
+                    await addDeviceAsync(device, tagToApply, c);
                 }
                 else if (device.Action == DeviceBulkAction.remove)
                 {
-                    Device? d = null;
-                    try
-                    {
-                        d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
-                    }
-                    catch (Exception ex)
-                    {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
-                        logger.LogError($"{message}\nUser: {userName} {userId}");
-                    }
-                    if (d != null)
-                    {
-                        // Validate the applied tag is on the device
-                        if (!d.Tags.Contains(tagToApply))
-                        {
-                            var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
-                            updateErrors.Add(message);
-                            logger.LogError($"{message}\nUser: {userName} {userId}");
-                        }
-                        else
-                        {
-                            await deviceDBService.DeleteDeviceAsync(d);
-                            logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
-                        }
-                    }
-                    else
-                    {
-                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
-                        updateErrors.Add(message);
-                        logger.LogError($"{message}\nUser: {userName} {userId}");
-                    }
+                    await removeDeviceAsync(device, tagToApply, c);
                 }
                 else
                 {
@@ -388,6 +323,122 @@ namespace DelegationStation.Pages
                 StateHasChanged();
             }
             isUpdating = false;
+        }
+
+        /// <summary>
+        /// Adds new device to Delegation Station DB and adds Corporate Identifier to InTune
+        /// </summary>
+        /// <param name="device"></param>
+        /// <param name="tagToApply"></param>
+        /// <param name="c"></param>
+        /// <returns></returns>
+        public async Task addDeviceAsync(DeviceBulk device, string tagToApply, Guid c)
+        {
+            Device d = new Device();
+            d.Make = device.Make;
+            d.Model = device.Model;
+            d.SerialNumber = device.SerialNumber;
+            d.ModifiedUTC = DateTime.UtcNow;
+            d.AddedBy = userId;
+            d.Tags.Add(tagToApply);
+            Device? deviceResult = null;
+
+            string identifier = $"{d.Make},{d.Model},{d.SerialNumber}";
+
+            try
+            {
+                // Add device to DB without corporate identifier
+                deviceResult = await deviceDBService.AddNewDeviceAsync(d);
+
+                // Add corporate identifier to DB 
+                ImportedDeviceIdentity identity = await graphBetaService.AddCorporateIdentifer(identifier);
+
+                // Update device in DB with corp identifier details
+                if (identity != null)
+                {
+                    d.CorporateIdentity = identity.ImportedDeviceIdentifier;
+                    d.CorporateIdentityID = identity.Id;
+                    d.LastCorpIdentitySync = DateTime.UtcNow;
+
+                    Device updated = await deviceDBService.AddOrUpdateDeviceAsync(d);
+                }
+            }
+            catch (Exception ex)
+            {
+                var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
+            }
+        }
+
+        public async Task removeDeviceAsync(DeviceBulk device, string tagToApply, Guid c)
+        {
+            Device? d = null;
+
+            // Get device details from DS database
+            try
+            {
+                d = await deviceDBService.GetDeviceAsync(device.Make, device.Model, device.SerialNumber);
+            }
+            catch (Exception ex)
+            {
+                var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                logger.LogError($"{message}\nUser: {userName} {userId}");
+            }
+
+            if (d != null)
+            {
+                // Validate the applied tag is on the device
+                if (!d.Tags.Contains(tagToApply))
+                {
+                    var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
+                    updateErrors.Add(message);
+                    logger.LogError($"{message}\nUser: {userName} {userId}");
+                }
+                else
+                {
+                    // Remove from Managed Devices
+                    Microsoft.Graph.Models.ManagedDevice managedDevice = await graphService.GetManagedDevice(d.Make, d.Model, d.SerialNumber);
+                    bool result = true;
+                    if (managedDevice != null)
+                    {
+                        // Will complete successfully if managed device not found
+                        result = await graphService.DeleteManagedDevice(managedDevice.Id);
+                    }
+
+                    if (!result)
+                    {
+                        string message = $"Error deleting managed device {d.Id}.  Will not delete from DelegationStation or Corporate Identifiers.  \nCorrelation Id: {c.ToString()}";
+                        logger.LogError($"{message}\nUser: {userName} {userId}");
+                        userMessage = message;
+                    }
+                    else // Successfully deleted from managed devices
+                    {
+
+                        // Remove from Corporate Identifiers
+                        // Will complete successfully if corporate identifier not found
+                        bool result2 = await graphBetaService.DeleteCorporateIdentifier(d.CorporateIdentityID);
+                        if (!result2)
+                        {
+                            string message = $"Error deleting corporate identifier {d.CorporateIdentityID}.\nCorrelation Id: {c.ToString()}";
+                            logger.LogError($"{message}\nUser: {userName} {userId}");
+                            userMessage = message;
+                        }
+                        else // Successfully removed from corporate identifiers
+                        {
+                            // Remove from DB
+                            await deviceDBService.DeleteDeviceAsync(d);
+                            logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                updateErrors.Add(message);
+                logger.LogError($"{message}\nUser: {userName} {userId}");
+            }
         }
 
         private void Clear()

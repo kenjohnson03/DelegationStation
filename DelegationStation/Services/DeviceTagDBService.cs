@@ -242,11 +242,7 @@ namespace DelegationStation.Services
         }
 
 
-        public async Task<DeviceTag> AddOrUpdateDeviceTagAsync(DeviceTag deviceTag)
-        {
-            ItemResponse<DeviceTag> response = await this._container.UpsertItemAsync<DeviceTag>(deviceTag);
-            return response;
-        }
+       
 
         public async Task<int> GetDeviceCountByTagIdAsync(string tagId)
         {
@@ -269,6 +265,12 @@ namespace DelegationStation.Services
 
             return response.Resource.FirstOrDefault<int>();
 
+        }
+
+        public async Task<DeviceTag> AddOrUpdateDeviceTagAsync(DeviceTag deviceTag)
+        {
+            ItemResponse<DeviceTag> response = await this._container.UpsertItemAsync<DeviceTag>(deviceTag);
+            return response;
         }
 
         public async Task DeleteDeviceTagAsync(DeviceTag deviceTag)
