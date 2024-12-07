@@ -5,5 +5,7 @@ namespace CorporateIdentiferSync.Interfaces
     public interface IGraphBetaService
     {
         Task<ImportedDeviceIdentity> AddCorporateIdentifier(string identifier);
+
+        Task<bool> DeleteCorporateIdentifier(string identifierID);
     }
 }

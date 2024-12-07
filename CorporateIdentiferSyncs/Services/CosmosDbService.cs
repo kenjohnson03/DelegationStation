@@ -95,6 +95,35 @@ namespace CorporateIdentiferSync.Services
 
         }
 
+        public async Task<List<Device>> GetDevicesMarkedForDeletion()
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status");
+            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
+            }
+
+            return devices;
+        }
+
         public async Task UpdateDevice(Device device)
         {
             string methodName = ExtensionHelper.GetMethodName();
@@ -118,6 +147,9 @@ namespace CorporateIdentiferSync.Services
             return;
         }
 
-
+        public async Task DeleteDevice(Device device)
+        {
+            await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+        }
     }
 }

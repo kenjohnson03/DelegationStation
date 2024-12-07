@@ -27,6 +27,7 @@ namespace CorporateIdentiferSync
                 ConfigureServices(services =>
                 {
                     services.AddSingleton<ICosmosDbService, CosmosDbService>();
+                    services.AddSingleton<IGraphService, GraphService>();
                     services.AddSingleton<IGraphBetaService, GraphBetaService>();
                 })
                 .Build();
