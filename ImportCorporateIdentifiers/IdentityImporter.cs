@@ -229,7 +229,12 @@ namespace DelegationStation.IdentityImporter
                         if ((newEntry != null) && (newEntry.Id != null) && (newEntry.ImportedDeviceIdentifier != null))
                         {
                             _logger.DSLogInformation($"Corporate Identifier added for device {device.Id} - ID: '{newEntry.Id}' Identifier: '{newEntry.ImportedDeviceIdentifier}'", fullMethodName);
-                            device.updateCorporateIdentityInfo(newEntry.ImportedDeviceIdentifier, newEntry.Id, DateTime.UtcNow);
+                            // FIXME
+                            //device.updateCorporateIdentityInfo(newEntry.ImportedDeviceIdentifier, newEntry.Id, DateTime.UtcNow);
+                            device.CorporateIdentityType = "manufacturerModelSerial";
+                            device.CorporateIdentityID = newEntry.Id;
+                            device.CorporateIdentity = newEntry.ImportedDeviceIdentifier;
+                            device.LastCorpIdentitySync = DateTime.UtcNow;
                             try
                             {
                                 await _container.ReplaceItemAsync(device, device.Id.ToString());

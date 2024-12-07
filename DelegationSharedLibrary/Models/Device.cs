@@ -40,11 +40,20 @@ namespace DelegationStationShared.Models
         public DateTime LastCorpIdentitySync { get; set; }
         public string CorporateIdentityID { get; set; }
 
+        public enum DeviceStatus
+        {
+            Added,
+            Synced,
+            Deleting
+        }
+        public DeviceStatus Status { get; set; }
+
         //NOTE:  The following settings are currently unused
         [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
         public string MacAddress { get; set; }
         public bool Update { get; set; }
         public List<DeviceUpdateAction> UpdateActions { get; set; }
+
 
         public Device()
         {
@@ -63,6 +72,9 @@ namespace DelegationStationShared.Models
             CorporateIdentityType = "manufacturerModelSerial";
             LastCorpIdentitySync = DateTime.MinValue;
             CorporateIdentityID = string.Empty;
+
+            Status = DeviceStatus.Added;
+
 
         }
         public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
@@ -83,14 +95,11 @@ namespace DelegationStationShared.Models
             LastCorpIdentitySync = DateTime.MinValue;
             CorporateIdentityID = string.Empty;
 
+            Status = DeviceStatus.Added;
+
         }
 
-        public void updateCorporateIdentityInfo(string identity, string identityID, DateTime syncTime)
-        {
-            CorporateIdentity = identity;
-            CorporateIdentityID = identityID;
-            LastCorpIdentitySync = syncTime;
-        }
 
     }
+
 }
