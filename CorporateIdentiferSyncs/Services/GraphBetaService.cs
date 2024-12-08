@@ -111,6 +111,41 @@ namespace CorporateIdentiferSync.Services
 
         }
 
+        public async Task<bool> CorporateIdentifierExists(string identiferID)
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.LogInformation($"Checking for identifier: {identiferID}");
+
+            if (string.IsNullOrEmpty(identiferID))
+            {
+                return false;
+            }
+
+            ImportedDeviceIdentity deviceIdentity = null;
+            try
+            {
+                deviceIdentity = await _graphClient.DeviceManagement.ImportedDeviceIdentities[identiferID].GetAsync();
+                _logger.LogInformation($"Identifier Deleted: {identiferID}");
+                return true;
+            }
+            //catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
+            catch (ODataError odataError) when (odataError.ResponseStatusCode == 404)
+            {
+                // This is the error returned when it tries to delete an object that's not found
+                // Return true since it's already not present
+                _logger.LogInformation($"Device corporate identifier {identiferID} not found in Graph: " + odataError);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Unable to delete device identifier {identiferID} from Graph: " + ex);
+                return false;
+            }
+        }
+
         public async Task<bool> DeleteCorporateIdentifier(string ID)
         {
             string methodName = ExtensionHelper.GetMethodName();

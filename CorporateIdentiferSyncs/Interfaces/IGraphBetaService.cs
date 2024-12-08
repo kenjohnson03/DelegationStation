@@ -7,5 +7,7 @@ namespace CorporateIdentiferSync.Interfaces
         Task<ImportedDeviceIdentity> AddCorporateIdentifier(string identifier);
 
         Task<bool> DeleteCorporateIdentifier(string identifierID);
+
+        Task<bool> CorporateIdentifierExists(string identiferID);
     }
 }

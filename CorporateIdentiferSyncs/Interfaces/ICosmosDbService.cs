@@ -12,6 +12,8 @@ namespace CorporateIdentiferSync.Interfaces
 
         Task DeleteDevice(Device device);
 
+        Task<List<Device>> GetDevicesSyncedBefore(DateTime date);
+
 
     }
 }

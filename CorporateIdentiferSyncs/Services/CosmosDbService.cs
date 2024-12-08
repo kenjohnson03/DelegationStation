@@ -62,7 +62,7 @@ namespace CorporateIdentiferSync.Services
             _logger.DSLogInformation("Connected to Cosmos DB database " + databaseName + " container " + containerName + ".", fullMethodName);
         }
 
-   
+
 
         public async Task<List<Device>> GetDevicesWithoutCorpIdentity()
         {
@@ -72,7 +72,8 @@ namespace CorporateIdentiferSync.Services
 
 
             // TBD:  Should we check more of the fields?  
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND (NOT IS_DEFINED(c.CorporateIdentityID) OR c.CorporateIdentityID = \"\")");
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @status) AND (NOT IS_DEFINED(c.CorporateIdentityID) OR c.CorporateIdentityID = \"\")");
+            query.WithParameter("@status", Device.DeviceStatus.Deleting);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
 
@@ -150,6 +151,34 @@ namespace CorporateIdentiferSync.Services
         public async Task DeleteDevice(Device device)
         {
             await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+        }
+
+        public async Task<List<Device>> GetDevicesSyncedBefore(DateTime date)
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            // TBD:  dont return devices marked for deletion
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @status) AND c.LastCorpIdentitySync <= @date");
+            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+            query.WithParameter("@date", date);
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
+            }
+            return devices;
+
         }
     }
 }
