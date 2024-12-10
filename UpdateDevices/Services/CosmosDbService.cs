@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
-using UpdateDevices.Extensions;
+using DelegationStationShared.Extensions;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
