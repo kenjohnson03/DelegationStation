@@ -5,6 +5,7 @@ using Microsoft.Graph.Beta;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Identity;
 using DelegationStationShared;
+using DelegationStationShared.Extensions;
 using Microsoft.Graph.Beta.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList;
 using Microsoft.Graph.Beta.Models;
 using Microsoft.Graph.Beta.Models.ODataErrors;
@@ -19,6 +20,10 @@ namespace CorporateIdentiferSync.Services
 
         public GraphBetaService(IConfiguration configuration, ILogger<GraphBetaService> logger)
         {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             this._logger = logger;
 
             var azureCloud = configuration.GetSection("AzureEnvironment").Value;
@@ -36,13 +41,13 @@ namespace CorporateIdentiferSync.Services
 
             if (!String.IsNullOrEmpty(certDN))
             {
-                _logger.LogInformation("Using certificate authentication: ");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using certificate authentication: ", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
-                _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certDN);
+                _logger.DSLogInformation("Using certificate with Subject Name {0} for Graph service: " + certDN, fullMethodName);
                 var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certDN);
 
                 var clientCertCredential = new ClientCertificateCredential(
@@ -56,9 +61,9 @@ namespace CorporateIdentiferSync.Services
             }
             else
             {
-                _logger.LogInformation("Using Client Secret for Graph service");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using Client Secret for Graph service", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
 
                 var clientSecretCredential = new ClientSecretCredential(
@@ -79,7 +84,7 @@ namespace CorporateIdentiferSync.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation($"Adding identifier: {identifier}");
+            _logger.DSLogInformation($"Adding identifier: {identifier}", fullMethodName);
 
             ImportedDeviceIdentity importedDevice = new ImportedDeviceIdentity();
             importedDevice.ImportedDeviceIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
@@ -99,11 +104,11 @@ namespace CorporateIdentiferSync.Services
                 // Note:  If entry already exists, it will just return object
                 var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
                 deviceIdentity = result.Value[0];
-                _logger.LogInformation($"Identifier Added: {deviceIdentity.ImportedDeviceIdentifier}");
+                _logger.DSLogInformation($"Identifier Added: {deviceIdentity.ImportedDeviceIdentifier}", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to add device identifier {identifier} to Graph: " + ex);
+                _logger.DSLogError($"Unable to add device identifier {identifier} to Graph: " + ex, fullMethodName);
                 return null;
             }
 
@@ -117,7 +122,7 @@ namespace CorporateIdentiferSync.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation($"Checking for identifier: {identiferID}");
+            _logger.DSLogInformation($"Checking for identifier: {identiferID}", fullMethodName);
 
             if (string.IsNullOrEmpty(identiferID))
             {
@@ -128,7 +133,7 @@ namespace CorporateIdentiferSync.Services
             try
             {
                 deviceIdentity = await _graphClient.DeviceManagement.ImportedDeviceIdentities[identiferID].GetAsync();
-                _logger.LogInformation($"Identifier Deleted: {identiferID}");
+                _logger.DSLogInformation($"Identifier Found: {identiferID}", fullMethodName);
                 return true;
             }
             //catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
@@ -136,12 +141,12 @@ namespace CorporateIdentiferSync.Services
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.LogInformation($"Device corporate identifier {identiferID} not found in Graph: " + odataError);
+                _logger.DSLogInformation($"Device corporate identifier {identiferID} not found in Graph: " + odataError, fullMethodName);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to delete device identifier {identiferID} from Graph: " + ex);
+                _logger.DSLogError($"Unable to delete device identifier {identiferID} from Graph: " + ex, fullMethodName);
                 return false;
             }
         }
@@ -152,24 +157,24 @@ namespace CorporateIdentiferSync.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation($"Deleting identifier: {ID}");
+            _logger.DSLogInformation($"Deleting identifier: {ID}", fullMethodName);
 
             try
             {
                 await _graphClient.DeviceManagement.ImportedDeviceIdentities[ID].DeleteAsync();
-                _logger.LogInformation($"Identifier Deleted: {ID}");
+                _logger.DSLogInformation($"Identifier Deleted: {ID}", fullMethodName);
                 return true;
             }
             catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.LogInformation($"Device corporate identifier {ID} not found in Graph: " + odataError);
+                _logger.DSLogInformation($"Device corporate identifier {ID} not found in Graph: " + odataError, fullMethodName);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to delete device identifier {ID} from Graph: " + ex);
+                _logger.DSLogError($"Unable to delete device identifier {ID} from Graph: " + ex, fullMethodName);
                 return false;
             }
         }

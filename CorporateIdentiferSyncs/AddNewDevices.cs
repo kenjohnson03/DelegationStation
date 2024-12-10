@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
+using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
+using DelegationStationShared;
 
 namespace CorporateIdentiferSync
 {
@@ -26,11 +28,17 @@ namespace CorporateIdentiferSync
         [Function("AddNewDevices")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Admin, "get", "post")] HttpRequest req)
         {
-            _logger.LogInformation("C# HTTP trigger function processed a request.");
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            //_logger.DSLogInformation("C# Timer trigger function executed at: " + DateTime.Now, fullMethodName);
+            //_logger.DSLogInformation("Next timer schedule at: " + timerInfo.ScheduleStatus.Next, fullMethodName);
+            _logger.DSLogInformation("C# HTTP trigger function processed a request.", fullMethodName);
 
             // Get All Devices without Corporate Identifier values or fields
             List<Device> devicesToMigrate = await _dbService.GetDevicesWithoutCorpIdentity();
-            _logger.LogInformation($"Found {devicesToMigrate.Count} devices to migrate.");
+            _logger.DSLogInformation($"Found {devicesToMigrate.Count} devices to migrate.", fullMethodName);
 
 
             // For each device set blank Corporate Identifier values

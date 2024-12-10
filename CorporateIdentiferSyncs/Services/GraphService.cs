@@ -1,9 +1,10 @@
 ﻿using Azure.Identity;
 using CorporateIdentiferSync.Interfaces;
+using DelegationStationShared;
+using DelegationStationShared.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
-using Microsoft.Graph.Beta.Models.ODataErrors;
 using Microsoft.Graph.Models;
 using System.Security.Cryptography.X509Certificates;
 
@@ -17,6 +18,10 @@ namespace CorporateIdentiferSync.Services
 
         public GraphService(IConfiguration configuration, ILogger<GraphService> logger)
         {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             this._logger = logger;
 
             var azureCloud = configuration.GetSection("AzureEnvironment").Value;
@@ -34,13 +39,13 @@ namespace CorporateIdentiferSync.Services
 
             if (!String.IsNullOrEmpty(certDN))
             {
-                _logger.LogInformation("Using certificate authentication: ");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using certificate authentication: ", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
                 X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
                 store.Open(OpenFlags.ReadOnly);
-                _logger.LogInformation("Using certificate with Subject Name {0} for Graph service", certDN);
+                _logger.DSLogInformation("Using certificate with Subject Name {0} for Graph service: " + certDN, fullMethodName);
                 var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certDN);
 
                 var clientCertCredential = new ClientCertificateCredential(
@@ -54,9 +59,9 @@ namespace CorporateIdentiferSync.Services
             }
             else
             {
-                _logger.LogInformation("Using Client Secret for Graph service");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using Client Secret for Graph service", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
 
                 var clientSecretCredential = new ClientSecretCredential(
@@ -74,21 +79,25 @@ namespace CorporateIdentiferSync.Services
 
         public async Task<bool> DeleteManagedDevice(string managedDeviceID)
         {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             try
             {
                 await _graphClient.DeviceManagement.ManagedDevices[managedDeviceID].DeleteAsync();
-                _logger.LogInformation($"Managed Device Deleted: {managedDeviceID}");
+                _logger.DSLogInformation($"Managed Device Deleted: {managedDeviceID}", fullMethodName);
                 return true;
             }
             catch (Microsoft.Graph.Models.ODataErrors.ODataError err) // when (err.Error.Code.Equals("ResourceNotFound"))
             {
-                _logger.LogInformation($"Unable to remove managed device found for: {managedDeviceID}");
+                _logger.DSLogInformation($"Unable to remove managed device found for: {managedDeviceID}", fullMethodName);
                 //return true;
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Unable to delete device {managedDeviceID} from Intune: " + ex);
+                _logger.DSLogError($"Unable to delete device {managedDeviceID} from Intune: " + ex, fullMethodName);
                 return false;
             }
         }
@@ -96,6 +105,10 @@ namespace CorporateIdentiferSync.Services
 
         public async Task<ManagedDevice> GetManagedDevice(string make, string model, string serialNum)
         {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             ManagedDevice? result = null;
             try
             {
@@ -114,7 +127,7 @@ namespace CorporateIdentiferSync.Services
             }
             catch(Microsoft.Graph.Models.ODataErrors.ODataError err) when (err.Error.Code.Equals("ResourceNotFound"))
             {
-                _logger.LogInformation($"No managed device found for: {make} {model} {serialNum}");
+                _logger.DSLogInformation($"No managed device found for: {make} {model} {serialNum}", fullMethodName);
                 return null;
             }
 

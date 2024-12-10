@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Models;
+using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
+using DelegationStationShared;
 
 namespace CorporateIdentiferSync
 {
@@ -26,17 +28,21 @@ namespace CorporateIdentiferSync
         [Function("DeviceDeletion")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequest req)
         {
-            _logger.LogInformation("C# HTTP trigger function processed a request.");
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation("C# HTTP trigger function processed a request.", fullMethodName);
 
             List<Device> devicesToDelete = await _dbService.GetDevicesMarkedForDeletion();
-            _logger.LogInformation($"Found {devicesToDelete.Count} devices to delete.");
+            _logger.DSLogInformation($"Found {devicesToDelete.Count} devices to delete.", fullMethodName);
 
 
             // For each set blank Corporate Identifier values
             int deviceCount = 0;
             foreach (Device device in devicesToDelete)
             {
-                _logger.LogInformation($"Deleting device {device.Id}.");
+                _logger.DSLogInformation($"Deleting device {device.Id}.", fullMethodName);
 
 
                 // Delete from Managed Devices
@@ -48,7 +54,7 @@ namespace CorporateIdentiferSync
 
                     if (managedDevice != null)
                     {
-                        _logger.LogInformation($"Found managed device {managedDevice.Id} in Intune that matches device {device.Make} {device.Model} {device.SerialNumber}.");
+                        _logger.DSLogInformation($"Found managed device {managedDevice.Id} in Intune that matches device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                         delManagedDevice = await _graphService.DeleteManagedDevice(managedDevice.Id);
                     }
                     else
@@ -59,7 +65,7 @@ namespace CorporateIdentiferSync
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Unable to delete managed device:  {device.Make} {device.Model} {device.SerialNumber}");
+                    _logger.DSLogError($"Unable to delete managed device:  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
                     delManagedDevice = false;
                 }
 
@@ -76,17 +82,17 @@ namespace CorporateIdentiferSync
                     }
                     else
                     {
-                        _logger.LogError($"Deletion from Corporate Identifiers failed for device {device.Id}.  Not deleting from Delegation Station");
+                        _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Id}.  Not deleting from Delegation Station", fullMethodName);
                     }
                 }
                 else
                 {
-                    _logger.LogError($"Deletion from Intune failed for device {device.Id} (managedDevice ID: {managedDevice.Id}.  Not deleting from Delegation Station");
+                    _logger.DSLogError($"Deletion from Intune failed for device {device.Id} (managedDevice ID: {managedDevice.Id}.  Not deleting from Delegation Station", fullMethodName);
 
                 }
             }
 
-            _logger.LogInformation($"Successfully deleted {deviceCount} devices.");
+            _logger.DSLogInformation($"Successfully deleted {deviceCount} devices.", fullMethodName);
             return new OkObjectResult("Welcome to Azure Functions!");
         }
     }

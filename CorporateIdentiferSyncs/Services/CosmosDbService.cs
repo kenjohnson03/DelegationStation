@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
 using CorporateIdentiferSync.Interfaces;
-using DelegationStation.CorporateIdentiferSyncs.Extensions;
+using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 
@@ -131,17 +131,17 @@ namespace CorporateIdentiferSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.LogInformation("Setting CorporateIdentifier fields for device " + device.Id + ".", fullMethodName);
+            _logger.DSLogInformation("Setting CorporateIdentifier fields for device " + device.Id + ".", fullMethodName);
 
             ItemResponse<Device> response = null;
             try
             {
                 response = await _container.UpsertItemAsync(device);
-                _logger.LogInformation("Updated device " + device.Id + ".", fullMethodName);
+                _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Failed to update device " + device.Id + ".\n" + ex.Message, fullMethodName);
+                _logger.DSLogError("Failed to update device " + device.Id + ".\n" + ex.Message, fullMethodName);
                 return;
             }
 
