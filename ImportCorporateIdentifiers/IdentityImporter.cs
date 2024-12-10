@@ -1,5 +1,5 @@
 ﻿using Azure.Identity;
-using DelegationSharedLibrary;
+using DelegationStationShared;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;

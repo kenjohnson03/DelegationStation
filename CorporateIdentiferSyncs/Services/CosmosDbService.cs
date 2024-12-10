@@ -1,9 +1,9 @@
-﻿using DelegationSharedLibrary;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
 using CorporateIdentiferSync.Interfaces;
 using DelegationStation.CorporateIdentiferSyncs.Extensions;
 using Device = DelegationStationShared.Models.Device;
+using DelegationStationShared;
 
 namespace CorporateIdentiferSync.Services
 {

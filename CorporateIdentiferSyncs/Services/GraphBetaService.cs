@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Identity;
-using DelegationSharedLibrary;
+using DelegationStationShared;
 using Microsoft.Graph.Beta.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList;
 using Microsoft.Graph.Beta.Models;
 using Microsoft.Graph.Beta.Models.ODataErrors;
