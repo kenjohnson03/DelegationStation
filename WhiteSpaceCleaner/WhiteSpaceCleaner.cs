@@ -1,4 +1,4 @@
-﻿using DelegationSharedLibrary;
+﻿using DelegationStationShared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
 using DelegationStationShared.Models;

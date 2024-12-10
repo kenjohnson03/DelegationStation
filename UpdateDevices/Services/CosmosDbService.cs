@@ -1,4 +1,4 @@
-﻿using DelegationSharedLibrary;
+﻿using DelegationStationShared;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
