@@ -61,8 +61,7 @@
                             <td>
                                 @if (@device.Status == @Device.DeviceStatus.Synced)
                                 {
-
-                                    <span class="badge rounded-pill bg-success">@device.Status</span>
+                                    <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @device.LastCorpIdentitySync">@device.Status</span>
                                 }
                                 else if (@device.Status == @Device.DeviceStatus.Deleting)
                                 {
@@ -97,7 +96,7 @@
                 <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
             </div>
             <div class="col">
-                <button type="button" class="btn btn-success" @onclick=@(() => GetDevicesSearch())>Search</button>
+                <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
             </div>
         </div>
         <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-5">
