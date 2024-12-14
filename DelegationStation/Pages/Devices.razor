@@ -22,6 +22,7 @@
                     <th>Model</th>
                     <th>Serial Number</th>
                     <th>Tag</th>
+                    <th>State</th>
                     <th></th>
                 </tr>
             </thead>
@@ -57,11 +58,28 @@
                                     <br />
                                 }
                             </td>
-                            <td class="align-middle">
-                                <button type="button" class="btn btn-danger btn-sm text-nowrap" @onclick=@(() => RemoveDevice(device))>
-                                    <span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section>
-                                </button>
+                            <td>
+                                @if (@device.Status == @Device.DeviceStatus.Synced)
+                                {
 
+                                    <span class="badge rounded-pill bg-success">@device.Status</span>
+                                }
+                                else if (@device.Status == @Device.DeviceStatus.Deleting)
+                                {
+                                    <span class="badge rounded-pill bg-dark">@device.Status</span>
+                                }
+                                else
+                                {
+                                    <span class="badge rounded-pill bg-info">@device.Status</span>
+                                }
+                            </td>
+                            <td class="align-middle">
+                                @if (device.Status != @Device.DeviceStatus.Deleting)
+                                {
+                                    <button type="button" class="btn btn-danger btn-sm text-nowrap" @onclick=@(() => RemoveDevice(device))>
+                                        <span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section>
+                                    </button>
+                                }
                             </td>
                         </tr>
                     }
@@ -134,13 +152,13 @@
                 </div>
             }
         }
+        <ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
     </Authorized>
     <NotAuthorized>
         <p>Not Authorized</p>
     </NotAuthorized>
 </AuthorizeView>
 
-<ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
 
 
 

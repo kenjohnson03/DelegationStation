@@ -395,9 +395,11 @@ namespace DelegationStation.Services
             return devices;
         }
 
-        public async Task DeleteDeviceAsync(Device device)
+        public async Task MarkDeviceToDeleteAsync(Device device)
         {
-            await this._container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+            device.Status = DelegationStationShared.Models.Device.DeviceStatus.Deleting;
+            await this._container.UpsertItemAsync<Device>(device);
         }
+
     }
 }
