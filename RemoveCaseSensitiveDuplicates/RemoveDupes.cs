@@ -91,24 +91,33 @@ namespace RemoveCaseSensitiveDuplicates
             // Retrieve counts for unique M/M/SN/Tag combinations
             //
             List<Duplicate> dupesToCleanup = new List<Duplicate>();
-            QueryDefinition query = new QueryDefinition("SELECT lower(c.Make) as Make, lower(c.Model) as Model, lower(c.SerialNumber) as SerialNumber, c.Tags[0] as Tag0, count(c._ts) as Count " +
-                                                        "FROM c WHERE c.Type='Device' " +
-                                                        "GROUP BY lower(c.Make), lower(c.Model), lower(c.SerialNumber), c.Tags[0]");
-            var queryIterator = _container.GetItemQueryIterator<Duplicate>(query);
-
-            while (queryIterator.HasMoreResults)
+            try
             {
-                var response = queryIterator.ReadNextAsync().Result;
+                QueryDefinition query = new QueryDefinition("SELECT lower(c.Make) as Make, lower(c.Model) as Model, lower(c.SerialNumber) as SerialNumber, c.Tags[0] as Tag0, count(c._ts) as Count " +
+                                                            "FROM c WHERE c.Type='Device' " +
+                                                            "GROUP BY lower(c.Make), lower(c.Model), lower(c.SerialNumber), c.Tags[0]");
+                var queryIterator = _container.GetItemQueryIterator<Duplicate>(query);
 
-                foreach (var duplicate in response)
+                while (queryIterator.HasMoreResults)
                 {
-                    if (duplicate.Count > 1)
+                    var response = queryIterator.ReadNextAsync().Result;
+
+                    foreach (var duplicate in response)
                     {
-                        _logger.DSLogInformation($"Found {duplicate.Count} duplicates when case ignored: '{duplicate.Make}' '{duplicate.Model}' '{duplicate.SerialNumber}' Tag ID: {duplicate.Tag0}", fullMethodName);
-                        dupesToCleanup.Add(duplicate);
+                        if (duplicate.Count > 1)
+                        {
+                            _logger.DSLogInformation($"Found {duplicate.Count} duplicates when case ignored: '{duplicate.Make}' '{duplicate.Model}' '{duplicate.SerialNumber}' Tag ID: {duplicate.Tag0}", fullMethodName);
+                            dupesToCleanup.Add(duplicate);
+                        }
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Exiting.  Failed to query CosmosDB for duplicates: ", ex, fullMethodName);
+                return count;
+            }
+
 
             //
             // For each of the unique combos, get all devices sorted oldest to newest
@@ -118,36 +127,43 @@ namespace RemoveCaseSensitiveDuplicates
             foreach (var dupe in dupesToCleanup)
             {
                 _logger.DSLogInformation($"Processing devices matching '{dupe.Make}' '{dupe.Model}' '{dupe.SerialNumber}' Tag: {dupe.Tag0}", fullMethodName);
-                QueryDefinition query2 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber AND " +
-                                                             "c.Tags[0]=@tag ORDER BY c.ModifiedUTC ASC");
-                query2.WithParameter("@make", dupe.Make);
-                query2.WithParameter("@model", dupe.Model);
-                query2.WithParameter("@serialNumber", dupe.SerialNumber);
-                query2.WithParameter("@tag", dupe.Tag0);
-
-                var queryIterator2 = _container.GetItemQueryIterator<Device>(query2);
-
-                bool savedOffFirstResult = false;
-                while (queryIterator2.HasMoreResults)
+                try
                 {
-                    var response = queryIterator2.ReadNextAsync().Result;
+                    QueryDefinition query2 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber AND " +
+                                                                 "c.Tags[0]=@tag ORDER BY c.ModifiedUTC ASC");
+                    query2.WithParameter("@make", dupe.Make);
+                    query2.WithParameter("@model", dupe.Model);
+                    query2.WithParameter("@serialNumber", dupe.SerialNumber);
+                    query2.WithParameter("@tag", dupe.Tag0);
 
-                    foreach(var device in response)
+                    var queryIterator2 = _container.GetItemQueryIterator<Device>(query2);
+
+                    bool savedOffFirstResult = false;
+                    while (queryIterator2.HasMoreResults)
                     {
-                        if(savedOffFirstResult)
+                        var response = queryIterator2.ReadNextAsync().Result;
+
+                        foreach (var device in response)
                         {
-                            devicesToDelete.Add(device);
-                           _logger.DSLogInformation($"   Marking duplicate for deletion: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
-                        }
-                        else
-                        {
-                           _logger.DSLogInformation($"   Keeping oldest entry: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
-                            savedOffFirstResult = true;
+                            if (savedOffFirstResult)
+                            {
+                                devicesToDelete.Add(device);
+                                _logger.DSLogInformation($"   Marking duplicate for deletion: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
+                            }
+                            else
+                            {
+                                _logger.DSLogInformation($"   Keeping oldest entry: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
+                                savedOffFirstResult = true;
+                            }
+
                         }
 
                     }
-
-
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException("Exiting. Failed to query CosmosDB for duplicate device details: ", ex, fullMethodName);
+                    return count;
                 }
             }
             _logger.DSLogInformation($"Found {devicesToDelete.Count} duplicate devices to delete.", fullMethodName);
@@ -169,44 +185,62 @@ namespace RemoveCaseSensitiveDuplicates
             }
             _logger.DSLogInformation($"Deleted {count} devices.", fullMethodName);
 
+
+
             // 
             // Check for M/M/SN with dupes across tags - we're just going to log these
             //
             _logger.DSLogInformation("Checking for duplicate across tags....");
-            QueryDefinition query3 = new QueryDefinition("SELECT lower(c.Make) as Make, lower(c.Model) as Model, lower(c.SerialNumber) as SerialNumber, count(c._ts) as Count " +
-                                                        "FROM c WHERE c.Type='Device' " +
-                                                        "GROUP BY lower(c.Make), lower(c.Model), lower(c.SerialNumber)");
-            var queryIterator3 = _container.GetItemQueryIterator<Duplicate>(query3);
-
             int devicesToReview = 0;
-            while (queryIterator3.HasMoreResults)
+
+            try
             {
-                var response = queryIterator3.ReadNextAsync().Result;
+                QueryDefinition query3 = new QueryDefinition("SELECT lower(c.Make) as Make, lower(c.Model) as Model, lower(c.SerialNumber) as SerialNumber, count(c._ts) as Count " +
+                                                            "FROM c WHERE c.Type='Device' " +
+                                                            "GROUP BY lower(c.Make), lower(c.Model), lower(c.SerialNumber)");
+                var queryIterator3 = _container.GetItemQueryIterator<Duplicate>(query3);
 
-                foreach (var duplicate in response)
+                while (queryIterator3.HasMoreResults)
                 {
-                    if (duplicate.Count > 1)
+                    var response = queryIterator3.ReadNextAsync().Result;
+
+                    foreach (var duplicate in response)
                     {
-                        _logger.DSLogWarning($"Found {duplicate.Count} duplicates across tags when case ignored: '{duplicate.Make}' '{duplicate.Model}' '{duplicate.SerialNumber}'", fullMethodName);
-
-                        QueryDefinition query4 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber ORDER BY c.ModifiedUTC ASC");
-                        query4.WithParameter("@make", duplicate.Make);
-                        query4.WithParameter("@model", duplicate.Model);
-                        query4.WithParameter("@serialNumber", duplicate.SerialNumber);
-
-                        var queryIterator4 = _container.GetItemQueryIterator<Device>(query4);
-                        while (queryIterator4.HasMoreResults)
+                        if (duplicate.Count > 1)
                         {
-                            var response4 = queryIterator4.ReadNextAsync().Result;
-                            foreach (var device in response4)
+                            _logger.DSLogWarning($"Found {duplicate.Count} duplicates across tags when case ignored: '{duplicate.Make}' '{duplicate.Model}' '{duplicate.SerialNumber}'", fullMethodName);
+
+                            try
                             {
-                                _logger.DSLogWarning($"     Individual device details: (CosmosID) {device.Id} '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
-                                devicesToReview++;
+                                QueryDefinition query4 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber ORDER BY c.ModifiedUTC ASC");
+                                query4.WithParameter("@make", duplicate.Make);
+                                query4.WithParameter("@model", duplicate.Model);
+                                query4.WithParameter("@serialNumber", duplicate.SerialNumber);
+
+                                var queryIterator4 = _container.GetItemQueryIterator<Device>(query4);
+                                while (queryIterator4.HasMoreResults)
+                                {
+                                    var response4 = queryIterator4.ReadNextAsync().Result;
+                                    foreach (var device in response4)
+                                    {
+                                        _logger.DSLogWarning($"     Individual device details: (CosmosID) {device.Id} '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
+                                        devicesToReview++;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.DSLogException("Failed to query CosmosDB for duplicate device details: ", ex, fullMethodName);
                             }
                         }
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query CosmosDB for duplicates across tags: ", ex, fullMethodName);
+            }
+
             _logger.DSLogWarning($"Found {devicesToReview} duplicate devices to review.", fullMethodName);
 
 
