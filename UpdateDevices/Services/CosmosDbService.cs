@@ -76,7 +76,8 @@ namespace UpdateDevices.Services
       Device device = new Device();
 
       // Search CosmosDB for device with exact match on Make, Model, SerialNumber
-      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Make = @manufacturer AND c.Model = @model AND c.SerialNumber = @serialNumber")
+      // This is a case insensitive search.
+      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND lower(c.Make) = lower(@manufacturer) AND lower(c.Model) = lower(@model) AND lower(c.SerialNumber) = lower(@serialNumber)")
           .WithParameter("@manufacturer", make.Trim())
           .WithParameter("@model", model.Trim())
           .WithParameter("@serialNumber", serialNumber.Trim());
