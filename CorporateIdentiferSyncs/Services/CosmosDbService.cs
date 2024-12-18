@@ -71,25 +71,21 @@ namespace CorporateIdentiferSync.Services
             string fullMethodName = className + "." + methodName;
 
 
-            // TBD:  Should we check more of the fields?  
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @status) AND (NOT IS_DEFINED(c.CorporateIdentityID) OR c.CorporateIdentityID = \"\")");
+            // Assumption:  CorporateIdentityID field represents all related corporate identity fields
+            // so if it's not set, none should be set
+            // Ignores devices marked for deletion in case they are mid-delete
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" " +
+                "AND (NOT IS_DEFINED(c.Status) OR NOT (c.Status = @status)) " +
+                "AND (NOT IS_DEFINED(c.CorporateIdentityID) OR c.CorporateIdentityID = \"\")");
             query.WithParameter("@status", Device.DeviceStatus.Deleting);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
 
             List<Device> devices = new List<Device>();
-            try
+            while (queryIterator.HasMoreResults)
             {
-                while (queryIterator.HasMoreResults)
-                {
-                    var response = await queryIterator.ReadNextAsync();
-                    devices.AddRange(response.ToList());
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
-
+                var response = await queryIterator.ReadNextAsync();
+                devices.AddRange(response.ToList());
             }
 
             return devices;
@@ -131,19 +127,11 @@ namespace CorporateIdentiferSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation("Setting CorporateIdentifier fields for device " + device.Id + ".", fullMethodName);
+            _logger.DSLogInformation("Updating device " + device.Id + ".", fullMethodName);
 
             ItemResponse<Device> response = null;
-            try
-            {
-                response = await _container.UpsertItemAsync(device);
-                _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogError("Failed to update device " + device.Id + ".\n" + ex.Message, fullMethodName);
-                return;
-            }
+            response = await _container.UpsertItemAsync(device);
+            _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
 
             return;
         }

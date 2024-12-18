@@ -1,6 +1,4 @@
 using CorporateIdentiferSync.Interfaces;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
@@ -24,63 +22,92 @@ namespace CorporateIdentiferSync
         }
 
         [Function("ConfirmSync")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Admin, "get", "post")] HttpRequest req)
+        public async Task Run([TimerTrigger("%ConfirmSyncTriggerTime%")] TimerInfo myTimer)
         {
-            //public void Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Admin, "get", "post")] HttpRequest req)
 
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger.DSLogInformation($"C# Timer trigger function executed at: {DateTime.Now}", fullMethodName);
-            int deviceCount = 0;
 
-            //if (myTimer.ScheduleStatus is not null)
-            //{
-            //    _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}", fullMethodName);
-            //}
+            if (myTimer.ScheduleStatus is not null)
+            {
+                _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}", fullMethodName);
+            }
+
+            int deviceCount = 0;
+            int intervalHours = 0;
+            bool result = int.TryParse(Environment.GetEnvironmentVariable("SyncIntervalHours", EnvironmentVariableTarget.Process), out intervalHours);
+            if (!result)
+            {
+                _logger.DSLogError("SyncIntervalHours is not set or not a valid integer. Exiting.", fullMethodName);
+                return;
+            }
+            _logger.DSLogInformation($"Checking devices last checked over {intervalHours} hours ago.", fullMethodName);
+
 
             // Get all devices with sync date older than X
-            // TBD:  make date configurable
-            //List<Device> devicesToCheck = await _dbService.GetDevicesSyncedBefore(DateTime.UtcNow.AddDays(-1));
-            List<Device> devicesToCheck = await _dbService.GetDevicesSyncedBefore(DateTime.UtcNow);
+            List<Device> devicesToCheck = await _dbService.GetDevicesSyncedBefore(DateTime.UtcNow.AddHours(-intervalHours));
             _logger.DSLogInformation($"Found {devicesToCheck.Count} devices to check.", fullMethodName);
 
             foreach (Device device in devicesToCheck)
             {
-                // Query to see if device is still in CorporateIdentifiers
-                var corpIDFound = false;
-                corpIDFound = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
+                _logger.DSLogInformation($"-----Confirming corporate identifier is synced for {device.Make} {device.Model} {device.SerialNumber} -----", fullMethodName);
 
-                // If not, add it back
-                if (!corpIDFound)
+                // Query to see if device is still in CorporateIdentifiers
+                var corpIDFoundOrUpdated = false;
+                if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                 {
-                    // Add back to CorporateIdentifiers
-                    string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
-                    ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+                    corpIDFoundOrUpdated = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
+                }
+
+                // If not found, add it back
+                if (!corpIDFoundOrUpdated)
+                {
                     _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
 
-                    // TBD:  what happens if adding it fails?
-                    device.CorporateIdentityID = deviceIdentity.Id;
-                    device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                    string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+                    try
+                    {
+                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+                        device.CorporateIdentityID = deviceIdentity.Id;
+                        device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                        corpIDFoundOrUpdated = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                    }
+
                 }
                 else
                 {
                     _logger.DSLogInformation("Corporate Identifier found, updating sync date", fullMethodName);
                 }
 
-                // Update the sync date and status
-                device.LastCorpIdentitySync = DateTime.UtcNow;
-                device.Status = Device.DeviceStatus.Synced;
-                _logger.DSLogInformation($"New sync date: {device.LastCorpIdentitySync}", fullMethodName);
+                if (corpIDFoundOrUpdated)
+                {
+                    // Update the sync date and status
+                    device.LastCorpIdentitySync = DateTime.UtcNow;
+                    device.Status = Device.DeviceStatus.Synced;
+                    _logger.DSLogInformation($"New sync date: {device.LastCorpIdentitySync}", fullMethodName);
 
+                    // Update device entry in DS
+                    try
+                    {
+                        await _dbService.UpdateDevice(device);
+                        deviceCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogError($"Error updating device {device.Id}: {ex.Message}", fullMethodName);
+                    }
+                }
 
-                // Update device entry in DS
-                await _dbService.UpdateDevice(device);
-                deviceCount++;
-            }
+            } 
 
-            return new OkObjectResult($"Successfully updated {deviceCount} devices.");
+            _logger.LogInformation($"Successfully updated {deviceCount} devices.", fullMethodName);
         }
     }
 }

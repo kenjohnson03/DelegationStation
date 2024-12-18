@@ -83,23 +83,9 @@ namespace CorporateIdentiferSync.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            try
-            {
-                await _graphClient.DeviceManagement.ManagedDevices[managedDeviceID].DeleteAsync();
-                _logger.DSLogInformation($"Managed Device Deleted: {managedDeviceID}", fullMethodName);
-                return true;
-            }
-            catch (Microsoft.Graph.Models.ODataErrors.ODataError err) // when (err.Error.Code.Equals("ResourceNotFound"))
-            {
-                _logger.DSLogInformation($"Unable to remove managed device found for: {managedDeviceID}", fullMethodName);
-                //return true;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogError($"Unable to delete device {managedDeviceID} from Intune: " + ex, fullMethodName);
-                return false;
-            }
+            await _graphClient.DeviceManagement.ManagedDevices[managedDeviceID].DeleteAsync();
+            _logger.DSLogInformation($"Managed Device Deleted: {managedDeviceID}", fullMethodName);
+            return true;
         }
 
 
@@ -125,7 +111,7 @@ namespace CorporateIdentiferSync.Services
                     result = devices.Value.FirstOrDefault();
                 }
             }
-            catch(Microsoft.Graph.Models.ODataErrors.ODataError err) when (err.Error.Code.Equals("ResourceNotFound"))
+            catch (Microsoft.Graph.Models.ODataErrors.ODataError err) when (err.Error.Code.Equals("ResourceNotFound"))
             {
                 _logger.DSLogInformation($"No managed device found for: {make} {model} {serialNum}", fullMethodName);
                 return null;

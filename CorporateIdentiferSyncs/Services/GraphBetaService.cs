@@ -99,18 +99,11 @@ namespace CorporateIdentiferSync.Services
 
 
             ImportedDeviceIdentity deviceIdentity;
-            try
-            {
-                // Note:  If entry already exists, it will just return object
-                var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
-                deviceIdentity = result.Value[0];
-                _logger.DSLogInformation($"Identifier Added: {deviceIdentity.ImportedDeviceIdentifier}", fullMethodName);
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogError($"Unable to add device identifier {identifier} to Graph: " + ex, fullMethodName);
-                return null;
-            }
+
+            // Note:  If entry already exists, it will just return object
+            var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
+            deviceIdentity = result.Value[0];
+            _logger.DSLogInformation($"Identifier Added: {deviceIdentity.ImportedDeviceIdentifier}", fullMethodName);
 
             return deviceIdentity;
 
@@ -136,17 +129,16 @@ namespace CorporateIdentiferSync.Services
                 _logger.DSLogInformation($"Identifier Found: {identiferID}", fullMethodName);
                 return true;
             }
-            //catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
             catch (ODataError odataError) when (odataError.ResponseStatusCode == 404)
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.DSLogInformation($"Device corporate identifier {identiferID} not found in Graph: " + odataError, fullMethodName);
+                _logger.DSLogInformation($"Device corporate identifier {identiferID} not found in Graph", fullMethodName);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.DSLogError($"Unable to delete device identifier {identiferID} from Graph: " + ex, fullMethodName);
+                _logger.DSLogError($"Unable to query device identifier {identiferID} from Graph: " + ex, fullMethodName);
                 return false;
             }
         }
