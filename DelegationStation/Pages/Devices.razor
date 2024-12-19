@@ -65,11 +65,11 @@
                                 }
                                 else if (@device.Status == @Device.DeviceStatus.Deleting)
                                 {
-                                    <span class="badge rounded-pill bg-dark">@device.Status</span>
+                                    <span class="badge rounded-pill bg-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Marked To Delete: @device.MarkedToDeleteUTC">@device.Status</span>
                                 }
                                 else
                                 {
-                                    <span class="badge rounded-pill bg-info">@device.Status</span>
+                                    <span class="badge rounded-pill bg-info" data-bas-toggle="tooltip" data-bs-placement="top" title="Device Added: @device.ModifiedUTC">@device.Status</span>
                                 }
                             </td>
                             <td class="align-middle">

@@ -29,7 +29,8 @@ namespace DelegationStationShared.Models
         public List<string> Tags { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string Type { get; private set; }
-
+        
+        // Note:  Because we don't allow modifications from GUI is really AddedUTC
         public DateTime ModifiedUTC { get; set; }
 
         public string? AddedBy { get; set; }
@@ -47,6 +48,8 @@ namespace DelegationStationShared.Models
             Deleting
         }
         public DeviceStatus Status { get; set; }
+        public DateTime? MarkedToDeleteUTC { get; set; }
+
 
         //NOTE:  The following settings are currently unused
         [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]
@@ -67,6 +70,7 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
+            MarkedToDeleteUTC = null;
 
             CorporateIdentity = string.Empty;
             CorporateIdentityType = "manufacturerModelSerial";
@@ -89,6 +93,7 @@ namespace DelegationStationShared.Models
             UpdateActions = new List<DeviceUpdateAction>();
             Type = typeof(Device).Name;
             ModifiedUTC = DateTime.UtcNow;
+            MarkedToDeleteUTC = null;
 
             CorporateIdentity = string.Empty;
             CorporateIdentityType = "manufacturerModelSerial";

@@ -398,6 +398,7 @@ namespace DelegationStation.Services
         public async Task MarkDeviceToDeleteAsync(Device device)
         {
             device.Status = DelegationStationShared.Models.Device.DeviceStatus.Deleting;
+            device.MarkedToDeleteUTC = DateTime.UtcNow;
             await this._container.UpsertItemAsync<Device>(device);
         }
 
