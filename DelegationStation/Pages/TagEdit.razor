@@ -190,7 +190,7 @@
                                             <td>
                                             @if(ActionAllowed(a))
                                             {
-                                              <button type="button" class="btn btn-danger @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))"><span class="oi oi-trash"></span> Delete</button>
+                                              <button type="button" class="btn btn-danger" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button>
                                             }
                                             </td>
                                         </tr>
