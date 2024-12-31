@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Graph.Models;
 
+
 namespace DelegationStation.Pages
 {
     public partial class TagEdit
@@ -83,6 +84,7 @@ namespace DelegationStation.Pages
                 await UpdateRoleDelegationGroups();
                 await GetRolesAsync();
             }
+            await SetInitialUpdateAction();
             deviceCount = await GetDeviceCount();
         }
 
@@ -936,6 +938,22 @@ namespace DelegationStation.Pages
         private void ConfirmDeleteTag()
         {
             ConfirmDelete?.Show();
+        }
+
+        private async Task SetInitialUpdateAction()
+        {
+            if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAttributes")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
+            }
+            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAdministrativeUnits")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.AdministrativeUnit;
+            }
+            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionSecurityGroups")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.Group;
+            }
         }
     }
 }

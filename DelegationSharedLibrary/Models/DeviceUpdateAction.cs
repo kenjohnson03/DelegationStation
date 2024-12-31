@@ -44,7 +44,7 @@ namespace DelegationStationShared.Models
     public enum DeviceUpdateActionType
     {
         Attribute,
-        Group,
-        AdministrativeUnit
+        AdministrativeUnit,
+        Group
     }
 }
