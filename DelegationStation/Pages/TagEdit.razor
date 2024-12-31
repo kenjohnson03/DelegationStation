@@ -203,9 +203,9 @@
 
                                 @foreach (DeviceUpdateActionType t in Enum.GetValues(typeof(DeviceUpdateActionType)))
                                 {
-                                    if (t == DeviceUpdateActionType.Group)
+                                    if (t == DeviceUpdateActionType.Attribute)
                                     {
-                                        <AuthorizeView Context="TagGroupUpdateOption" Policy="TagUpdateActionSecurityGroups" Resource="_tag">
+                                        <AuthorizeView Context="TagAttributeUpdateOption" Policy="TagUpdateActionAttributes" Resource="_tag">
                                             <Authorized>
                                                 <option value="@t">@t</option>
                                             </Authorized>
@@ -221,14 +221,15 @@
                                         </AuthorizeView>
                                     }
 
-                                    if (t == DeviceUpdateActionType.Attribute)
+                                    if (t == DeviceUpdateActionType.Group)
                                     {
-                                        <AuthorizeView Context="TagAttributeUpdateOption" Policy="TagUpdateActionAttributes" Resource="_tag">
+                                        <AuthorizeView Context="TagGroupUpdateOption" Policy="TagUpdateActionSecurityGroups" Resource="_tag">
                                             <Authorized>
                                                 <option value="@t">@t</option>
                                             </Authorized>
                                         </AuthorizeView>
                                     }
+
                                 }
                             </select>
                             <ValidationMessage For=@(() => deviceUpdateAction.ActionType) />
