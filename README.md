@@ -150,6 +150,10 @@ Add the following permissions:
 - DeviceManagementManagedDevices.ReadAll (Allows for reading and updating devices)
 - AdministrativeUnit.ReadWrite.All (Allows for updating AUs)
 
+Reduced permissions for monitoring without changes (will log changes, but not have permissions to apply them):
+- Device.Read.All
+- DeviceManagementManagedDevices.Read.All
+
 #### Certificates & Secrets
 
 ##### Certificate-based Authentication
@@ -180,6 +184,8 @@ In order to limit the function app to only be able to update only relevant Secur
 Any groups added to the application under Tags will have to have the service principals permissions added in order to work as expected.
 
 Alternatively, you could add GroupMember.ReadWrite.All to the Graph Permissions granted to the App Registrations, but it is not recommended due to the broad access.
+
+Do not make these changes if using reduced permissions to monitor changes but not apply them.
 
 
 ## Web Application Configuration
