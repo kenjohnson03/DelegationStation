@@ -9,7 +9,7 @@ on:
 
 env:
   CONFIGURATION: Release
-  DOTNET_CORE_VERSION: 6.0.x
+  DOTNET_CORE_VERSION: 8.0.x
   SRC_DIR: .
 
   AZURE_APP_PACKAGE_PATH: .\DelegationStation\published
