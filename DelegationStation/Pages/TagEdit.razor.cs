@@ -946,13 +946,13 @@ namespace DelegationStation.Pages
             {
                 deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
             }
-            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAdministrativeUnits")).Succeeded)
-            {
-                deviceUpdateAction.ActionType = DeviceUpdateActionType.AdministrativeUnit;
-            }
             else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionSecurityGroups")).Succeeded)
             {
                 deviceUpdateAction.ActionType = DeviceUpdateActionType.Group;
+            }
+            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAdministrativeUnits")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.AdministrativeUnit;
             }
         }
     }
