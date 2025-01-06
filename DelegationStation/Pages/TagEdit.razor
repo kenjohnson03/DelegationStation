@@ -217,18 +217,18 @@
                                         </AuthorizeView>
                                     }
 
-                                    if (t == DeviceUpdateActionType.AdministrativeUnit)
+                                    if (t == DeviceUpdateActionType.Group)
                                     {
-                                        <AuthorizeView Context="TagAdministrativeUnitUpdateOption" Policy="TagUpdateActionAdministrativeUnits" Resource="_tag">
+                                        <AuthorizeView Context="TagGroupUpdateOption" Policy="TagUpdateActionSecurityGroups" Resource="_tag">
                                             <Authorized>
                                                 <option value="@t">@t</option>
                                             </Authorized>
                                         </AuthorizeView>
                                     }
 
-                                    if (t == DeviceUpdateActionType.Group)
+                                    if (t == DeviceUpdateActionType.AdministrativeUnit)
                                     {
-                                        <AuthorizeView Context="TagGroupUpdateOption" Policy="TagUpdateActionSecurityGroups" Resource="_tag">
+                                        <AuthorizeView Context="TagAdministrativeUnitUpdateOption" Policy="TagUpdateActionAdministrativeUnits" Resource="_tag">
                                             <Authorized>
                                                 <option value="@t">@t</option>
                                             </Authorized>
