@@ -36,124 +36,124 @@
                         <InputText @bind-Value=tag.Name class="form-control"></InputText>
                         <label>Description:</label>
                         <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
-                              <label class="my-1">Allowed User Principal Name RegEx:</label>
-<InputText @bind-Value=tag.AllowedUserPrincipalName @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
-<div class="border rounded my-3 p-3">
-    <h4>Validate RegEx</h4>
-    <label>Enter Test User Principal Name:</label>
-    <InputText @bind-Value=testEnrollmentUser @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
-    <button type="button" @onclick=@ValidateTestEnrollmentUser class="btn btn-primary my-2">Test</button>
-    @if (displayTestResult)
-    {
-        @if (testEnrollmentUserResult == null)
-        {
-            <p class="text-success">Invalid Regular Expression</p>
-        }
-        else if (testEnrollmentUserResult == true)
-        {
-            <p class="text-success">User is allowed to enroll</p>
-        }
-        else
-        {
-            <p class="text-danger">User is not allowed to enroll</p>
-        }
-    }
-</div>
+                        <label class="my-1">Allowed User Principal Name RegEx:</label>
+                        <InputText @bind-Value=tag.AllowedUserPrincipalName @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
+                        <div class="border rounded my-3 p-3">
+                            <h4>Validate RegEx</h4>
+                            <label>Enter Test User Principal Name:</label>
+                            <InputText @bind-Value=testEnrollmentUser @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
+                            <button type="button" @onclick=@ValidateTestEnrollmentUser class="btn btn-primary my-2">Test</button>
+                            @if (displayTestResult)
+                            {
+                                @if (testEnrollmentUserResult == null)
+                                {
+                                    <p class="text-success">Invalid Regular Expression</p>
+                                }
+                                else if (testEnrollmentUserResult == true)
+                                {
+                                    <p class="text-success">User is allowed to enroll</p>
+                                }
+                                else
+                                {
+                                    <p class="text-danger">User is not allowed to enroll</p>
+                                }
+                            }
+                        </div>
                         <br />
                         <hr />
 
                         <div class="container">
-                    <h2>Assigned Groups</h2>
-                    <table class="table table-responsive">
-                        <thead>
-                            <tr>
-                                <th>Role</th>
-                                <th>Security Group Name</th>
-                                <th>Security Group Id</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (RoleDelegation r in tag.RoleDelegations)
-                            {
-                                <tr>
-                                    <td>@r.Role.Name</td>
-                                    <td>@r.SecurityGroupName</td>
-                                    <td>@r.SecurityGroupId</td>
-                                    <td><button type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                    <DisplayMessage Message="@addRoleMessage" />
-                    <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
-                        Role:
-                        <select value="@roleDelegation.Role.Id" @onchange=@((e) => UpdateRole(e)) class="form-select">
-                            <option></option>
-                            @foreach (Role r in roles)
-                            {
-                                <option value="@r.Id">@r.Name</option>
-                            }
-                        </select>
-
-                        @if (!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
-                        {
-                            <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
-                            <p class="mt-2 mb-2">@roleDelegation.SecurityGroupId</p>
-                        }
-                        else if (string.IsNullOrEmpty(roleDelegation.Role.Name))
-                        {
-                            <p class="mt-2 mb-2">Select a role</p>
-                        }
-                        else
-                        {
-                            <p class="mt-2 mb-2">Select a security group</p>
-                        }
-
-                        <DisplayMessage Message=@roleSecurityGroupSearchMessage />
-                        <InputText class="form-control" @bind-Value=roleSecurityGroupSearchString placeholder="Search for a group"></InputText>
-                        <button type="button" class="btn btn-secondary mt-2 @(roleSecurityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => RoleSearchSecurityGroups()) @onkeyup=@RoleSearchSecurityGroupsKeyUp>Search</button>
-                        @if (roleSecurityGroupSearchResults.Count > 0)
-                        {
+                            <h2>Assigned Groups</h2>
                             <table class="table table-responsive">
                                 <thead>
                                     <tr>
-                                        <th>Display Name</th>
-                                        <th>Description</th>
-                                        <th>Object Id</th>
+                                        <th>Role</th>
+                                        <th>Security Group Name</th>
+                                        <th>Security Group Id</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (Group g in roleSecurityGroupSearchResults)
+                                    @foreach (RoleDelegation r in tag.RoleDelegations)
                                     {
-                                        <tr class="">
-
-                                            <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.DisplayName</td>
-                                            <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Description</td>
-                                            <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Id</td>
-                                            <td><button type="button" class="btn btn-primary" @onclick=@(() => RoleSelectSecurityGroup(g))>Select</button></td>
+                                        <tr>
+                                            <td>@r.Role.Name</td>
+                                            <td>@r.SecurityGroupName</td>
+                                            <td>@r.SecurityGroupId</td>
+                                            <td><button type="button" class="btn btn-danger @(authorizationService.AuthorizeAsync(authContext.User, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded ? "" : "disabled")" @onclick=@(() => tag.RoleDelegations.Remove(r))><span class="oi oi-trash"></span> Delete</button></td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
-                        }
-                        else if (roleSecurityGroupSearchInProgress)
-                        {
-                            <p class="mt-2 mb-2">Searching...</p>
-                        }
-                        else if (roleSecurityGroupSearchResults.Count == 0 && roleSecurityGroupSearchExecuted)
-                        {
-                            <p class="mt-2 mb-2">No results found</p>
-                        }
-                        <br />
-                        <input type="submit" class="btn btn-primary mt-2 mb-2 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) || string.IsNullOrEmpty(roleDelegation.Role.Name) ? "disabled" : "")" value="Add Role" />
-                    </EditForm>
-                
+                        </div>
+
+                        <DisplayMessage Message="@addRoleMessage" />
+                        <EditForm Model="@roleDelegation" OnValidSubmit="AddRoleDelegation" class="form-control mb-3">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+                            Role:
+                            <select value="@roleDelegation.Role.Id" @onchange=@((e) => UpdateRole(e)) class="form-select">
+                                <option></option>
+                                @foreach (Role r in roles)
+                                {
+                                    <option value="@r.Id">@r.Name</option>
+                                }
+                            </select>
+
+                            @if (!string.IsNullOrEmpty(roleDelegation.SecurityGroupName))
+                            {
+                                <p class="mt-2 mb-2">@roleDelegation.SecurityGroupName</p>
+                                <p class="mt-2 mb-2">@roleDelegation.SecurityGroupId</p>
+                            }
+                            else if (string.IsNullOrEmpty(roleDelegation.Role.Name))
+                            {
+                                <p class="mt-2 mb-2">Select a role</p>
+                            }
+                            else
+                            {
+                                <p class="mt-2 mb-2">Select a security group</p>
+                            }
+
+                            <DisplayMessage Message=@roleSecurityGroupSearchMessage />
+                            <InputText class="form-control" @bind-Value=roleSecurityGroupSearchString placeholder="Search for a group"></InputText>
+                            <button type="button" class="btn btn-secondary mt-2 @(roleSecurityGroupSearchInProgress ? "disabled" : "")" @onclick=@(() => RoleSearchSecurityGroups()) @onkeyup=@RoleSearchSecurityGroupsKeyUp>Search</button>
+                            @if (roleSecurityGroupSearchResults.Count > 0)
+                            {
+                                <table class="table table-responsive">
+                                    <thead>
+                                        <tr>
+                                            <th>Display Name</th>
+                                            <th>Description</th>
+                                            <th>Object Id</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (Group g in roleSecurityGroupSearchResults)
+                                        {
+                                            <tr class="">
+
+                                                <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.DisplayName</td>
+                                                <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Description</td>
+                                                <td class="clickable" @onclick=@(() => RoleSelectSecurityGroup(g))>@g.Id</td>
+                                                <td><button type="button" class="btn btn-primary" @onclick=@(() => RoleSelectSecurityGroup(g))>Select</button></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                            else if (roleSecurityGroupSearchInProgress)
+                            {
+                                <p class="mt-2 mb-2">Searching...</p>
+                            }
+                            else if (roleSecurityGroupSearchResults.Count == 0 && roleSecurityGroupSearchExecuted)
+                            {
+                                <p class="mt-2 mb-2">No results found</p>
+                            }
+                            <br />
+                            <input type="submit" class="btn btn-primary mt-2 mb-2 @(string.IsNullOrEmpty(roleDelegation.SecurityGroupName) || string.IsNullOrEmpty(roleDelegation.Role.Name) ? "disabled" : "")" value="Add Role" />
+                        </EditForm>
+
                     </Authorized>
                     <NotAuthorized>
                         <label>Name:</label>
@@ -164,9 +164,9 @@
                         <hr />
                     </NotAuthorized>
                 </AuthorizeView>
-                
 
-                
+
+
                 <AuthorizeView Context="TagLimitedUpdateContext" Policy="TagUpdateActions" Resource="_tag">
                     <Authorized>
                         <div class="container">
@@ -188,10 +188,10 @@
                                             <td>@a.Name</td>
                                             <td>@a.Value</td>
                                             <td>
-                                            @if(ActionAllowed(a))
-                                            {
-                                              <button type="button" class="btn btn-danger" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button>
-                                            }
+                                                @if(ActionAllowed(a))
+                                                {
+                                                    <button type="button" class="btn btn-danger" @onclick=@(ActionAllowed(a) ? (() => tag.UpdateActions.Remove(a)) : (() => {}))><span class="oi oi-trash"></span> Delete</button>
+                                                }
                                             </td>
                                         </tr>
                                     }
@@ -263,7 +263,7 @@
                                     }
                                 </InputSelect>
                                 <label class="form-label">Attribute value:</label>
-                                <InputText @bind-Value=deviceUpdateAction.Value class="form-control"></InputText>
+                                <input type="text" @bind-value=deviceUpdateAction.Value class="form-control" @bind-value:event="oninput" />
                             }
                             else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
                             {
@@ -367,7 +367,8 @@
                             }
                             <br />
 
-                            <input type="submit" class="btn btn-primary mt-2 mb-3 @((string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Group) || (string.IsNullOrEmpty(deviceUpdateAction.Value) && deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute) || (string.IsNullOrEmpty(deviceUpdateAction.Name) && deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit) ? "disabled" : "")" value="Add Action" />
+                            <input type="submit" class="btn btn-primary mt-2 mb-3 @(@validateActionInputs() ? "" : "disabled")" value="Add Action" />
+
                         </EditForm>
                 
 

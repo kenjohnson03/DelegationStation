@@ -63,6 +63,7 @@ namespace DelegationStation.Pages
 
         private int deviceCount = 0;
 
+
         protected override async Task OnInitializedAsync()
         {
             deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
@@ -955,5 +956,24 @@ namespace DelegationStation.Pages
                 deviceUpdateAction.ActionType = DeviceUpdateActionType.AdministrativeUnit;
             }
         }
+
+        private bool validateActionInputs()
+        {
+            if(deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Value) || string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+            else if(deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+
+            return false;
+        }
+
     }
 }
