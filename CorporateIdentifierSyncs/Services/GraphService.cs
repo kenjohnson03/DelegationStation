@@ -1,5 +1,5 @@
 ﻿using Azure.Identity;
-using CorporateIdentiferSync.Interfaces;
+using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Extensions;
 using Microsoft.Extensions.Configuration;
@@ -9,7 +9,7 @@ using Microsoft.Graph.Models;
 using System.Security.Cryptography.X509Certificates;
 
 
-namespace CorporateIdentiferSync.Services
+namespace CorporateIdentifierSync.Services
 {
     public class GraphService : IGraphService
     {

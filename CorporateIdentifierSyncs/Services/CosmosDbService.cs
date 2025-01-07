@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
-using CorporateIdentiferSync.Interfaces;
+using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 
-namespace CorporateIdentiferSync.Services
+namespace CorporateIdentifierSync.Services
 {
     internal class CosmosDbService : ICosmosDbService
     {

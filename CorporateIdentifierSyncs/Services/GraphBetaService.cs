@@ -1,4 +1,4 @@
-﻿using CorporateIdentiferSync.Interfaces;
+﻿using CorporateIdentifierSync.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;
@@ -11,7 +11,7 @@ using Microsoft.Graph.Beta.Models;
 using Microsoft.Graph.Beta.Models.ODataErrors;
 
 
-namespace CorporateIdentiferSync.Services
+namespace CorporateIdentifierSync.Services
 {
     public class GraphBetaService : IGraphBetaService
     {

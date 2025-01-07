@@ -1,4 +1,4 @@
-using CorporateIdentiferSync.Interfaces;
+using CorporateIdentifierSync.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
@@ -6,7 +6,7 @@ using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 
-namespace CorporateIdentiferSync
+namespace CorporateIdentifierSync
 {
     public class ConfirmSync
     {

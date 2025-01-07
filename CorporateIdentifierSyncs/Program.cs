@@ -1,12 +1,12 @@
-using CorporateIdentiferSync.Interfaces;
-using CorporateIdentiferSync.Services;
+using CorporateIdentifierSync.Interfaces;
+using CorporateIdentifierSync.Services;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 
-namespace CorporateIdentiferSync
+namespace CorporateIdentifierSync
 {
     internal class Program
     {

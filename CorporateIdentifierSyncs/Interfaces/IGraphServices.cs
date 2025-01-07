@@ -1,6 +1,6 @@
 ﻿using Microsoft.Graph.Models;
 
-namespace CorporateIdentiferSync.Interfaces
+namespace CorporateIdentifierSync.Interfaces
 {
     public interface IGraphService
     {
