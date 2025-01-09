@@ -48,17 +48,17 @@
                     @foreach (Device device in devices)
                     {
                         <tr>
-                            <td>@device.Make</td>
-                            <td>@device.Model</td>
-                            <td>@device.SerialNumber</td>
-                            <td>
+                            <td class="align-middle">@device.Make</td>
+                            <td class="align-middle">@device.Model</td>
+                            <td class="align-middle">@device.SerialNumber</td>
+                                <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
                                     <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
                                     <br />
                                 }
                             </td>
-                            <td>
+                            <td class="align-middle">
                                 @if (@device.Status == @Device.DeviceStatus.Synced)
                                 {
                                     <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @device.LastCorpIdentitySync">@device.Status</span>
@@ -72,7 +72,7 @@
                                     <span class="badge rounded-pill bg-info" data-bas-toggle="tooltip" data-bs-placement="top" title="Device Added: @device.ModifiedUTC">@device.Status</span>
                                 }
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle" align="center">
                                 @if (device.Status != @Device.DeviceStatus.Deleting)
                                 {
                                     <button type="button" class="btn btn-danger btn-sm text-nowrap" @onclick=@(() => RemoveDevice(device))>
