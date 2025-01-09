@@ -161,7 +161,7 @@ namespace CorporateIdentifierSync.Services
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.DSLogInformation($"Device corporate identifier {ID} not found in Graph: " + odataError, fullMethodName);
+                _logger.DSLogInformation($"Device corporate identifier {ID} not found in Graph.", fullMethodName);
                 return true;
             }
             catch (Exception ex)
