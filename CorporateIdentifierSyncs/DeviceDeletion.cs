@@ -86,8 +86,10 @@ namespace CorporateIdentifierSync
                     if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                     {
                         delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                        delCorpID = true;
-                        _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                        if (delCorpID)
+                        {
+                            _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                        }
                     }
                     else
                     {

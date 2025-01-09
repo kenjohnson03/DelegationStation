@@ -109,15 +109,15 @@ namespace CorporateIdentifierSync.Services
 
         }
 
-        public async Task<bool> CorporateIdentifierExists(string identiferID)
+        public async Task<bool> CorporateIdentifierExists(string identifierId)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"Checking for identifier: {identiferID}", fullMethodName);
+            _logger.DSLogInformation($"Checking for identifier: {identifierId}", fullMethodName);
 
-            if (string.IsNullOrEmpty(identiferID))
+            if (string.IsNullOrEmpty(identifierId))
             {
                 return false;
             }
@@ -125,20 +125,20 @@ namespace CorporateIdentifierSync.Services
             ImportedDeviceIdentity deviceIdentity = null;
             try
             {
-                deviceIdentity = await _graphClient.DeviceManagement.ImportedDeviceIdentities[identiferID].GetAsync();
-                _logger.DSLogInformation($"Identifier Found: {identiferID}", fullMethodName);
+                deviceIdentity = await _graphClient.DeviceManagement.ImportedDeviceIdentities[identifierId].GetAsync();
+                _logger.DSLogInformation($"Identifier Found: {identifierId}", fullMethodName);
                 return true;
             }
             catch (ODataError odataError) when (odataError.ResponseStatusCode == 404)
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.DSLogInformation($"Device corporate identifier {identiferID} not found in Graph", fullMethodName);
+                _logger.DSLogInformation($"Device corporate identifier {identifierId} not found in Graph", fullMethodName);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.DSLogError($"Unable to query device identifier {identiferID} from Graph: " + ex, fullMethodName);
+                _logger.DSLogError($"Unable to query device identifier {identifierId} from Graph: " + ex, fullMethodName);
                 return false;
             }
         }
