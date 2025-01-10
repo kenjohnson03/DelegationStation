@@ -58,7 +58,11 @@ jobs:
 
     - name: List files
       shell: bash
-      run: find ${{ env.SRC_DIR }}/DelegationStationTests
+      run: |
+        # find ${{ env.SRC_DIR }}/DelegationStationTests
+        pwd
+        cd ${{ env.SRC_DIR }}
+        pwd
         
 
     - name: Run Tests
