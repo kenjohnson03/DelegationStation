@@ -61,12 +61,11 @@ jobs:
       run: |
         # find ${{ env.SRC_DIR }}/DelegationStationTests
         pwd
-        cd ${{ env.SRC_DIR }}
-        pwd
+        ls -l ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/*.dll
         
 
     - name: Run Tests
-      run: vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll
+      run: vstest.console.exe The test source file "D:\a\DelegationStation\DelegationStation\./DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll" provided was not found.DelegationStationTests.dll
 
     - name: Publish
       run: |
