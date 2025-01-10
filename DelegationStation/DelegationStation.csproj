@@ -22,4 +22,8 @@
     <ProjectReference Include="..\DelegationSharedLibrary\DelegationSharedLibrary.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Interfaces\" />
+  </ItemGroup>
+
 </Project>

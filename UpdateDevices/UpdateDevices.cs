@@ -11,9 +11,9 @@ using UpdateDevices.Models;
 using Microsoft.Graph.Models;
 using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
-using DelegationStationShared;
-using DelegationStationShared.Extensions;
+using DelegationSharedLibrary;
 using Microsoft.Azure.Functions.Worker;
+using UpdateDevices.Extensions;
 using UpdateDevices.Interfaces;
 
 

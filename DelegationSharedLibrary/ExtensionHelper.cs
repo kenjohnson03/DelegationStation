@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace DelegationStationShared
+namespace DelegationSharedLibrary
 {
     public static class ExtensionHelper
     {

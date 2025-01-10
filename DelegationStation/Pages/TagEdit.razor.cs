@@ -101,7 +101,7 @@ namespace DelegationStation.Pages
 
         private async Task GetRolesAsync()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             try
@@ -135,7 +135,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTag()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             try
@@ -180,7 +180,7 @@ namespace DelegationStation.Pages
 
         private bool ActionAllowed(DeviceUpdateAction action)
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
@@ -261,7 +261,7 @@ namespace DelegationStation.Pages
 
         private async Task GetRoleDelegationName(EventArgs? e)
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (string.IsNullOrEmpty(roleDelegation.SecurityGroupId))
@@ -290,7 +290,7 @@ namespace DelegationStation.Pages
 
         private async Task GetActionSecurityGroupName(EventArgs? e)
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (string.IsNullOrEmpty(deviceUpdateAction.Value))
@@ -325,7 +325,7 @@ namespace DelegationStation.Pages
 
         private void AddRoleDelegation()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             addRoleMessage = "";
@@ -755,7 +755,7 @@ namespace DelegationStation.Pages
 
         private async void SearchSecurityGroups()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (securityGroupSearchInProgress)
@@ -809,7 +809,7 @@ namespace DelegationStation.Pages
 
         private async void SearchAdministrativeUnits()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (administrativeUnitSearchInProgress)
@@ -856,7 +856,7 @@ namespace DelegationStation.Pages
 
         private async void RoleSearchSecurityGroups()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
 
             if (roleSecurityGroupSearchInProgress)

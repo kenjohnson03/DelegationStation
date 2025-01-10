@@ -1,4 +1,3 @@
-using DelegationStation.Services;
 using DelegationStation.Shared;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -66,7 +65,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTags()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
             try
             {
@@ -81,7 +80,7 @@ namespace DelegationStation.Pages
 
         private async Task GetDevices()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
             try
             {
@@ -100,7 +99,7 @@ namespace DelegationStation.Pages
 
         private async Task GetDevicesSearch()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
             try
             {
@@ -115,7 +114,7 @@ namespace DelegationStation.Pages
 
         private async Task AddDevice()
         {
-            Guid c = Guid.NewGuid();
+            Guid c = new Guid();
             userMessage = string.Empty;
             try
             {
@@ -180,7 +179,8 @@ namespace DelegationStation.Pages
 
             try
             {
-                await deviceDBService.MarkDeviceToDeleteAsync(deleteDevice);
+                await deviceDBService.DeleteDeviceAsync(deleteDevice);
+                devices.Remove(deleteDevice);
                 string message = $"Correlation Id: {c.ToString()}\nDevice {deleteDevice.Make} {deleteDevice.Model} {deleteDevice.SerialNumber} deleted successfully";
                 userMessage = "";
                 logger.LogInformation($"{message}\nUser: {userName} {userId}");
@@ -198,7 +198,7 @@ namespace DelegationStation.Pages
 
         private void Show()
         {
-            confirmMessage = (MarkupString)$"<b>This will mark the device to be unenrolled and deleted from Corporate Identifiers and Delegation Station: </b></br></br><b>Make:</b> {deleteDevice.Make}<br /><b>Model:</b> {deleteDevice.Model}<br /><b>Serial Number:</b> {deleteDevice.SerialNumber}</br></br><b>Confirm you want to <u>unenroll</u> and <u>delete</u> this device:</b><br />";
+            confirmMessage = (MarkupString)$"<b>Confirm you want to <u>delete</u> this device:</b><br /> <b>Make:</b> {deleteDevice.Make}<br /><b>Model:</b> {deleteDevice.Model}<br /><b>Serial Number:</b> {deleteDevice.SerialNumber}";
             ConfirmDelete?.Show();
         }
     }
