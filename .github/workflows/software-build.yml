@@ -56,8 +56,12 @@ jobs:
       run: 
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"
 
+    - name: List files
+      run: find ${{ env.SRC_DIR }}/DelegationStationTests
+        
+
     - name: Run Tests
-      run: vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Any CPU/Release/net8.0/DelegationStationTests.dll
+      run: vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll
 
     - name: Publish
       run: |
