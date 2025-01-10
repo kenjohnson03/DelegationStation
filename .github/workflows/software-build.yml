@@ -7,6 +7,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  statuses: write
+  checks: write
 env:
   CONFIGURATION: Release
   DOTNET_CORE_VERSION: 8.0.x
@@ -31,22 +34,41 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet      
+      uses: NuGet/setup-nuget@v1.0.5
+        
+    - name: Setup VSTest
+      uses: darenm/Setup-VSTest@v1      
         
     - name: Restore dependencies
-      run: dotnet restore
-      
-    - name: Build
+      run: dotnet restore  
+
+    - name: Build #Test Project
       run: |
-        dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/CorporateIdentifierSync --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/RemoveCaseSensitiveDuplicates --configuration ${{ env.CONFIGURATION}} --no-restore
-        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURATION}} --no-restore
+        msbuild.exe ${{ env.SRC_DIR }}/DelegationStation.sln /p:platform="Any CPU" /p:configuration="Release"       
+
+    - name: Run Tests
+      continue-on-error: true
+      run: |
+        vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll /logger:trx
+       
+    - name: Visualize Results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Unit Tests
+        path: ${{ env.SRC_DIR }}/TestResults/*
+        reporter: dotnet-trx
+        fail-on-error: 'false'
 
     - name: Publish
       run: |
