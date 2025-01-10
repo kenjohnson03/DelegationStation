@@ -67,7 +67,7 @@ jobs:
         find ${{ env.SRC_DIR }}/DelegationStationTests -type f | xargs grep -i result
          
     - name: Upload test results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: test-results
         path: ${{  env.SRC_DIR }}/DelegationStationTests/test-results/    
