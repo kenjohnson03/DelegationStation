@@ -45,23 +45,15 @@ jobs:
       uses: darenm/Setup-VSTest@v1      
         
     - name: Restore dependencies
-      run: dotnet restore
-      
-    # - name: Build
-    #   run: |
-    #     dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
-    #     dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
-    #     dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore      
+      run: dotnet restore  
 
     - name: Build #Test Project
       run: |
-        # msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"       
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStation.sln /p:platform="Any CPU" /p:configuration="Release"       
 
     - name: Run Tests
       continue-on-error: true
       run: |
-        # vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll /logger:trx
         vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll /logger:trx
        
     - name: Visualize Results
