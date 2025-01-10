@@ -26,10 +26,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
+
+    - name: Setup MSBuild
+      uses: microsoft/set-msbuild@v1
+
+    - name: Setup NuGet      
+      uses: NuGet/setup-nuget@v1.0.5
+        
+    - name: Setup VSTest
+      uses: darenm/Setup-VSTest@v1
+      
         
     - name: Restore dependencies
       run: dotnet restore
@@ -39,7 +50,14 @@ jobs:
         dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
         dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
         dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURATION}} --no-restore
+        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURATION}} --no-restore
+
+    - name: Build Test Project
+      run: 
+        msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"
+
+    - name: Run Tests
+      run: vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll
 
     - name: Publish
       run: |
