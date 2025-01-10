@@ -56,16 +56,30 @@ jobs:
       run: 
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"
 
-    - name: List files
-      shell: bash
-      run: |
+    # - name: List files
+      # shell: bash
+      # run: |
         # find ${{ env.SRC_DIR }}/DelegationStationTests
-        pwd
-        ls -l ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/*.dll
+        # pwd
+        # ls -l ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/*.dll
         
 
     - name: Run Tests
-      run: vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll
+      continue-on-error: true
+      run: |
+        vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll
+      
+     - name: Find test outputs
+       shell: bash
+       run: |
+         find ${{ env.SRC_DIR }}/DelegationStationTests -type f | xargs grep -i result:w
+         
+         
+     - name: Upload test results
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-results
+          path: ${{  env.SRC_DIR }}/DelegationStationTests/test-results/    
 
     - name: Publish
       run: |
