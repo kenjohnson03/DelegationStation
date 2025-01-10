@@ -47,15 +47,16 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
       
-    - name: Build
-      run: |
-        dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore      
+    # - name: Build
+    #   run: |
+    #     dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
+    #     dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
+    #     dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore      
 
-    - name: Build Test Project
+    - name: Build #Test Project
       run: |
-        msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"       
+        # msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"       
+        msbuild.exe ${{ env.SRC_DIR }}/DelegationStation.sln /p:platform="Any CPU" /p:configuration="Release"       
 
     - name: Run Tests
       continue-on-error: true
