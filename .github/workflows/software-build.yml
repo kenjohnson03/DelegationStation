@@ -61,8 +61,9 @@ jobs:
     - name: Run Tests
       continue-on-error: true
       run: |
-        vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll /logger:trx
-         
+        # vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll /logger:trx
+        vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll /logger:trx
+       
     - name: Visualize Results
       uses: dorny/test-reporter@v1
       if: success() || failure()
