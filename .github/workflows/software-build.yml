@@ -60,11 +60,6 @@ jobs:
       continue-on-error: true
       run: |
         vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll
-      
-    - name: Find test outputs
-      shell: bash
-      run: |
-        find ${{ env.SRC_DIR }}/DelegationStationTests -type f | xargs grep -i result
          
     - name: Upload test results
       uses: actions/upload-artifact@v3
