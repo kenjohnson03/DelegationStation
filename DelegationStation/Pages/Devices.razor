@@ -22,6 +22,7 @@
                     <th>Model</th>
                     <th>Serial Number</th>
                     <th>Tag</th>
+                    <th>State</th>
                     <th></th>
                 </tr>
             </thead>
@@ -47,10 +48,10 @@
                     @foreach (Device device in devices)
                     {
                         <tr>
-                            <td>@device.Make</td>
-                            <td>@device.Model</td>
-                            <td>@device.SerialNumber</td>
-                            <td>
+                            <td class="align-middle">@device.Make</td>
+                            <td class="align-middle">@device.Model</td>
+                            <td class="align-middle">@device.SerialNumber</td>
+                                <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
                                     <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
@@ -58,10 +59,26 @@
                                 }
                             </td>
                             <td class="align-middle">
-                                <button type="button" class="btn btn-danger btn-sm text-nowrap" @onclick=@(() => RemoveDevice(device))>
-                                    <span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section>
-                                </button>
-
+                                @if (@device.Status == @Device.DeviceStatus.Synced)
+                                {
+                                    <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @device.LastCorpIdentitySync">@device.Status</span>
+                                }
+                                else if (@device.Status == @Device.DeviceStatus.Deleting)
+                                {
+                                    <span class="badge rounded-pill bg-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Marked To Delete: @device.MarkedToDeleteUTC">@device.Status</span>
+                                }
+                                else
+                                {
+                                    <span class="badge rounded-pill bg-info" data-bas-toggle="tooltip" data-bs-placement="top" title="Device Added: @device.ModifiedUTC">@device.Status</span>
+                                }
+                            </td>
+                            <td class="align-middle" align="center">
+                                @if (device.Status != @Device.DeviceStatus.Deleting)
+                                {
+                                    <button type="button" class="btn btn-danger btn-sm text-nowrap" @onclick=@(() => RemoveDevice(device))>
+                                        <span class="oi oi-trash d-sm-none"></span><section class="d-none d-sm-block"><span class="oi oi-trash"></span> Delete</section>
+                                    </button>
+                                }
                             </td>
                         </tr>
                     }
@@ -79,7 +96,7 @@
                 <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
             </div>
             <div class="col">
-                <button type="button" class="btn btn-success" @onclick=@(() => GetDevicesSearch())>Search</button>
+                <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
             </div>
         </div>
         <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-5">
@@ -134,13 +151,13 @@
                 </div>
             }
         }
+        <ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
     </Authorized>
     <NotAuthorized>
         <p>Not Authorized</p>
     </NotAuthorized>
 </AuthorizeView>
 
-<ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
 
 
 
