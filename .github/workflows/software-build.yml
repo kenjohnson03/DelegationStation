@@ -65,7 +65,7 @@ jobs:
       if: success() || failure()
       with:
         name: Unit Tests
-        path: ${{ github.workspace}}/**/TestResults/**/*
+        path: ${{ env.SRC_DIR }}/TestResults/*
         reporter: dotnet-trx
 
     - name: Publish
