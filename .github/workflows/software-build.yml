@@ -57,6 +57,7 @@ jobs:
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"
 
     - name: List files
+      shell: bash
       run: find ${{ env.SRC_DIR }}/DelegationStationTests
         
 
