@@ -7,6 +7,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  statuses: write
+  checks: write
 env:
   CONFIGURATION: Release
   DOTNET_CORE_VERSION: 8.0.x
