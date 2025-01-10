@@ -39,8 +39,7 @@ jobs:
       uses: NuGet/setup-nuget@v1.0.5
         
     - name: Setup VSTest
-      uses: darenm/Setup-VSTest@v1
-      
+      uses: darenm/Setup-VSTest@v1      
         
     - name: Restore dependencies
       run: dotnet restore
@@ -61,12 +60,16 @@ jobs:
       run: |
         vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll /logger:trx
          
-    - name: Upload test results
-      uses: actions/upload-artifact@v3
+    #- name: Upload test results
+      #uses: actions/upload-artifact@v3
+      #with:
+        #name: test-results
+        #path: ${{ github.workspace}}/**/TestResults/**/*
+
+    - name: Visualize Results
+      uses: dorny/test-reporter@v1
       with:
-        name: test-results
-        path: ${{ github.workspace}}/**/TestResults/**/*
-        # path: ${{  env.SRC_DIR }}/DelegationStationTests/test-results/    
+        reporter: dotnet-trx
 
     - name: Publish
       run: |
