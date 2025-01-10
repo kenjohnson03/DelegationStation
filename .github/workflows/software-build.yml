@@ -33,7 +33,7 @@ jobs:
         dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
 
     - name: Setup MSBuild
-      uses: microsoft/set-msbuild@v1
+      uses: microsoft/setup-msbuild@v2
 
     - name: Setup NuGet      
       uses: NuGet/setup-nuget@v1.0.5
