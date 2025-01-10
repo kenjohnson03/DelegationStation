@@ -51,15 +51,13 @@ jobs:
       run: |
         dotnet build ${{ env.SRC_DIR }}/DelegationSharedLibrary --configuration ${{ env.CONFIGURATION}} --no-restore
         dotnet build ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-restore
-        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore
-        # dotnet build ${{ env.SRC_DIR }}/DelegationStationTests --configuration ${{ env.CONFIGURATION}} --no-restore
+        dotnet build ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-restore      
 
     - name: Build Test Project
-      run: 
+      run: |
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStationTests/DelegationStationTests.csproj /p:platform="Any CPU" /p:configuration="Release"       
 
     - name: Run Tests
-      # continue-on-error: true
       run: |
         vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/"Any CPU"/Release/net8.0/DelegationStationTests.dll /logger:trx
          
@@ -70,6 +68,7 @@ jobs:
         name: Unit Tests
         path: ${{ env.SRC_DIR }}/TestResults/*
         reporter: dotnet-trx
+        fail-on-error: 'false'
 
     - name: Publish
       run: |
