@@ -72,7 +72,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTags()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -99,7 +99,7 @@ namespace DelegationStation.Pages
 
         private async Task LoadFiles(InputFileChangeEventArgs e)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isLoading = true;
@@ -254,7 +254,7 @@ namespace DelegationStation.Pages
 
         private async Task UpdateDevices()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isUpdating = true;
@@ -346,8 +346,8 @@ namespace DelegationStation.Pages
                         }
                         else
                         {
-                            await deviceDBService.DeleteDeviceAsync(d);
-                            logger.LogInformation($"Device Deleted:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
+                            await deviceDBService.MarkDeviceToDeleteAsync(d);
+                            logger.LogInformation($"Device Marked for Deletion:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
                         }
                     }
                     else

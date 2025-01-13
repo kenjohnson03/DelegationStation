@@ -1,4 +1,4 @@
-﻿using DelegationSharedLibrary;
+﻿using DelegationStationShared;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
-using UpdateDevices.Extensions;
+using DelegationStationShared.Extensions;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
@@ -77,7 +77,7 @@ namespace UpdateDevices.Services
 
       // Search CosmosDB for device with exact match on Make, Model, SerialNumber
       // This is a case insensitive search.
-      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND lower(c.Make) = lower(@manufacturer) AND lower(c.Model) = lower(@model) AND lower(c.SerialNumber) = lower(@serialNumber)")
+      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND STRINGEQUALS(c.Make, @manufacturer, true) AND STRINGEQUALS(c.Model,@model, true) AND STRINGEQUALS(c.SerialNumber,@serialNumber, true)")
           .WithParameter("@manufacturer", make.Trim())
           .WithParameter("@model", model.Trim())
           .WithParameter("@serialNumber", serialNumber.Trim());
