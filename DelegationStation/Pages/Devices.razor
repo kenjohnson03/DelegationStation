@@ -134,13 +134,16 @@
                 </div>
             }
         }
+
+       <ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
+
     </Authorized>
+
     <NotAuthorized>
         <p>Not Authorized</p>
     </NotAuthorized>
 </AuthorizeView>
 
-<ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
 
 
 
