@@ -4,7 +4,6 @@ using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Http;
 
 namespace DelegationStationTests.Pages
 {
