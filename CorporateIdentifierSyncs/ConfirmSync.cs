@@ -36,10 +36,28 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}", fullMethodName);
             }
 
+
+            bool isCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("CorpIDSyncEnabled not set or not a valid boolean. Disabling sync.", fullMethodName);
+            }
+            else if (!isCorpIDSyncEnabled)
+            {
+                _logger.DSLogInformation("CorpIDSyncEnabled set to false. Disabling sync.", fullMethodName);
+            }
+
+            if (!isCorpIDSyncEnabled)
+            {
+                _logger.DSLogInformation("Syncing not enabled.  No work to do.  Function is exiting.", fullMethodName);
+                return;
+            }
+
             int deviceCount = 0;
             int intervalHours = 0;
-            bool result = int.TryParse(Environment.GetEnvironmentVariable("SyncIntervalHours", EnvironmentVariableTarget.Process), out intervalHours);
-            if (!result)
+            bool result2 = int.TryParse(Environment.GetEnvironmentVariable("SyncIntervalHours", EnvironmentVariableTarget.Process), out intervalHours);
+            if (!result2)
             {
                 _logger.DSLogError("SyncIntervalHours is not set or not a valid integer. Exiting.", fullMethodName);
                 return;
