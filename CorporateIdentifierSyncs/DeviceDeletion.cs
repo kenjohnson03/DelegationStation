@@ -36,6 +36,18 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation("Next timer schedule at: " + myTimer.ScheduleStatus.Next, fullMethodName);
             }
 
+
+            bool isCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("CorpIDSyncEnabled not set or not a valid boolean. Disabling CorpID deletions.", fullMethodName);
+            }
+            else if (!isCorpIDSyncEnabled)
+            {
+                _logger.DSLogInformation("CorpIDSyncEnabled set to false. Disabling CorpID deletions.", fullMethodName);
+            }
+
             //
             // Get All devices marked for deletion
             //
@@ -81,19 +93,27 @@ namespace CorporateIdentifierSync
                 //
                 if (delManagedDevice)
                 {
-                    // Delete from Corporate Identifiers
                     bool delCorpID = false;
-                    if (!String.IsNullOrEmpty(device.CorporateIdentityID))
+
+                    if (isCorpIDSyncEnabled)
                     {
-                        delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                        if (delCorpID)
+                        // Delete from Corporate Identifiers
+                        if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                         {
-                            _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                            delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            if (delCorpID)
+                            {
+                                _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
+                            delCorpID = true;
                         }
                     }
                     else
                     {
-                        _logger.LogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
                         delCorpID = true;
                     }
 

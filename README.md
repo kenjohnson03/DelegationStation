@@ -441,6 +441,11 @@ Can be found in the Azure Portal under the Cosmos DB -> Keys -> Primary Connecti
 <b>"ConfirmSyncTriggerTime": "0 10-59/15 * * * *"</b><br/>
 Must be set to a cron expression to set the frequences of each function. The example is every 15 minutes, where each function is offset by 5 minutes.
 
+<b>"EnableCorpIDSync": "true"</b><br/>
+Set to true to enable the Corporate Identifier Sync function.
+If set to false, Delete function will only attempt to delete devices from InTune and DelegationStation.  The Add/ConfirmSync functions will exit upon running, but we recommend disabling the function from the Azure Portal.
+
+
 <b>"AzureAd:TenantId" : ""</b><br/>
 Can be found in the Azure Portal under Azure Active Directory -> Properties -> Directory ID
 Can also be found in the Azure Portal under the App Registration -> Overview -> Directory ID
