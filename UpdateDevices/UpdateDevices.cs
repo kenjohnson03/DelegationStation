@@ -28,14 +28,17 @@ namespace UpdateDevices
 
         private readonly ILogger _logger;
         private readonly ICosmosDbService _dbService;
+        //private readonly IGraphService _graphService;
+        private readonly IGraphBetaService _graphBetaService;
 
 
-        public UpdateDevices(ILoggerFactory loggerFactory, ICosmosDbService dbService)
+        public UpdateDevices(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService)
         {
           _logger = loggerFactory.CreateLogger<UpdateDevices>();
           _dbService = dbService;
+          _graphBetaService = graphBetaService;
 
-          string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName();
           string className = this.GetType().Name;
           string fullMethodName = className + "." + methodName;
 
@@ -121,6 +124,21 @@ namespace UpdateDevices
               return;
             }
             _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
+
+            // Updated managed device name if provided and not already equal
+            if (!String.IsNullOrEmpty(d.PreferredHostName) && (d.PreferredHostName != device.DeviceName))
+            {
+                bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostName);
+
+                if (!result)
+                {
+                    _logger.DSLogWarning("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + " from " + device.DeviceName + " to " + d.PreferredHostName + "'.", fullMethodName);
+                }
+                else
+                {
+                    _logger.DSLogInformation("Updated device name for: '" + device.Id + "from '" + device.DeviceName + "' to '" + d.PreferredHostName + "'.", fullMethodName);
+                }
+            }
 
             //Get device object ID from Graph which is needed for update actions
             var deviceObjectID = "";
@@ -413,7 +431,7 @@ namespace UpdateDevices
                     .GetAsync((requestConfiguration) =>
                     {
                         // requestConfiguration.QueryParameters.Select = ["id","manufacturer","model","serialNumber","azureADDeviceId"];
-                        requestConfiguration.QueryParameters.Select = new string[] { "id", "manufacturer", "model", "serialNumber", "azureADDeviceId", "userPrincipalName" };
+                        requestConfiguration.QueryParameters.Select = new string[] { "id", "manufacturer", "model", "serialNumber", "deviceName","azureADDeviceId", "userPrincipalName" };
                         requestConfiguration.QueryParameters.Filter = $"enrolledDateTime ge {dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")}";
                     });
 

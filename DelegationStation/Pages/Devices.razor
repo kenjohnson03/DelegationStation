@@ -21,6 +21,7 @@
                     <th>Make</th>
                     <th>Model</th>
                     <th>Serial Number</th>
+                    <th>Preferred Host Name</th>
                     <th>Tag</th>
                     <th>State</th>
                     <th></th>
@@ -51,7 +52,8 @@
                             <td class="align-middle">@device.Make</td>
                             <td class="align-middle">@device.Model</td>
                             <td class="align-middle">@device.SerialNumber</td>
-                                <td class="align-middle">
+                            <td class="align-middle">@device.PreferredHostName</td>
+                            <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
                                     <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
@@ -120,6 +122,11 @@
                 <label for="SerialNumber" class="form-label">Serial Number</label>
                 <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
                 <ValidationMessage For=@(() => newDevice.SerialNumber) />
+            </div>
+            <div class="mb-3">
+                <label for="PreferredHostName" class="form-label">Preferred Host Name</label>
+                <InputText @bind-Value=newDevice.PreferredHostName class="form-control" id="PreferredHostName"></InputText>
+                <ValidationMessage For=@(() => newDevice.PreferredHostName) />
             </div>
             <div class="mb-3">
                 <label for="Tags" class="form-label">Tags:</label>

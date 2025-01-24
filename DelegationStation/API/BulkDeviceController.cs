@@ -67,7 +67,7 @@ namespace DelegationStation.API
             string fileName = "Devices.csv";
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("Make,Model,SerialNumber,Action,AddedBy");
+            sb.AppendLine("Make,Model,SerialNumber,Preferred Host Name,Action,AddedBy");
             if (!string.IsNullOrEmpty(id))
             {
                 foreach (Device device in devices)
@@ -85,7 +85,7 @@ namespace DelegationStation.API
                         device.SerialNumber = "\"" + device.SerialNumber + "\"";
                     }
 
-                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},,{device.AddedBy}");
+                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},{device.PreferredHostName},,{device.AddedBy}");
                 }
             }
 
