@@ -104,7 +104,7 @@ namespace DelegationStation.Pages
             userMessage = string.Empty;
             try
             {
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber);
+                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, searchDevice.PreferredHostName);
             }
             catch (Exception ex)
             {

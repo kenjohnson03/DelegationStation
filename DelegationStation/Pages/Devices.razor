@@ -17,6 +17,7 @@
 
         <table class="table table-responsive">
             <thead>
+       
                 <tr>
                     <th>Make</th>
                     <th>Model</th>
@@ -25,6 +26,25 @@
                     <th>Tag</th>
                     <th>State</th>
                     <th></th>
+                </tr>
+                <tr>
+                    <td>
+                        <input type="text" @bind="searchDevice.Make" class="form-control" placeholder="Make" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.Model" class="form-control" placeholder="Model" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.PreferredHostName" class="form-control" placeholder="Preferred Host Name" />
+                    </td>
+                    <td></td>
+                    <td></td>
+                    <td>
+                        <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
+                    </td>
                 </tr>
             </thead>
             <tbody>
@@ -46,6 +66,7 @@
                 }
                 else
                 {
+  
                     @foreach (Device device in devices)
                     {
                         <tr>
@@ -87,20 +108,7 @@
                 }
             </tbody>
         </table>
-        <div class="row mb-4">
-            <div class="col">
-                <input type="text" @bind="searchDevice.Make" class="form-control" placeholder="Make" />
-            </div>
-            <div class="col">
-                <input type="text" @bind="searchDevice.Model" class="form-control" placeholder="Model" />
-            </div>
-            <div class="col">
-                <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
-            </div>
-            <div class="col">
-                <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
-            </div>
-        </div>
+
         <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-5">
             <DataAnnotationsValidator />
             <h4>Add device</h4>
