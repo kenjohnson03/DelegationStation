@@ -28,7 +28,6 @@ namespace UpdateDevices
 
         private readonly ILogger _logger;
         private readonly ICosmosDbService _dbService;
-        //private readonly IGraphService _graphService;
         private readonly IGraphBetaService _graphBetaService;
 
 
@@ -38,7 +37,7 @@ namespace UpdateDevices
           _dbService = dbService;
           _graphBetaService = graphBetaService;
 
-            string methodName = ExtensionHelper.GetMethodName();
+          string methodName = ExtensionHelper.GetMethodName();
           string className = this.GetType().Name;
           string fullMethodName = className + "." + methodName;
 

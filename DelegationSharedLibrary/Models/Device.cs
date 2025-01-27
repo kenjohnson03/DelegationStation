@@ -86,29 +86,7 @@ namespace DelegationStationShared.Models
 
 
         }
-        //public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
-        //{
-        //    Id = Guid.NewGuid();
-        //    PartitionKey = this.Id.ToString();
-        //    Make = make;
-        //    Model = model;
-        //    SerialNumber = serialNumber;
-        //    MacAddress = macAddress;
-        //    Tags = tags;
-        //    UpdateActions = new List<DeviceUpdateAction>();
-        //    Type = typeof(Device).Name;
-        //    ModifiedUTC = DateTime.UtcNow;
-        //    MarkedToDeleteUTC = null;
-
-        //    CorporateIdentity = string.Empty;
-        //    CorporateIdentityType = "manufacturerModelSerial";
-        //    LastCorpIdentitySync = DateTime.MinValue;
-        //    CorporateIdentityID = string.Empty;
-
-        //    Status = DeviceStatus.Added;
-
-        //}
-
+       
 
     }
 
