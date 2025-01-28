@@ -36,6 +36,10 @@
                         <InputText @bind-Value=tag.Name class="form-control"></InputText>
                         <label>Description:</label>
                         <InputTextArea @bind-Value=tag.Description class="form-control"></InputTextArea>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" @bind=tag.CorpIDSyncEnabled id="corpIDSwitch">
+                            <label class="form-check-label" for="corpIDSwitch">Enable Corporate Identifier Sync</label>
+                        </div>
                         <label class="my-1">Allowed User Principal Name RegEx:</label>
                         <InputText @bind-Value=tag.AllowedUserPrincipalName @oninput=@ClearTestEnrollmentResult class="form-control"></InputText>
                         <div class="border rounded my-3 p-3">
