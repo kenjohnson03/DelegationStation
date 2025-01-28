@@ -41,7 +41,7 @@ namespace UpdateDevices.Services
             var scopes = new string[] { $"{graphEndpoint}.default" };
             string baseUrl = graphEndpoint + "beta";
 
-            var certDN = configuration.GetSection("AzureAd:ClientCertificates:CertificateDistinguishedName").Value;
+            var certDN = configuration.GetSection("CertificateDistinguishedName").Value;
 
             if (!String.IsNullOrEmpty(certDN))
             {
@@ -99,7 +99,7 @@ namespace UpdateDevices.Services
             }
             catch (Exception ex)
             {
-                _logger.DSLogException($"Unable to rename device ID: {managedDeviceID}", ex, fullMethodName);
+                _logger.DSLogException($"Unable to rename device ID (possible cause--not a company device): {managedDeviceID}", ex, fullMethodName);
             }
             return success;
         }
