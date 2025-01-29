@@ -4,6 +4,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
+using DelegationStationShared.Models;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -166,6 +167,52 @@ namespace CorporateIdentifierSync.Services
                 _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
             }
             return devices;
+
+        }
+
+        public async Task<DelegationStationShared.Models.DeviceTag> GetDeviceTag(string id)
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (id == null)
+            {
+                throw new Exception($"{fullMethodName} was sent null tag ID");
+            }
+
+            if (!System.Text.RegularExpressions.Regex.Match(id, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success)
+            {
+                throw new Exception($"{fullMethodName} tag ID did not match GUID format {id}");
+            }
+
+            ItemResponse<DeviceTag> response = await this._container.ReadItemAsync<DeviceTag>(id, new PartitionKey("DeviceTag"));
+            return response.Resource;
+
+        }
+
+        public async Task<List<string>> GetSyncEnabledDeviceTags()
+        {
+            string methodName = ExtensionHelper.GetMethodName();
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey= \"DeviceTag\" AND c.CorpIDSyncEnabled=true");
+            var queryIterator = _container.GetItemQueryIterator<DeviceTag>(query);
+            List<string> tagIDs = new List<string>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    tagIDs.AddRange(response.Select(t => t.Id.ToString()).ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
+            }
+            return tagIDs;
 
         }
     }

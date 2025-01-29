@@ -64,6 +64,8 @@ namespace CorporateIdentifierSync
             }
             _logger.DSLogInformation($"Checking devices last checked over {intervalHours} hours ago.", fullMethodName);
 
+            // Get list of tags set to sync
+            List<string> tagsWithSyncEnabled = await _dbService.GetSyncEnabledDeviceTags();
 
             // Get all devices with sync date older than X
             List<Device> devicesToCheck = await _dbService.GetDevicesSyncedBefore(DateTime.UtcNow.AddHours(-intervalHours));
@@ -73,42 +75,58 @@ namespace CorporateIdentifierSync
             {
                 _logger.DSLogInformation($"-----Confirming corporate identifier is synced for {device.Make} {device.Model} {device.SerialNumber} -----", fullMethodName);
 
-                // Query to see if device is still in CorporateIdentifiers
-                var corpIDFoundOrUpdated = false;
-                if (!String.IsNullOrEmpty(device.CorporateIdentityID))
-                {
-                    corpIDFoundOrUpdated = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
-                }
+                bool tagSetToSync = tagsWithSyncEnabled.Contains(device.Tags[0]);
+                var corpIDFound = false;
+                var corpIDUpdated = false;
 
-                // If not found, add it back
-                if (!corpIDFoundOrUpdated)
+                if (tagSetToSync)
                 {
-                    _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
-
-                    string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
-                    try
+                    // Query to see if device is still in CorporateIdentifiers
+                    if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                     {
-                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
-                        device.CorporateIdentityID = deviceIdentity.Id;
-                        device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                        corpIDFoundOrUpdated = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                        corpIDFound = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
                     }
 
+                    // If not found, add it back
+                    if (!corpIDFound)
+                    {
+                        _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
+
+                        string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+                        try
+                        {
+                            ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+                            device.CorporateIdentityID = deviceIdentity.Id;
+                            device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                            corpIDUpdated = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                        }
+
+                    }
+                    else
+                    {
+                        _logger.DSLogInformation("Corporate Identifier found, updating sync date", fullMethodName);
+                    }
+
+                    if (corpIDFound || corpIDUpdated)
+                    {
+                        device.Status = Device.DeviceStatus.Synced;
+                    }
                 }
                 else
                 {
-                    _logger.DSLogInformation("Corporate Identifier found, updating sync date", fullMethodName);
+                    _logger.DSLogInformation($"Tag {device.Tags[0]} is not set to sync.", fullMethodName);
+                    device.Status = Device.DeviceStatus.NotSyncing;
                 }
 
-                if (corpIDFoundOrUpdated)
+                if(!tagSetToSync || corpIDFound || corpIDUpdated)
                 {
+
                     // Update the sync date and status
                     device.LastCorpIdentitySync = DateTime.UtcNow;
-                    device.Status = Device.DeviceStatus.Synced;
                     _logger.DSLogInformation($"New sync date: {device.LastCorpIdentitySync}", fullMethodName);
 
                     // Update device entry in DS

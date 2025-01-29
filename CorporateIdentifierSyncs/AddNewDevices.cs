@@ -5,6 +5,7 @@ using Microsoft.Graph.Beta.Models;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
+using DelegationStationShared.Models;
 
 namespace CorporateIdentifierSync
 {
@@ -73,20 +74,44 @@ namespace CorporateIdentifierSync
             int deviceCount = 0;
             foreach (Device device in devicesToMigrate)
             {
-                _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
-                string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+
+                // Get Device Tag sync setting
+                bool isCorpIDSyncEnabledForTag = false;
+                if (device.Tags.Count == 0)
+                {
+                    _logger.DSLogError($"Device {device.Make} {device.Model} {device.SerialNumber} has no tags. Skipping.", fullMethodName);
+                    continue;
+                }
+                else
+                {
+                    DeviceTag tag = await _dbService.GetDeviceTag(device.Tags[0]);
+                    isCorpIDSyncEnabledForTag = tag.CorpIDSyncEnabled;
+                }
+
 
                 // Add the Corporate Identifier
                 try
                 {
-                    ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+                    if (isCorpIDSyncEnabledForTag)
+                    {
 
-                    // Set the Corporate Identifier values
-                    device.CorporateIdentityID = deviceIdentity.Id;
-                    device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                    device.Status = Device.DeviceStatus.Synced;
-                    device.LastCorpIdentitySync = DateTime.UtcNow;
-                    device.CorporateIdentityType = "manufacturerModelSerial";
+                        _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
+                        string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+
+                        // Set the Corporate Identifier values
+                        device.CorporateIdentityID = deviceIdentity.Id;
+                        device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                        device.Status = Device.DeviceStatus.Synced;
+                        device.LastCorpIdentitySync = DateTime.UtcNow;
+                        device.CorporateIdentityType = "manufacturerModelSerial";
+                    }
+                    else
+                    {
+                        _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} tag {device.Tags[0]} is not enabled for sync.", fullMethodName);
+                        device.Status = Device.DeviceStatus.NotSyncing;
+                        device.LastCorpIdentitySync = DateTime.UtcNow;
+                    }
 
                     // Update the DB entry with the new Corporate Identifier info
                     await _dbService.UpdateDevice(device);

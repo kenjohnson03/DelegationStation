@@ -14,6 +14,10 @@ namespace CorporateIdentifierSync.Interfaces
 
         Task<List<Device>> GetDevicesSyncedBefore(DateTime date);
 
+        Task<DeviceTag> GetDeviceTag(string id);
+
+        Task<List<string>> GetSyncEnabledDeviceTags();
+
 
     }
 }

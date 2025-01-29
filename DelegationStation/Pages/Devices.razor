@@ -51,7 +51,7 @@
                             <td class="align-middle">@device.Make</td>
                             <td class="align-middle">@device.Model</td>
                             <td class="align-middle">@device.SerialNumber</td>
-                                <td class="align-middle">
+                            <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
                                     <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
@@ -62,6 +62,10 @@
                                 @if (@device.Status == @Device.DeviceStatus.Synced)
                                 {
                                     <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @device.LastCorpIdentitySync">@device.Status</span>
+                                }
+                                else if (@device.Status == @Device.DeviceStatus.NotSyncing)
+                                {
+                                    <span class="badge rounded-pill bg-light text-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Device in Tag Not Set to Sync. Last confirmed: @device.LastCorpIdentitySync">Added</span>
                                 }
                                 else if (@device.Status == @Device.DeviceStatus.Deleting)
                                 {

@@ -45,7 +45,8 @@ namespace DelegationStationShared.Models
         {
             Added,
             Synced,
-            Deleting
+            Deleting,
+            NotSyncing
         }
         public DeviceStatus Status { get; set; }
         public DateTime? MarkedToDeleteUTC { get; set; }
