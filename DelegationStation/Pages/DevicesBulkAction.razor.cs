@@ -72,7 +72,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTags()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -99,7 +99,7 @@ namespace DelegationStation.Pages
 
         private async Task LoadFiles(InputFileChangeEventArgs e)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isLoading = true;
@@ -254,7 +254,7 @@ namespace DelegationStation.Pages
 
         private async Task UpdateDevices()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isUpdating = true;
