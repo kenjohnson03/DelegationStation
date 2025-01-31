@@ -250,7 +250,7 @@ namespace DelegationStation.Services
 
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND lower(d.Make) = lower(@make) AND lower(d.Model) = lower(@model) AND lower(d.SerialNumber) = lower(@serial)");
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true)");
             q.WithParameter("@make", device.Make);
             q.WithParameter("@model", device.Model);
             q.WithParameter("@serial", device.SerialNumber);
