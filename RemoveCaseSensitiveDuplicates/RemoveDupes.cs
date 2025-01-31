@@ -88,6 +88,17 @@ namespace RemoveCaseSensitiveDuplicates
 
             int count = 0;
 
+            bool deleteFlag = false;
+            bool.TryParse(Environment.GetEnvironmentVariable("DELETE_DUPLICATES"),out deleteFlag);
+            if (!deleteFlag)
+            {
+                _logger.DSLogInformation("DELETE_DUPLICATES is not set or not set to true.  This run will only output what would be deleted.", fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogInformation("DELETE_DUPLICATES is set to true.  This run will delete duplicates.", fullMethodName);
+            }
+
             //
             // Retrieve counts for unique M/M/SN/Tag combinations
             //
@@ -176,7 +187,10 @@ namespace RemoveCaseSensitiveDuplicates
             {
                 try
                 {
-                    await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+                    if (deleteFlag)
+                    {
+                        await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+                    }
                     count++;
                 }
                 catch (Exception ex)
