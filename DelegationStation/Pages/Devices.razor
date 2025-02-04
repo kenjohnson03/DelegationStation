@@ -17,13 +17,34 @@
 
         <table class="table table-responsive">
             <thead>
+       
                 <tr>
                     <th>Make</th>
                     <th>Model</th>
                     <th>Serial Number</th>
+                    <th>Preferred Host Name</th>
                     <th>Tag</th>
                     <th>State</th>
                     <th></th>
+                </tr>
+                <tr>
+                    <td>
+                        <input type="text" @bind="searchDevice.Make" class="form-control" placeholder="Make" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.Model" class="form-control" placeholder="Model" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
+                    </td>
+                    <td>
+                        <input type="text" @bind="searchDevice.PreferredHostName" class="form-control" placeholder="Preferred Host Name" />
+                    </td>
+                    <td></td>
+                    <td></td>
+                    <td>
+                        <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
+                    </td>
                 </tr>
             </thead>
             <tbody>
@@ -45,12 +66,14 @@
                 }
                 else
                 {
+  
                     @foreach (Device device in devices)
                     {
                         <tr>
                             <td class="align-middle">@device.Make</td>
                             <td class="align-middle">@device.Model</td>
                             <td class="align-middle">@device.SerialNumber</td>
+                            <td class="align-middle">@device.PreferredHostName</td>
                             <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
@@ -89,20 +112,7 @@
                 }
             </tbody>
         </table>
-        <div class="row mb-4">
-            <div class="col">
-                <input type="text" @bind="searchDevice.Make" class="form-control" placeholder="Make" />
-            </div>
-            <div class="col">
-                <input type="text" @bind="searchDevice.Model" class="form-control" placeholder="Model" />
-            </div>
-            <div class="col">
-                <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
-            </div>
-            <div class="col">
-                <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
-            </div>
-        </div>
+
         <EditForm Model="@newDevice" OnValidSubmit="AddDevice" class="form-control mb-5">
             <DataAnnotationsValidator />
             <h4>Add device</h4>
@@ -124,6 +134,11 @@
                 <label for="SerialNumber" class="form-label">Serial Number</label>
                 <InputText @bind-Value=newDevice.SerialNumber class="form-control" id="SerialNumber"></InputText>
                 <ValidationMessage For=@(() => newDevice.SerialNumber) />
+            </div>
+            <div class="mb-3">
+                <label for="PreferredHostName" class="form-label">Preferred Host Name</label>
+                <InputText @bind-Value=newDevice.PreferredHostName class="form-control" id="PreferredHostName"></InputText>
+                <ValidationMessage For=@(() => newDevice.PreferredHostName) />
             </div>
             <div class="mb-3">
                 <label for="Tags" class="form-label">Tags:</label>

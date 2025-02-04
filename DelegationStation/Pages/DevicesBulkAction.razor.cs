@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using Microsoft.Azure.Cosmos.Linq;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 
@@ -157,9 +158,9 @@ namespace DelegationStation.Pages
                             string splitOn = ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
                             var input = Regex.Split(ln, splitOn);
 
-                            if (input.Length != 4)
+                            if (input.Length != 5)
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 4.\nCorrelation Id: {c.ToString()}";
+                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should only have 5.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
                                 logger.LogError($"{message}\nUser: {userName} {userId}");
                                 isLoading = false;
@@ -175,7 +176,7 @@ namespace DelegationStation.Pages
                             try
                             {
                                 // Validate Make, Model, SerialNumber, Action
-                                if (input[3].ToLower() != "add" && input[3].ToLower() != "remove")
+                                if (input[4].ToLower() != "add" && input[4].ToLower() != "remove")
                                 {
                                     var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                     fileError.Add(message);
@@ -188,7 +189,8 @@ namespace DelegationStation.Pages
                                     Make = input[0],
                                     Model = input[1],
                                     SerialNumber = input[2],
-                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[3].ToLower()))
+                                    PreferredHostName = input[3],
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[4].ToLower()))
                                 };
                                 var context = new ValidationContext(newDevice, null, null);
                                 var results = new List<ValidationResult>();
@@ -307,6 +309,7 @@ namespace DelegationStation.Pages
                     d.Make = device.Make;
                     d.Model = device.Model;
                     d.SerialNumber = device.SerialNumber;
+                    d.PreferredHostName = device.PreferredHostName;
                     d.ModifiedUTC = DateTime.UtcNow;
                     d.AddedBy = userId;
                     d.Tags.Add(tagToApply);
@@ -318,7 +321,7 @@ namespace DelegationStation.Pages
                     }
                     catch (Exception ex)
                     {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
@@ -332,7 +335,7 @@ namespace DelegationStation.Pages
                     }
                     catch (Exception ex)
                     {
-                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                        var message = $"{ex.Message}\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nCorrelation Id: {c.ToString()}";
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                     if (d != null)
@@ -340,26 +343,26 @@ namespace DelegationStation.Pages
                         // Validate the applied tag is on the device
                         if (!d.Tags.Contains(tagToApply))
                         {
-                            var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
+                            var message = $"Bulk Updating Devices Error on Delete:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nTag: {tagToApply} not found on device.\nCorrelation Id: {c.ToString()}";
                             updateErrors.Add(message);
                             logger.LogError($"{message}\nUser: {userName} {userId}");
                         }
                         else
                         {
                             await deviceDBService.MarkDeviceToDeleteAsync(d);
-                            logger.LogInformation($"Device Marked for Deletion:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nUser: {userName} {userId}");
+                            logger.LogInformation($"Device Marked for Deletion:\nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nUser: {userName} {userId}");
                         }
                     }
                     else
                     {
-                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nCorrelation Id: {c.ToString()}";
+                        var message = $"Device to remove not found: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nCorrelation Id: {c.ToString()}";
                         updateErrors.Add(message);
                         logger.LogError($"{message}\nUser: {userName} {userId}");
                     }
                 }
                 else
                 {
-                    var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nNo update action.\nCorrelation Id: {c.ToString()}";
+                    var message = $"No recognized action provided: \nMake: {device.Make}\nModel: {device.Model}\nSerialNumber: {device.SerialNumber}\nPreferred Host Name: {device.PreferredHostName}\nNo update action.\nCorrelation Id: {c.ToString()}";
                     updateErrors.Add(message);
                     logger.LogError($"{message}\nUser: {userName} {userId}");
                 }

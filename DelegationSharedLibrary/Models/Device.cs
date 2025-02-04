@@ -9,6 +9,10 @@ namespace DelegationStationShared.Models
         [JsonProperty(PropertyName = "id")]
         public Guid Id { get; set; }
 
+        [RegularExpression(@"^[a-zA-z0-9\-]*", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
+        [StringLength(63, ErrorMessage = "Preferred Host Name must be less than 63 characters.")]
+        public string PreferredHostName { get; set; }
+
         [Required(AllowEmptyStrings = false, ErrorMessage = "Make is Required")]
         [RegularExpression(@"^[a-zA-Z0-9\-_.&\(\)\s]+$", ErrorMessage = "Only use letters, numbers, -, _, &, (, ) or . for Make value.")]
         public string Make { get; set; }
@@ -63,6 +67,7 @@ namespace DelegationStationShared.Models
         {
             Id = Guid.NewGuid();
             PartitionKey = this.Id.ToString();
+            PreferredHostName = string.Empty;
             Make = string.Empty;
             Model = string.Empty;
             SerialNumber = string.Empty;
@@ -82,29 +87,7 @@ namespace DelegationStationShared.Models
 
 
         }
-        public Device(string make, string model, string serialNumber, string macAddress, List<string> tags)
-        {
-            Id = Guid.NewGuid();
-            PartitionKey = this.Id.ToString();
-            Make = make;
-            Model = model;
-            SerialNumber = serialNumber;
-            MacAddress = macAddress;
-            Tags = tags;
-            UpdateActions = new List<DeviceUpdateAction>();
-            Type = typeof(Device).Name;
-            ModifiedUTC = DateTime.UtcNow;
-            MarkedToDeleteUTC = null;
-
-            CorporateIdentity = string.Empty;
-            CorporateIdentityType = "manufacturerModelSerial";
-            LastCorpIdentitySync = DateTime.MinValue;
-            CorporateIdentityID = string.Empty;
-
-            Status = DeviceStatus.Added;
-
-        }
-
+       
 
     }
 
