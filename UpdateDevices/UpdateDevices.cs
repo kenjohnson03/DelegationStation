@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Azure.Cosmos;
 using System.Text;
 using Microsoft.Graph;
 using System.Security.Cryptography.X509Certificates;
@@ -12,10 +11,9 @@ using UpdateDevices.Models;
 using Microsoft.Graph.Models;
 using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
-using DelegationSharedLibrary;
+using DelegationStationShared;
+using DelegationStationShared.Extensions;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.IdentityModel.Tokens;
-using UpdateDevices.Extensions;
 using UpdateDevices.Interfaces;
 
 
@@ -57,8 +55,8 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"C# Timer trigger function executed at: {DateTime.Now}", fullMethodName);
-            _logger.DSLogInformation($"Next timer schedule at: {timerInfo.ScheduleStatus.Next}", fullMethodName);
+            _logger.DSLogInformation("C# Timer trigger function executed at: " + DateTime.Now, fullMethodName);
+            _logger.DSLogInformation("Next timer schedule at: " + timerInfo.ScheduleStatus.Next, fullMethodName);
 
             ConnectToGraph();
             if (_graphClient == null)
@@ -97,7 +95,7 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"Processing enrolled device: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
+            _logger.DSLogInformation("Processing enrolled device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
 
@@ -112,17 +110,17 @@ namespace UpdateDevices
             DelegationStationShared.Models.Device d = await _dbService.GetDevice(device.Manufacturer, device.Model, device.SerialNumber);
             if (d == null)
             {
-              _logger.DSLogWarning($"Did not find any matching devices in DB for: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
+              _logger.DSLogWarning("Did not find any matching devices in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
               // TODO make personal / add to group / update attribute
               if (defaultActionDisable == "true")
               {
-                _logger.DSLogInformation($"DefaultActionDisable is true. Disabling device in AAD '{device.AzureADDeviceId}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'", fullMethodName);
+                _logger.DSLogInformation("DefaultActionDisable is true. Disabling device in AAD '" + device.AzureADDeviceId + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'", fullMethodName);
                 await UpdateAttributesOnDeviceAsync(device.Id, device.AzureADDeviceId, new List<DeviceUpdateAction> { new DeviceUpdateAction() { ActionType = DeviceUpdateActionType.Attribute, Name = "AccountEnabled", Value = "false" } });
               }
               return;
             }
-            _logger.DSLogInformation($"Found matching device in DB for: '{device.Id}' '{device.Manufacturer}' '{device.Model}' '{device.SerialNumber}'.", fullMethodName);
+            _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
             //Get device object ID from Graph which is needed for update actions
             var deviceObjectID = "";
@@ -142,20 +140,20 @@ namespace UpdateDevices
               _logger.DSLogException("Failed to retrieve graph device ID using .\n", ex, fullMethodName);
               return;
             }
-            if (deviceObjectID.IsNullOrEmpty())
+            if (String.IsNullOrEmpty(deviceObjectID))
             {
                 _logger.DSLogError("Failed to retrieve graph device ID using .\n", fullMethodName);
                 return;
             }
 
-            _logger.DSLogInformation($"Retrieved Entra Object ID '{deviceObjectID}' for device. DeviceID: '{device.AzureADDeviceId}', ManagedDeviceID: '{device.Id}'", fullMethodName);
+            _logger.DSLogInformation("Retrieved Entra Object ID '" + deviceObjectID + "' for device. DeviceID: '" + device.AzureADDeviceId + "', ManagedDeviceID: '" + device.Id + "'", fullMethodName);
 
             foreach (string tagId in d.Tags)
             {
                 DeviceTag tag = await _dbService.GetDeviceTag(tagId);
                 if (tag == null)
                 {
-                    _logger.DSLogError($"Device {device.Id} is assigned to tag {tagId} which does not exist. No updates applied.",fullMethodName);
+                    _logger.DSLogError("Device " + device.Id + " is assigned to tag " + tagId + " which does not exist. No updates applied.",fullMethodName);
                     return;
                 }
 
@@ -171,20 +169,20 @@ namespace UpdateDevices
                         // If the user principal name is not in the allowed list, skip the tag
                         if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
                         {
-                            _logger.DSLogWarning($"Primary user {device.UserPrincipalName} on ManagedDevice Id {device.Id} does not match Tag {tag.Name} allowed user principal names regex '{tag.AllowedUserPrincipalName}'.", fullMethodName);
+                            _logger.DSLogWarning("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " does not match Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
                             return;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"UserPrincipalName {device.UserPrincipalName} on ManagedDevice Id {device.Id} on {tag.Id} allowed user principal names {tag.AllowedUserPrincipalName}.", ex, fullMethodName);
+                    _logger.DSLogException("UserPrincipalName " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " on " + tag.Id + " allowed user principal names " + tag.AllowedUserPrincipalName + ".", ex, fullMethodName);
                     return;
                 }
 
                 if (tag.UpdateActions == null || tag.UpdateActions.Count < 1)
                 {
-                    _logger.DSLogWarning($"No update actions configured for {tag.Name}.  No updates applied for device {device.Id}.", fullMethodName);
+                    _logger.DSLogWarning("No update actions configured for " + tag.Name + ".  No updates applied for device " + device.Id + ".", fullMethodName);
                     return;
                 }
 
@@ -192,7 +190,7 @@ namespace UpdateDevices
                 //
                 // Applying update actions based on tag
                 // 
-                _logger.DSLogInformation($"Apply update actions to device {device.Id} configured for tag {tag.Name}...", fullMethodName);
+                _logger.DSLogInformation("Apply update actions to device " + device.Id + " configured for tag " + tag.Name + "...", fullMethodName);
 
 
                 foreach (DeviceUpdateAction deviceUpdateAction in tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.AdministrativeUnit))
@@ -203,7 +201,7 @@ namespace UpdateDevices
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Unable to add Device {device.Id} (as {deviceObjectID}) to Administrative Unit: {deviceUpdateAction.Name} ({deviceUpdateAction.Value}).", ex, fullMethodName);
+                        _logger.DSLogException("Unable to add Device " + device.Id + " (as " + deviceObjectID + ") to Administrative Unit: " + deviceUpdateAction.Name + " (" + deviceUpdateAction.Value + ").", ex, fullMethodName);
                     }
                 }
 
@@ -215,7 +213,7 @@ namespace UpdateDevices
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Unable to add device {device.Id} (as {deviceObjectID}) to Group: {deviceUpdateAction.Name} ({deviceUpdateAction.Value}).", ex, fullMethodName);
+                        _logger.DSLogException("Unable to add device " + device.Id + " (as " + deviceObjectID + ") to Group: " + deviceUpdateAction.Name + " (" + deviceUpdateAction.Value + ").", ex, fullMethodName);
                     }
                 }
 
@@ -226,7 +224,7 @@ namespace UpdateDevices
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException("Unable to update attributes for device {device.Id} (as {deviceObjectID}).", ex, fullMethodName);
+                    _logger.DSLogException("Unable to update attributes for device " + device.Id + " (as " + deviceObjectID + ").", ex, fullMethodName);
                 }
             }
         }
@@ -240,17 +238,17 @@ namespace UpdateDevices
 
             if (string.IsNullOrEmpty(deviceId) || updateActions == null)
             {
-                _logger.DSLogError($"DeviceId or updateActions is null or empty. DeviceId: {objectDeviceId};", fullMethodName);
+                _logger.DSLogError("DeviceId or updateActions is null or empty. DeviceId: " + objectDeviceId, fullMethodName);
                 return;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
-                _logger.DSLogError($"DeviceId is not a valid GUID. DeviceId: {objectDeviceId}", fullMethodName);
+                _logger.DSLogError("DeviceId is not a valid GUID. DeviceId: " + objectDeviceId, fullMethodName);
                 return;
             }
             if (updateActions.Count < 1)
             {
-                _logger.DSLogWarning($"No update actions configured for {objectDeviceId}", fullMethodName);
+                _logger.DSLogWarning("No update actions configured for " + objectDeviceId, fullMethodName);
                 return;
             }
 
@@ -284,11 +282,11 @@ namespace UpdateDevices
             try
             {
                 var result = await _graphClient.Devices[$"{objectDeviceId}"].PatchAsync(requestBody);
-                _logger.DSLogAudit($"Applied Attributes to Device {deviceId}: [{string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value))}]", fullMethodName);
+                _logger.DSLogAudit("Applied Attributes to Device " + deviceId + ": [" + string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value)) + "]", fullMethodName);
             }
             catch (Exception ex)
             {
-                _logger.DSLogException($"Unable to apply ExtensionAttributes to DeviceId {deviceId}: [{string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value))}]", ex, fullMethodName);
+                _logger.DSLogException("Unable to apply ExtensionAttributes to DeviceId " + deviceId + ": [" + string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value)) + "]", ex, fullMethodName);
             }
         }
 
@@ -314,12 +312,12 @@ namespace UpdateDevices
             }
             if (Regex.IsMatch(deviceObjectId, _guidRegex) == false)
             {
-                _logger.DSLogError($"DeviceId is not a valid GUID. DeviceId: {deviceId}", fullMethodName);
+                _logger.DSLogError("DeviceId is not a valid GUID. DeviceId: " + deviceId, fullMethodName);
                 return;
             }
             if (Regex.IsMatch(groupId, _guidRegex) == false)
             {
-                _logger.DSLogError($"GroupId is not a valid GUID. GroupId: {groupId}", fullMethodName);
+                _logger.DSLogError("GroupId is not a valid GUID. GroupId: " + groupId + "", fullMethodName);
                 return;
             }
 
@@ -330,17 +328,17 @@ namespace UpdateDevices
                     OdataId = $"{graphEndpoint}v1.0/devices/{deviceObjectId}"
                 };
                 await _graphClient.Groups[$"{groupId}"].Members.Ref.PostAsync(requestBody);
-                _logger.DSLogAudit($"Added DeviceId {deviceId} (as Object ID {deviceObjectId}) to Group {group.Name} ({groupId}).", fullMethodName);
+                _logger.DSLogAudit("Added DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") to Group " + group.Name + " ( " + groupId + ").", fullMethodName);
             }
             catch (Exception ex)
             {
                 if (ex.Message.Contains("already exist"))
                 {
-                    _logger.DSLogInformation($"DeviceId {deviceId} (as Object ID {deviceObjectId}) already exists in Group {group.Name} ({groupId}).", fullMethodName);
+                    _logger.DSLogInformation("DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") already exists in Group " + group.Name + " (" + groupId + ").", fullMethodName);
                 }
                 else
                 {
-                    _logger.DSLogException($"Unable to add DeviceId {deviceId} (as Object ID {deviceObjectId}) to Group {group.Name} ({groupId}).", ex, fullMethodName);
+                    _logger.DSLogException("Unable to add DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") to Group " + group.Name + " (" + groupId + ").", ex, fullMethodName);
                 }
             }
 
@@ -367,12 +365,12 @@ namespace UpdateDevices
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
-                _logger.DSLogError($"Device Object Id is not a valid GUID. DeviceId: {deviceObjectId}", fullMethodName);
+                _logger.DSLogError("Device Object Id is not a valid GUID. DeviceId: " + deviceObjectId + "", fullMethodName);
                 return;
             }
             if (Regex.IsMatch(auId, _guidRegex) == false)
             {
-                _logger.DSLogError($"AU Id is not a valid GUID. AU Id: {auId}", fullMethodName);
+                _logger.DSLogError("AU Id is not a valid GUID. AU Id: " + auId, fullMethodName);
                 return;
             }
 
@@ -383,17 +381,17 @@ namespace UpdateDevices
                     OdataId = $"{graphEndpoint}v1.0/devices/{deviceObjectId}"
                 };
                 await _graphClient.Directory.AdministrativeUnits[$"{auId}"].Members.Ref.PostAsync(requestBody);
-                _logger.DSLogAudit($"Added Device {deviceId} (as Object ID {deviceObjectId}) to Administrative Unit {adminUnit.Name} ({auId}).", fullMethodName);
+                _logger.DSLogAudit("Added Device " + deviceId + " (as Object ID " + deviceObjectId + ") to Administrative Unit " + adminUnit.Name + " (" + auId + ").", fullMethodName);
             }
             catch (Exception ex)
             {
                 if (ex.Message.Contains("conflicting object"))
                 {
-                    _logger.DSLogInformation($"Device {deviceId} (as Object ID {deviceObjectId}) already exists in Administrative Unit {adminUnit.Name} ({auId}).", fullMethodName);
+                    _logger.DSLogInformation("Device " + deviceId + " (as Object ID " + deviceObjectId + ") already exists in Administrative Unit " + adminUnit.Name + " (" + auId + ").", fullMethodName);
                 }
                 else
                 {
-                    _logger.DSLogException($"Unable to add Device {deviceId} (as Object ID {deviceObjectId}) to Administrative Unit: {adminUnit.Name} ({auId}).", ex, fullMethodName);
+                    _logger.DSLogException("Unable to add Device " + deviceId + " (as Object ID " + deviceObjectId + ") to Administrative Unit: " + adminUnit.Name + " (" + auId + ").", ex, fullMethodName);
                 }
             }
         }
@@ -404,7 +402,7 @@ namespace UpdateDevices
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"Getting devices enrolled since {dateTime:MM/dd/yyyy HH:mm:ss} UTC", fullMethodName);
+            _logger.DSLogInformation("Getting devices enrolled since " + dateTime.ToString("MM/dd/yyyy HH:mm:ss") + " UTC", fullMethodName);
 
 
             List<Microsoft.Graph.Models.ManagedDevice> devices = new List<Microsoft.Graph.Models.ManagedDevice>();
@@ -428,7 +426,7 @@ namespace UpdateDevices
 
                 await pageIterator.IterateAsync();
 
-                _logger.DSLogInformation($"Found {devices.Count} new enrolled devices since {dateTime:MM/dd/yyyy HH:mm:ss} UTC", fullMethodName);
+                _logger.DSLogInformation("Found " + devices.Count + " new enrolled devices since " + dateTime.ToString("MM/dd/yyyy HH:mm:ss") + " UTC", fullMethodName);
             }
             catch (Exception ex)
             {
@@ -517,7 +515,7 @@ namespace UpdateDevices
 
             }
 
-            _logger.DSLogInformation($"Connected to Graph endpoint: {graphEndpoint}.", fullMethodName);
+            _logger.DSLogInformation("Connected to Graph endpoint: " + graphEndpoint, fullMethodName);
         }
 
         public class TimerInfo

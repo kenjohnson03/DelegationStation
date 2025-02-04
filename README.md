@@ -150,6 +150,10 @@ Add the following permissions:
 - DeviceManagementManagedDevices.ReadAll (Allows for reading and updating devices)
 - AdministrativeUnit.ReadWrite.All (Allows for updating AUs)
 
+Reduced permissions for monitoring without changes (will log changes, but not have permissions to apply them):
+- Device.Read.All
+- DeviceManagementManagedDevices.Read.All
+
 #### Certificates & Secrets
 
 ##### Certificate-based Authentication
@@ -168,14 +172,20 @@ But you will also need a PFX with the private key (and a set passphrase) to conf
 - Click on **Client secrets**
 - Click on **+ New client secret**
 - Store the value in a secure location (key vault is recommended).  This will be used in the configuration of the application. 
+
 ### Azure AD Configuration
 
-In order for the function app to update Security Groups, the App Registration must be:
-- The owner of all of the groups the function app should have permissions to edit  OR
-- Must be assigned the following role in an AU containing all of the groups it should have permissions
+In order to limit the function app to only be able to update only relevant Security Groups, use one of the following two methods:
+- Option 1:  Make the App Registration the owner of each of the groups the function app should have permissions to edit  
+- Option 2:  Assign the App Registration a custom role on an AU containing all and only the relevant groups with the following permissions:
+   - microsoft.directory/groups/members/read
    - microsoft.directory/groups.security/members/update
 
 Any groups added to the application under Tags will have to have the service principals permissions added in order to work as expected.
+
+Alternatively, you could add GroupMember.ReadWrite.All to the Graph Permissions granted to the App Registrations, but it is not recommended due to the broad access.
+
+Do not make these changes if using reduced permissions to monitor changes but not apply them.
 
 
 ## Web Application Configuration
