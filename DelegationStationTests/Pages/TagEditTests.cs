@@ -223,6 +223,34 @@ namespace DelegationStationTests.Pages
         }
 
         [TestMethod]
+        public void LimitedRoleShouldNotRenderAttributes()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
+
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+
+                // Act
+                var cut = RenderComponent<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
+
+                // Assert
+                string match = $"<option value=\"Attribute\".*>Attribute</option>";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
+        }
+
+        [TestMethod]
         public void UnauthorizedShouldNotRender()
         {
             using (ShimsContext.Create())
