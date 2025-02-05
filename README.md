@@ -162,7 +162,7 @@ Select **Microsoft Graph**
 Select **Application permissions**
 
 Add the following permissions:
-- DeviceManagementManagedDevices.Read.All (Allows for reading devices enrolled in InTune)
+- DeviceManagementManagedDevices.PrivilegedOperations.All (Required to read devices from InTune and to rename devices)
 - Device.ReadWrite.All                    (Allows for updating device attributes)
 - AdministrativeUnit.ReadWrite.All        (Allows for updating AUs)
 
