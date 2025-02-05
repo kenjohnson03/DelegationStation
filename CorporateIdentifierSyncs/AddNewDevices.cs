@@ -41,11 +41,11 @@ namespace CorporateIdentifierSync
             bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
             if (!result)
             {
-                _logger.DSLogError("CorpIDSyncEnabled not set or not a valid boolean. Disabling sync.", fullMethodName);
+                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Disabling sync.", fullMethodName);
             }
             else if (!isCorpIDSyncEnabled)
             {
-                _logger.DSLogInformation("CorpIDSyncEnabled set to false. Disabling sync.", fullMethodName);
+                _logger.DSLogInformation("EnableCorpIDSync set to false. Disabling sync.", fullMethodName);
             }
 
             if (!isCorpIDSyncEnabled)

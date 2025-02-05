@@ -15,8 +15,8 @@
     "AzureAd:TenantId": "",
     "AzureAd:ClientId": "",
     "AzureApp:ClientSecret": "",
-    "GraphEndpoint": "https://dod-graph.microsoft.us/"
-
+    "GraphEndpoint": "https://dod-graph.microsoft.us/",
+    "CorpIDSyncEnabled": "false"
   }
 }
 
