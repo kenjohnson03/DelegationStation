@@ -15,6 +15,7 @@ on:
 env:
   AZ_ENVIRONMENT: AzureUSGovernment
   CONFIGURATION: Release
+
   DOTNET_CORE_VERSION: 8.0.x
 
   AZURE_UPDATE_FUNCTION_PACKAGE_PATH: .\UpdateDevices\published
@@ -34,6 +35,7 @@ jobs:
    build-test:
      runs-on: windows-latest
      steps:
+
      - uses: actions/checkout@v4.2.0
 
      - name: Setup .NET SDK
@@ -62,8 +64,6 @@ jobs:
        continue-on-error: true 
        run: |
          vstest.console.exe ${{ env.SRC_DIR }}/DelegationStationTests/bin/Release/net8.0/DelegationStationTests.dll /logger:trx
-
-
      
     #  - name: Generate Test Report
     #    if: always()
@@ -100,3 +100,4 @@ jobs:
          name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
          path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
          if-no-files-found: error
+
