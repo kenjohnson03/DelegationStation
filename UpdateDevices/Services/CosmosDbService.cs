@@ -1,4 +1,4 @@
-﻿using DelegationSharedLibrary;
+﻿using DelegationStationShared;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
-using UpdateDevices.Extensions;
+using DelegationStationShared.Extensions;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 
@@ -61,10 +61,10 @@ namespace UpdateDevices.Services
       }
       catch (Exception ex)
       {
-        _logger.DSLogException($"Failed to connect to CosmosDB", ex, fullMethodName);
+        _logger.DSLogException("Failed to connect to CosmosDB", ex, fullMethodName);
       }
 
-      _logger.DSLogInformation($"Connected to Cosmos DB database {databaseName} container {containerName}.", fullMethodName);
+      _logger.DSLogInformation("Connected to Cosmos DB database " + databaseName + " container " + containerName + ".", fullMethodName);
     }
 
     public async Task<Device> GetDevice(string make, string model, string serialNumber)
@@ -76,7 +76,8 @@ namespace UpdateDevices.Services
       Device device = new Device();
 
       // Search CosmosDB for device with exact match on Make, Model, SerialNumber
-      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Make = @manufacturer AND c.Model = @model AND c.SerialNumber = @serialNumber")
+      // This is a case insensitive search.
+      QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND STRINGEQUALS(c.Make, @manufacturer, true) AND STRINGEQUALS(c.Model,@model, true) AND STRINGEQUALS(c.SerialNumber,@serialNumber, true)")
           .WithParameter("@manufacturer", make.Trim())
           .WithParameter("@model", model.Trim())
           .WithParameter("@serialNumber", serialNumber.Trim());
@@ -95,7 +96,7 @@ namespace UpdateDevices.Services
       }
       catch (Exception ex)
       {
-        _logger.DSLogException($"Failure querying Cosmos DB for device '{make}' '{model}' '{serialNumber}'.\n", ex, fullMethodName);
+        _logger.DSLogException("Failure querying Cosmos DB for device '" + make + "' '" + model + "' '" + serialNumber + "'.\n", ex, fullMethodName);
       }
 
       return device;
@@ -116,7 +117,7 @@ namespace UpdateDevices.Services
       }
       catch (Exception ex)
       {
-        _logger.DSLogException($"Get tag {tagId} failed. ", ex, fullMethodName);
+        _logger.DSLogException("Get tag " + tagId + " failed. ", ex, fullMethodName);
       }
 
       return tag;
@@ -131,11 +132,11 @@ namespace UpdateDevices.Services
       try
       {
         settings = await _container.ReadItemAsync<FunctionSettings>(settings.Id.ToString(), new PartitionKey(settings.PartitionKey));
-        _logger.DSLogInformation($"Successfully retrieved function settings:  " + settings.ToString(), fullMethodName);
+        _logger.DSLogInformation("Successfully retrieved function settings:  " + settings.ToString(), fullMethodName);
       }
       catch (Exception ex)
       {
-        _logger.DSLogException($"Unable to retrieve function settings.", ex, fullMethodName);
+        _logger.DSLogException("Unable to retrieve function settings.", ex, fullMethodName);
       }
       finally
       {
@@ -159,7 +160,7 @@ namespace UpdateDevices.Services
       try
       {
         var response = await _container.UpsertItemAsync<FunctionSettings>(settings, new PartitionKey(settings.PartitionKey));
-        _logger.DSLogInformation($"Successfully updated function settings:  " + settings.ToString(), fullMethodName);
+        _logger.DSLogInformation("Successfully updated function settings:  " + settings.ToString(), fullMethodName);
       }
       catch (Exception ex)
       {
