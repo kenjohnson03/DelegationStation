@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Graph.Models;
 
+
 namespace DelegationStation.Pages
 {
     public partial class TagEdit
@@ -62,6 +63,7 @@ namespace DelegationStation.Pages
 
         private int deviceCount = 0;
 
+
         protected override async Task OnInitializedAsync()
         {
             deviceUpdateActionEditContext = new EditContext(deviceUpdateAction);
@@ -83,6 +85,7 @@ namespace DelegationStation.Pages
                 await UpdateRoleDelegationGroups();
                 await GetRolesAsync();
             }
+            await SetInitialUpdateAction();
             deviceCount = await GetDeviceCount();
         }
 
@@ -101,7 +104,7 @@ namespace DelegationStation.Pages
 
         private async Task GetRolesAsync()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             try
@@ -135,7 +138,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTag()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             try
@@ -180,7 +183,7 @@ namespace DelegationStation.Pages
 
         private bool ActionAllowed(DeviceUpdateAction action)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (authorizationService.AuthorizeAsync(user, _tag, Authorization.DeviceTagOperations.Update).Result.Succeeded)
@@ -261,7 +264,7 @@ namespace DelegationStation.Pages
 
         private async Task GetRoleDelegationName(EventArgs? e)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (string.IsNullOrEmpty(roleDelegation.SecurityGroupId))
@@ -290,7 +293,7 @@ namespace DelegationStation.Pages
 
         private async Task GetActionSecurityGroupName(EventArgs? e)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (string.IsNullOrEmpty(deviceUpdateAction.Value))
@@ -325,7 +328,7 @@ namespace DelegationStation.Pages
 
         private void AddRoleDelegation()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             addRoleMessage = "";
@@ -755,7 +758,7 @@ namespace DelegationStation.Pages
 
         private async void SearchSecurityGroups()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (securityGroupSearchInProgress)
@@ -809,7 +812,7 @@ namespace DelegationStation.Pages
 
         private async void SearchAdministrativeUnits()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (administrativeUnitSearchInProgress)
@@ -856,7 +859,7 @@ namespace DelegationStation.Pages
 
         private async void RoleSearchSecurityGroups()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             if (roleSecurityGroupSearchInProgress)
@@ -937,5 +940,40 @@ namespace DelegationStation.Pages
         {
             ConfirmDelete?.Show();
         }
+
+        private async Task SetInitialUpdateAction()
+        {
+            if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAttributes")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.Attribute;
+            }
+            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionSecurityGroups")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.Group;
+            }
+            else if((await authorizationService.AuthorizeAsync(user, _tag, "TagUpdateActionAdministrativeUnits")).Succeeded)
+            {
+                deviceUpdateAction.ActionType = DeviceUpdateActionType.AdministrativeUnit;
+            }
+        }
+
+        private bool validateActionInputs()
+        {
+            if(deviceUpdateAction.ActionType == DeviceUpdateActionType.Group)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+            else if (deviceUpdateAction.ActionType == DeviceUpdateActionType.Attribute)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Value) || string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+            else if(deviceUpdateAction.ActionType == DeviceUpdateActionType.AdministrativeUnit)
+            {
+                return !(string.IsNullOrEmpty(deviceUpdateAction.Name));
+            }
+
+            return false;
+        }
+
     }
 }
