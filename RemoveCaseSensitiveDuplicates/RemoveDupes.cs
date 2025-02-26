@@ -88,6 +88,17 @@ namespace RemoveCaseSensitiveDuplicates
 
             int count = 0;
 
+            bool deleteFlag = false;
+            bool.TryParse(Environment.GetEnvironmentVariable("DELETE_DUPLICATES"),out deleteFlag);
+            if (!deleteFlag)
+            {
+                _logger.DSLogInformation("DELETE_DUPLICATES is not set or not set to true.  This run will only output what would be deleted.", fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogInformation("DELETE_DUPLICATES is set to true.  This run will delete duplicates.", fullMethodName);
+            }
+
             //
             // Retrieve counts for unique M/M/SN/Tag combinations
             //
@@ -121,8 +132,8 @@ namespace RemoveCaseSensitiveDuplicates
 
 
             //
-            // For each of the unique combos, get all devices sorted oldest to newest
-            // we'll keep the oldest and add the rest to a list to delete
+            // For each of the unique combos, get all devices sorted newest to oldest
+            // we'll keep the newest and add the rest to a list to delete
             //
             List<Device> devicesToDelete = new List<Device>();
             foreach (var dupe in dupesToCleanup)
@@ -130,8 +141,8 @@ namespace RemoveCaseSensitiveDuplicates
                 _logger.DSLogInformation($"Processing devices matching '{dupe.Make}' '{dupe.Model}' '{dupe.SerialNumber}' Tag: {dupe.Tag0}", fullMethodName);
                 try
                 {
-                    QueryDefinition query2 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber AND " +
-                                                                 "c.Tags[0]=@tag ORDER BY c.ModifiedUTC ASC");
+                    QueryDefinition query2 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND STRINGEQUALS(c.Make,@make,true) AND STRINGEQUALS(c.Model,@model,true) AND STRINGEQUALS(c.SerialNumber,@serialNumber,true) " +
+                                                                 "AND c.Tags[0]=@tag ORDER BY c.ModifiedUTC ASC");
                     query2.WithParameter("@make", dupe.Make);
                     query2.WithParameter("@model", dupe.Model);
                     query2.WithParameter("@serialNumber", dupe.SerialNumber);
@@ -153,7 +164,7 @@ namespace RemoveCaseSensitiveDuplicates
                             }
                             else
                             {
-                                _logger.DSLogInformation($"   Keeping oldest entry: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
+                                _logger.DSLogInformation($"   Keeping newest entry: '{device.Make}' '{device.Model}' '{device.SerialNumber}' Tag: {device.Tags[0]}", fullMethodName);
                                 savedOffFirstResult = true;
                             }
 
@@ -176,7 +187,10 @@ namespace RemoveCaseSensitiveDuplicates
             {
                 try
                 {
-                    await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+                    if (deleteFlag)
+                    {
+                        await _container.DeleteItemAsync<Device>(device.Id.ToString(), new PartitionKey(device.PartitionKey));
+                    }
                     count++;
                 }
                 catch (Exception ex)
@@ -213,7 +227,8 @@ namespace RemoveCaseSensitiveDuplicates
 
                             try
                             {
-                                QueryDefinition query4 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND lower(c.Make)=@make AND lower(c.Model)=@model AND lower(c.SerialNumber)=@serialNumber ORDER BY c.ModifiedUTC ASC");
+                                QueryDefinition query4 = new QueryDefinition("SELECT * FROM  c WHERE c.Type='Device' AND STRINGEQUALS(c.Make,@make,true) AND STRINGEQUALS(c.Model,@model,true) AND " +
+                                                                             "STRINGEQUALS(c.SerialNumber,@serialNumber,true) ORDER BY c.ModifiedUTC DESC");
                                 query4.WithParameter("@make", duplicate.Make);
                                 query4.WithParameter("@model", duplicate.Model);
                                 query4.WithParameter("@serialNumber", duplicate.SerialNumber);

@@ -94,6 +94,7 @@ jobs:
       with:
         name: ${{ env.AZURE_SYNC_FUNCTION_PKG_NAME }}
         path: ${{ env.AZURE_SYNC_FUNCTION_PACKAGE_PATH }}
+        include-hidden-files: true
 
     - name: Upload WebJob Artifact
       uses: actions/upload-artifact@v4.6.0
