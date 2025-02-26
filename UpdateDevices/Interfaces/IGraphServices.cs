@@ -9,7 +9,6 @@ namespace UpdateDevices.Interfaces
     public interface IGraphService
     {
         Task<ManagedDevice> GetManagedDevice(string deviceID);
-
         Task AddDeviceToAzureADGroup(string deviceId, string deviceObjectId, DeviceUpdateAction group);
         Task AddDeviceToAzureAdministrativeUnit(string deviceId, string deviceObjectId, DeviceUpdateAction adminUnit);
         Task UpdateAttributesOnDeviceAsync(string deviceId, string deviceObjectId, List<DeviceUpdateAction> deviceUpdateActions);

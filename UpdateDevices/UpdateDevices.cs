@@ -85,6 +85,16 @@ namespace UpdateDevices
 
             _logger.DSLogInformation("Processing enrolled device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
+            // If InTune has not been updated with hardware info, the device cannot be processed.
+            // We're going to add it to a separate DB entry to be checked by the StragglerHandler
+            if (String.IsNullOrEmpty(device.Manufacturer) || String.IsNullOrEmpty(device.Model) || String.IsNullOrEmpty(device.SerialNumber))
+            {
+                _logger.DSLogWarning("Device " + device.Id + " does not have Manufacturer, Model, or Serial Number. Adding to Straggler list.", fullMethodName);
+                await _dbService.AddOrUpdateStraggler(device);
+
+                return;
+            }
+
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
 
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
