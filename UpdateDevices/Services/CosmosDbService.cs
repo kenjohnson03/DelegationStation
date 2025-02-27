@@ -269,17 +269,19 @@ namespace UpdateDevices.Services
             return results;
         }
 
-        public async Task<List<Straggler>> GetStragglersProcessedbyUD(int minCount)
+        // Removes entries that were enrolled over a day ago and have less than the max number 
+        // retries indicating UpdateDevices was able to process them before it stopped retrying
+        public async Task<List<Straggler>> GetStragglersProcessedByUD(int minCount)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            DateTime anHourAgo = DateTime.UtcNow.AddHours(-1);
+            DateTime aDayAgo = DateTime.UtcNow.AddDays(-1);
 
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey= \"Straggler\" AND c.UDAttemptCount<@count AND c.LastUDUpdateDateTime < @hourAgo")
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey= \"Straggler\" AND c.UDAttemptCount < @count AND c.EnrollmentDateTime < @oneDayAgo")
                 .WithParameter("@count", minCount)
-                .WithParameter("@hourAgo", anHourAgo);
+                .WithParameter("@oneDayAgo", aDayAgo);
             var queryIterator = _container.GetItemQueryIterator<Straggler>(query);
 
             List<Straggler> results = new List<Straggler>();
@@ -299,34 +301,5 @@ namespace UpdateDevices.Services
             return results;
         }
 
-        public async Task<List<Straggler>> GetErroringStragglers(int minErrors)
-        {
-            string methodName = ExtensionHelper.GetMethodName();
-            string className = this.GetType().Name;
-            string fullMethodName = className + "." + methodName;
-
-            DateTime anDayAgo = DateTime.UtcNow.AddDays(-1);
-
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey= \"Straggler\" AND c.SHErrorsCount>@count AND c.LastSeenDateTime < @dayAgo")
-                .WithParameter("@count", minErrors)
-                .WithParameter("@dayAgo", anDayAgo);
-            var queryIterator = _container.GetItemQueryIterator<Straggler>(query);
-
-            List<Straggler> results = new List<Straggler>();
-            try
-            {
-                while (queryIterator.HasMoreResults)
-                {
-                    var response = await queryIterator.ReadNextAsync();
-                    results.AddRange(response.ToList());
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Failure querying Cosmos DB for Straggler: ", ex, fullMethodName);
-            }
-
-            return results;
-        }
     }
 }

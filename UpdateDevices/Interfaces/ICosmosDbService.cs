@@ -23,8 +23,7 @@ namespace UpdateDevices.Interfaces
         Task DeleteStraggler(Straggler straggler);
         Task UpdateStragglerAsErrored(Straggler straggler);
 
-        Task<List<Straggler>> GetStragglersProcessedbyUD(int minCount);
-        Task<List<Straggler>> GetErroringStragglers(int minErrors);
+        Task<List<Straggler>> GetStragglersProcessedByUD(int minCount);
 
 
 
