@@ -1,8 +1,9 @@
-﻿using DelegationStationShared.Models;
-using ManagedDevice = Microsoft.Graph.Models.ManagedDevice;
-using System;
-using System.Threading.Tasks;
+﻿using ManagedDevice = Microsoft.Graph.Models.ManagedDevice;
 using UpdateDevices.Models;
+using System.Threading.Tasks;
+using DelegationStationShared.Models;
+using System.Collections.Generic;
+using System;
 
 namespace UpdateDevices.Interfaces
 {
@@ -17,6 +18,15 @@ namespace UpdateDevices.Interfaces
 
         Task AddOrUpdateStraggler(ManagedDevice managedDevice);
         Task<Straggler> GetStraggler(string managedDeviceId);
+        Task<List<Straggler>> GetStragglerList(int minCount);
+        Task UpdateStraggler(Straggler straggler);
+        Task DeleteStraggler(Straggler straggler);
+        Task UpdateStragglerAsErrored(Straggler straggler);
+
+        Task<List<Straggler>> GetStragglersProcessedbyUD(int minCount);
+        Task<List<Straggler>> GetErroringStragglers(int minErrors);
+
+
 
     }
 }
