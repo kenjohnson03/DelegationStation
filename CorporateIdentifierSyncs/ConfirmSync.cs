@@ -78,6 +78,7 @@ namespace CorporateIdentifierSync
                 bool tagSetToSync = tagsWithSyncEnabled.Contains(device.Tags[0]);
                 var corpIDFound = false;
                 var corpIDUpdated = false;
+                var successfullyUnsynced = false;
 
                 if (tagSetToSync)
                 {
@@ -116,16 +117,37 @@ namespace CorporateIdentifierSync
                         device.Status = Device.DeviceStatus.Synced;
                     }
                 }
-                else
+                else  // !tagSetToSync
                 {
                     _logger.DSLogInformation($"Tag {device.Tags[0]} is not set to sync.", fullMethodName);
-                    device.Status = Device.DeviceStatus.NotSyncing;
+
+                    // if device was synced remove from CorporateIdentifiers
+                    if (device.Status == Device.DeviceStatus.Synced)
+                    {
+                        _logger.DSLogInformation("Device was synced, but is tag is not set to sync.  Removing from CorporateIdentifiers", fullMethodName);
+                        try
+                        {
+                            successfullyUnsynced = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            device.Status = Device.DeviceStatus.NotSyncing;
+                            device.CorporateIdentityID = "";
+                            device.CorporateIdentity = "";
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogError($"Error deleting corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                        }
+                    }
+                    else
+                    {
+                        successfullyUnsynced = true;
+                    }
                 }
 
-                if(!tagSetToSync || corpIDFound || corpIDUpdated)
+                if((!tagSetToSync && successfullyUnsynced) || corpIDFound || corpIDUpdated)
                 {
 
-                    // Update the sync date and status
+                    // Update the sync date and status for devices successfully processed
+                    // For devices that error, we want to try again on the next run
                     device.LastCorpIdentitySync = DateTime.UtcNow;
                     _logger.DSLogInformation($"New sync date: {device.LastCorpIdentitySync}", fullMethodName);
 
@@ -141,7 +163,7 @@ namespace CorporateIdentifierSync
                     }
                 }
 
-            } 
+            }
 
             _logger.LogInformation($"Successfully updated {deviceCount} devices.", fullMethodName);
         }

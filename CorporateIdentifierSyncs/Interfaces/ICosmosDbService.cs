@@ -4,7 +4,7 @@ namespace CorporateIdentifierSync.Interfaces
 {
     public interface ICosmosDbService
     {
-        Task<List<Device>> GetDevicesWithoutCorpIdentity();
+        Task<List<Device>> GetAddedDevices();
 
         Task<List<Device>> GetDevicesMarkedForDeletion();
 

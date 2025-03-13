@@ -65,20 +65,18 @@ namespace CorporateIdentifierSync.Services
 
 
 
-        public async Task<List<Device>> GetDevicesWithoutCorpIdentity()
+        public async Task<List<Device>> GetAddedDevices()
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-
-            // Assumption:  CorporateIdentityID field represents all related corporate identity fields
-            // so if it's not set, none should be set
-            // Ignores devices marked for deletion in case they are mid-delete
+            // To ensure previously added devices are processed, check for devices without status as well as those set to Added
+            // to handle initially large number of devices and our large bulk uploads, limiting processing to 10K devices at a time
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" " +
-                "AND (NOT IS_DEFINED(c.Status) OR NOT (c.Status = @status)) " +
-                "AND (NOT IS_DEFINED(c.CorporateIdentityID) OR c.CorporateIdentityID = \"\")");
-            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+                "AND (NOT IS_DEFINED(c.Status) OR (c.Status = @status)) " +
+                "OFFSET 0 LIMIT 10000");
+            query.WithParameter("@status", Device.DeviceStatus.Added);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
 
@@ -148,9 +146,11 @@ namespace CorporateIdentifierSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            // TBD:  dont return devices marked for deletion
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @status) AND c.LastCorpIdentitySync <= @date");
-            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+            // Only return devices that are in Synced or NotSyncing status
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @deleting)" +
+                " AND NOT (c.Status = @added) AND c.LastCorpIdentitySync <= @date");
+            query.WithParameter("@deleting", Device.DeviceStatus.Deleting);
+            query.WithParameter("@added", Device.DeviceStatus.Added);
             query.WithParameter("@date", date);
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();

@@ -60,7 +60,7 @@ namespace CorporateIdentifierSync
             List<Device> devicesToMigrate = new List<Device>();
             try
             {
-                devicesToMigrate = await _dbService.GetDevicesWithoutCorpIdentity();
+                devicesToMigrate = await _dbService.GetAddedDevices();
                 _logger.DSLogInformation($"Found {devicesToMigrate.Count} devices to migrate.", fullMethodName);
             }
             catch (Exception ex)
