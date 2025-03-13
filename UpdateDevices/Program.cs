@@ -21,6 +21,7 @@ namespace UpdateDevices
           {
             services.AddSingleton<ICosmosDbService, CosmosDbService>();
             services.AddSingleton<IGraphBetaService, GraphBetaService>();
+            services.AddSingleton<IGraphService, GraphService>();
           })
           .Build();
 
