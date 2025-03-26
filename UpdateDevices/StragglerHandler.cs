@@ -93,7 +93,14 @@ namespace UpdateDevices
                 if (device == null)
                 {
                     _logger.DSLogWarning("Device is no longer in the system. Removing from straggler list: " + straggler.ManagedDeviceID, fullMethodName);
-                    await _dbService.DeleteStraggler(straggler);
+                    try
+                    {
+                        await _dbService.DeleteStraggler(straggler);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogException("Error deleting straggler: " + straggler.ManagedDeviceID, ex, fullMethodName);
+                    }
                     continue;
                 }
 
