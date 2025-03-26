@@ -93,6 +93,8 @@ namespace UpdateDevices
                 if (device == null)
                 {
                     _logger.DSLogWarning("Device is no longer in the system. Removing from straggler list: " + straggler.ManagedDeviceID, fullMethodName);
+                    await _dbService.DeleteStraggler(straggler);
+                    continue;
                 }
 
                 // If Hardware info is still missing
