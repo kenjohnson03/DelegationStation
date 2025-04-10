@@ -1,0 +1,91 @@
+#! /bin/bash
+
+
+# SET THE VALUES BELOW
+rg="<DS RESOURCE GROUP NAME>"
+name="<COSMOS DB NAME>"
+
+updateDS_name="<UPDATE FUNCTION NAME>"
+corpIDsync_name="<CORPID SYNC FUNCTION NAME>"
+webapp_name="<WEBAPP NAME>"
+
+#
+# Added to so git bash doesn't fill in path in front of parameters
+#
+export MSYS_NO_PATHCONV=1
+
+
+#
+# Disable key-based access
+#
+
+echo -n "Disabling key-based authentication..."
+#az resource update --resource-group $rg --name $name --resource-type "Microsoft.DocumentDB/databaseAccounts" --set properties.disableLocalAuth=true -o none
+echo "Done"
+
+#
+# Output resultant setting
+#
+
+az resource show --resource-group $rg --name $name --resource-type "Microsoft.DocumentDB/databaseAccounts" --query "properties.{disableLocalAuth:disableLocalAuth}"
+
+
+#
+# Get necessary IDs
+# 
+
+user_id=`az ad signed-in-user show --query id | tr -d '"'`
+#echo "user_id: $user_id"
+
+cosmos_id=`az cosmosdb show --resource-group $rg --name $name --query "{id:id}" | jq '.id' | tr -d '"'`
+#echo "cosmos_id: $cosmos_id"
+updateFunction_id=`az functionapp show --resource-group $rg --name $updateDS_name --query "{id:id}" | jq '.id' | tr -d '"'`
+#echo "updateFunction_id: $updateFunction_id"
+corpIDSync_id=`az functionapp show --resource-group $rg --name $corpIDsync_name --query "{id:id}" | jq '.id' | tr -d '"'`
+#echo "corpIDSync_id: $corpIDSync_id"
+webapp_id=`az webapp show --resource-group $rg --name $webapp_name --query "{id:id}" | jq '.id' | tr -d '"'`
+#echo "webapp_id: $webapp_id"
+
+reader_role=`az cosmosdb sql role definition list -g $rg --account-name $name --query "[?contains(roleName,'Reader')].{id:id}" | jq '.[].id' | tr -d '"' | awk -F '/' '{print $11}'`
+#echo "reader_role: $reader_role"
+contributor_role=`az cosmosdb sql role definition list -g $rg --account-name $name --query "[?contains(roleName,'Contributor')].{id:id}" | jq '.[].id' | tr -d '"' | awk -F '/' '{print $11}'`
+#echo "contributor_role: $contributor_role"
+
+
+
+# TODO:  Need to make it smarter so it doesn't add dupes
+
+#
+# Grant current user access to Azure Portal
+#
+echo "Assigning roles to current user..."
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id "$reader_role" --principal-id $user_id --scope $cosmos_id -o none
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id "$contributor_role" --principal-id $user_id --scope $cosmos_id -o none
+echo "Done"
+
+
+#
+# Grant Azure Functions/Web App access to DB
+# 
+
+echo "Assigning roles to current user..."
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id "$reader_role" --principal-id $user_id --scope $cosmos_id -o none
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id $contributor_role --principal-id $user_id --scope $cosmos_id -o none
+echo "Done"
+
+echo "Assigning roles to current user..."
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id "$reader_role" --principal-id $user_id --scope $cosmos_id -o none
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id $contributor_role --principal-id $user_id --scope $cosmos_id -o none
+echo "Done"
+
+echo "Assigning roles to current user..."
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id "$reader_role" --principal-id $user_id --scope $cosmos_id -o none
+az cosmosdb sql role assignment create --resource-group $rg --account-name $name --role-definition-id $contributor_role --principal-id $user_id --scope $cosmos_id -o none
+echo "Done"
+
+#
+# Output resultant role assignments
+#
+
+az cosmosdb sql role assignment list -g $rg --account-name $name --query "sort_by([].{principalId:principalId,roleDefinitionId:roleDefinitionId},&principalId)"
+
