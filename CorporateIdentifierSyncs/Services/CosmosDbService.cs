@@ -5,6 +5,8 @@ using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 using DelegationStationShared.Models;
+using Azure.Core;
+using Azure.Identity;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -25,6 +27,7 @@ namespace CorporateIdentifierSync.Services
             string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
             string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
             var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
+            string cosmosEndpoint = Environment.GetEnvironmentVariable("COSMOS_ENDPOINT", EnvironmentVariableTarget.Process);
 
             if (string.IsNullOrEmpty(containerName))
             {
@@ -36,9 +39,9 @@ namespace CorporateIdentifierSync.Services
                 _logger.DSLogWarning("COSMOS_DATABASE_NAME is null or empty, using default value of DelegationStationData", fullMethodName);
                 databaseName = "DelegationStationData";
             }
-            if (string.IsNullOrEmpty(connectionString))
+            if (String.IsNullOrEmpty(connectionString) && String.IsNullOrEmpty(cosmosEndpoint))
             {
-                _logger.DSLogError("Cannot connect to CosmosDB. Missing required environment variable COSMOS_CONNECTION_STRING", fullMethodName);
+                _logger.DSLogError("Cannot connect to CosmosDB. Must configure COSMOS_CONNECTION_STRING or COSMOS_ENDPOINT", fullMethodName);
                 return;
             }
 
@@ -46,7 +49,17 @@ namespace CorporateIdentifierSync.Services
             {
                 if (_cosmosClient == null)
                 {
-                    _cosmosClient = new CosmosClient(connectionString);
+                    if (!String.IsNullOrEmpty(cosmosEndpoint))
+                    {
+                        _logger.DSLogInformation("Using Managed Identity to connect to CosmosDB", fullMethodName);
+                        TokenCredential credential = new ManagedIdentityCredential();
+                        _cosmosClient = new CosmosClient(cosmosEndpoint, credential);
+                    }
+                    else
+                    {
+                        _logger.DSLogInformation("Using connection string to connect to CosmosDB", fullMethodName);
+                        _cosmosClient = new CosmosClient(connectionString);
+                    }
                     _container = _cosmosClient.GetContainer(databaseName, containerName);
                 }
                 else if (_container == null)
