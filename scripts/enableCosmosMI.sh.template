@@ -6,12 +6,12 @@
 ###  Set these to the resource and resource group names you are using in your deployment
 ###
 
-rg="delegationstation-rg"
-name="ds-cosmos"
+rg="<DS RESOURCE GROUP NAME>"
+name="<COSMOS DB ACCOUNT NAME>"
 
-updateDS_name="dsupdatedevices"
-corpIDsync_name="dscorpidsync"
-webapp_name="delegationstation"
+updateDS_name="<UPDATE FUNCTION NAME>"
+corpIDsync_name="<CORPID SYNC FUNCTION NAME>"
+webapp_name="<WEBAPP NAME>"
 
 
 # Required for running in Git Bash 
@@ -24,7 +24,7 @@ export MSYS_NO_PATHCONV=1
 ###
 
 echo -n "Disabling key-based authentication..."
-#az resource update --resource-group $rg --name $name --resource-type "Microsoft.DocumentDB/databaseAccounts" --set properties.disableLocalAuth=true -o none
+az resource update --resource-group $rg --name $name --resource-type "Microsoft.DocumentDB/databaseAccounts" --set properties.disableLocalAuth=true -o none
 echo "Done"
 
 # Confirm setting in output
