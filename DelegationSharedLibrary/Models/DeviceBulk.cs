@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using DelegationStationShared.Enums;
 using Newtonsoft.Json;
 
 namespace DelegationStationShared.Models
@@ -21,6 +22,8 @@ namespace DelegationStationShared.Models
 
         [RegularExpression(@"^[a-zA-z0-9\-]*", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
         public string PreferredHostName { get; set; }
+
+        public DeviceOS? OS { get; set;  }
 
         public DeviceBulkAction Action { get; set; }
 

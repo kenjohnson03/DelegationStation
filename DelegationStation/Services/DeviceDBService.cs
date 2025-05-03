@@ -3,6 +3,7 @@ using DelegationStation.Interfaces;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Azure.Identity;
+using DelegationStationShared.Enums;
 
 namespace DelegationStation.Services
 {
@@ -92,7 +93,7 @@ namespace DelegationStation.Services
             }
         }
 
-        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, string preferredHostName)
+        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, string osID, string preferredHostName)
         {
             List<Device> devices = new List<Device>();
             string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
@@ -111,6 +112,11 @@ namespace DelegationStation.Services
                 queryBuilder += " AND CONTAINS(d.SerialNumber, @serial, true)";
             }
 
+            if (!string.IsNullOrEmpty(osID.Trim()))
+            {
+                queryBuilder += " AND CONTAINS(d.OS, @os, true)";
+            }
+
             if (!string.IsNullOrEmpty(preferredHostName.Trim()))
             {
                 queryBuilder += " AND CONTAINS(d.PreferredHostName, @hostname, true)";
@@ -118,9 +124,10 @@ namespace DelegationStation.Services
 
             QueryDefinition q = new QueryDefinition(queryBuilder);
 
-            q.WithParameter("@serial", serialNumber);
             q.WithParameter("@make", make);
             q.WithParameter("@model", model);
+            q.WithParameter("@serial", serialNumber);
+            q.WithParameter("@os", osID);
             q.WithParameter("@hostname", preferredHostName);
 
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
@@ -419,7 +426,7 @@ namespace DelegationStation.Services
 
         public async Task MarkDeviceToDeleteAsync(Device device)
         {
-            device.Status = DelegationStationShared.Models.Device.DeviceStatus.Deleting;
+            device.Status = DeviceStatus.Deleting;
             device.MarkedToDeleteUTC = DateTime.UtcNow;
             await this._container.UpsertItemAsync<Device>(device);
         }

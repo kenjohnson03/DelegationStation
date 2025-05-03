@@ -1,5 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
+using DelegationStationShared.Enums;
+using Microsoft.Graph.Beta;
+using Microsoft.Graph.Beta.Models;
 
 namespace DelegationStationShared.Models
 {
@@ -33,26 +36,24 @@ namespace DelegationStationShared.Models
         public List<string> Tags { get; set; }
         [Required(AllowEmptyStrings = false)]
         public string Type { get; private set; }
-        
+
         // Note:  Because we don't allow modifications from GUI is really AddedUTC
         public DateTime ModifiedUTC { get; set; }
 
         public string? AddedBy { get; set; }
 
-        // Corporate Identifier related 
+        // Corporate Identifier related
         public string CorporateIdentity { get; set; }
-        public string CorporateIdentityType { get; set; }
+        //public string CorporateIdentityType { get; set; }
+        public ImportedDeviceIdentityType  CorporateIdentityType { get; set; }
         public DateTime LastCorpIdentitySync { get; set; }
         public string CorporateIdentityID { get; set; }
 
-        public enum DeviceStatus
-        {
-            Added,
-            Synced,
-            Deleting,
-            NotSyncing
-        }
+
         public DeviceStatus Status { get; set; }
+
+
+        public DeviceOS? OS { get; set; }
         public DateTime? MarkedToDeleteUTC { get; set; }
 
 
@@ -79,15 +80,14 @@ namespace DelegationStationShared.Models
             MarkedToDeleteUTC = null;
 
             CorporateIdentity = string.Empty;
-            CorporateIdentityType = "manufacturerModelSerial";
+            //CorporateIdentityType = "manufacturerModelSerial";
             LastCorpIdentitySync = DateTime.MinValue;
             CorporateIdentityID = string.Empty;
 
             Status = DeviceStatus.Added;
 
-
         }
-       
+
 
     }
 

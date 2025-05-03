@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using DelegationStation.Authorization;
 using DelegationStation.Interfaces;
+using DelegationStationShared.Enums;
 
 namespace DelegationStationTests.Pages
 {

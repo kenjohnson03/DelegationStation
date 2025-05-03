@@ -1,6 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
 using DelegationStation.Interfaces;
+using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 

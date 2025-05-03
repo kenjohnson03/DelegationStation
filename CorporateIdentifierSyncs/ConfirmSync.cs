@@ -5,6 +5,7 @@ using Microsoft.Graph.Beta.Models;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -114,7 +115,7 @@ namespace CorporateIdentifierSync
 
                     if (corpIDFound || corpIDUpdated)
                     {
-                        device.Status = Device.DeviceStatus.Synced;
+                        device.Status = DeviceStatus.Synced;
                     }
                 }
                 else  // !tagSetToSync
@@ -122,13 +123,13 @@ namespace CorporateIdentifierSync
                     _logger.DSLogInformation($"Tag {device.Tags[0]} is not set to sync.", fullMethodName);
 
                     // if device was synced remove from CorporateIdentifiers
-                    if (device.Status == Device.DeviceStatus.Synced)
+                    if (device.Status == DeviceStatus.Synced)
                     {
                         _logger.DSLogInformation("Device was synced, but is tag is not set to sync.  Removing from CorporateIdentifiers", fullMethodName);
                         try
                         {
                             successfullyUnsynced = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                            device.Status = Device.DeviceStatus.NotSyncing;
+                            device.Status = DeviceStatus.NotSyncing;
                             device.CorporateIdentityID = "";
                             device.CorporateIdentity = "";
                         }

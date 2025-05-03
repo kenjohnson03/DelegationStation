@@ -7,6 +7,7 @@ using DelegationStationShared;
 using DelegationStationShared.Models;
 using Azure.Core;
 using Azure.Identity;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -89,7 +90,7 @@ namespace CorporateIdentifierSync.Services
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" " +
                 "AND (NOT IS_DEFINED(c.Status) OR (c.Status = @status)) " +
                 "OFFSET 0 LIMIT 10000");
-            query.WithParameter("@status", Device.DeviceStatus.Added);
+            query.WithParameter("@status", DeviceStatus.Added);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
 
@@ -111,7 +112,7 @@ namespace CorporateIdentifierSync.Services
             string fullMethodName = className + "." + methodName;
 
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status");
-            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+            query.WithParameter("@status", DeviceStatus.Deleting);
 
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
@@ -162,8 +163,8 @@ namespace CorporateIdentifierSync.Services
             // Only return devices that are in Synced or NotSyncing status
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @deleting)" +
                 " AND NOT (c.Status = @added) AND c.LastCorpIdentitySync <= @date");
-            query.WithParameter("@deleting", Device.DeviceStatus.Deleting);
-            query.WithParameter("@added", Device.DeviceStatus.Added);
+            query.WithParameter("@deleting", DeviceStatus.Deleting);
+            query.WithParameter("@added", DeviceStatus.Added);
             query.WithParameter("@date", date);
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();

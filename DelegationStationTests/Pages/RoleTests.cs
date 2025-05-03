@@ -4,6 +4,7 @@ using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
+using DelegationStationShared.Enums;
 
 namespace DelegationStationTests.Pages
 {

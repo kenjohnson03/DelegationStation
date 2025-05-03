@@ -6,6 +6,7 @@ using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 using DelegationStationShared.Models;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -102,14 +103,14 @@ namespace CorporateIdentifierSync
                         // Set the Corporate Identifier values
                         device.CorporateIdentityID = deviceIdentity.Id;
                         device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                        device.Status = Device.DeviceStatus.Synced;
+                        device.Status = DeviceStatus.Synced;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
                         device.CorporateIdentityType = "manufacturerModelSerial";
                     }
                     else
                     {
                         _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} tag {device.Tags[0]} is not enabled for sync.", fullMethodName);
-                        device.Status = Device.DeviceStatus.NotSyncing;
+                        device.Status = DeviceStatus.NotSyncing;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
                     }
 
