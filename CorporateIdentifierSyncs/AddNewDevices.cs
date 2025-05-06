@@ -108,8 +108,10 @@ namespace CorporateIdentifierSync
                             device.CorporateIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
                             _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
-                            // TBD: Make sure this works with commas in Make or model
-                            identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+                            // Putting make and model in quotes to handle commas
+                            string escapedMake = "\"" + device.Make + "\"";
+                            string escapedModel = "\"" + device.Model + "\"";
+                            identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
                         }
                         else
                         {
