@@ -78,7 +78,7 @@ namespace CorporateIdentifierSync.Services
         }
 
 
-        public async Task<ImportedDeviceIdentity> AddCorporateIdentifier(string identifier)
+        public async Task<ImportedDeviceIdentity> AddCorporateIdentifier(ImportedDeviceIdentityType type, string identifier)
         {
             string methodName = ExtensionHelper.GetMethodName();
             string className = this.GetType().Name;
@@ -87,7 +87,7 @@ namespace CorporateIdentifierSync.Services
             _logger.DSLogInformation($"Adding identifier: {identifier}", fullMethodName);
 
             ImportedDeviceIdentity importedDevice = new ImportedDeviceIdentity();
-            importedDevice.ImportedDeviceIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
+            importedDevice.ImportedDeviceIdentityType = type;
             importedDevice.ImportedDeviceIdentifier = identifier;
 
             List<ImportedDeviceIdentity> addList = new List<ImportedDeviceIdentity>();

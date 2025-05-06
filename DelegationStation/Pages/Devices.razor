@@ -41,13 +41,14 @@
                         <input type="text" @bind="searchDevice.SerialNumber" class="form-control" placeholder="Serial Number" />
                     </td>
                     <td>
-                        <input type="select" @bind="searchDevice.OS" class="form-control" placeholder="Device OS">
+                        <InputSelect @bind-Value=searchDevice.OS class="form-select" id="OS">
                             <option disabled selected value>Select OS</option>
-                            @foreach (string os in Enum.GetNames(typeof(DeviceOS)))
+                            <option value=""></option>
+                            @foreach (var os in Enum.GetValues(typeof(DeviceOS)))
                             {
                                 <option value=@os>@os</option>
                             }
-                        </input>
+                        </InputSelect>
                     </td>
                     <td>
                         <input type="text" @bind="searchDevice.PreferredHostName" class="form-control" placeholder="Preferred Host Name" />

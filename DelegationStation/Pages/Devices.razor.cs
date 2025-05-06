@@ -105,7 +105,12 @@ namespace DelegationStation.Pages
             userMessage = string.Empty;
             try
             {
-                string deviceOSID = searchDevice.OS?.ToString() ?? string.Empty;
+                int? deviceOSID = null;
+                if (searchDevice.OS != null)
+                {
+                    deviceOSID = (int) searchDevice.OS;
+                }
+
                 devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostName);
             }
             catch (Exception ex)

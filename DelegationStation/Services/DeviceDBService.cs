@@ -93,7 +93,7 @@ namespace DelegationStation.Services
             }
         }
 
-        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, string osID, string preferredHostName)
+        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, int? osID, string preferredHostName)
         {
             List<Device> devices = new List<Device>();
             string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
@@ -112,11 +112,10 @@ namespace DelegationStation.Services
                 queryBuilder += " AND CONTAINS(d.SerialNumber, @serial, true)";
             }
 
-            if (!string.IsNullOrEmpty(osID.Trim()))
+            if (osID != null)
             {
-                queryBuilder += " AND CONTAINS(d.OS, @os, true)";
+                queryBuilder += " AND d.OS=@os";
             }
-
             if (!string.IsNullOrEmpty(preferredHostName.Trim()))
             {
                 queryBuilder += " AND CONTAINS(d.PreferredHostName, @hostname, true)";

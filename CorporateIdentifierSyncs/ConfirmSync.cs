@@ -94,18 +94,26 @@ namespace CorporateIdentifierSync
                     {
                         _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
 
-                        string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
-                        try
+                        string identifier = "";
+                        if (device.OS == DeviceOS.Windows)
                         {
-                            ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
-                            device.CorporateIdentityID = deviceIdentity.Id;
-                            device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                            corpIDUpdated = true;
+                            identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                            identifier = device.SerialNumber;
                         }
+                            try
+                            {
+                                ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(device.CorporateIdentityType, identifier);
+                                device.CorporateIdentityID = deviceIdentity.Id;
+                                device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                                corpIDUpdated = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                            }
 
                     }
                     else
