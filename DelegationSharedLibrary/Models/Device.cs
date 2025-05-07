@@ -12,8 +12,8 @@ namespace DelegationStationShared.Models
         [JsonProperty(PropertyName = "id")]
         public Guid Id { get; set; }
 
-        [RegularExpression(@"^[a-zA-z0-9\-]*", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
-        [StringLength(63, ErrorMessage = "Preferred Host Name must be less than 63 characters.")]
+        [RegularExpression(@"^[0-9a-zA-Z](([0-9a-zA-Z-])*([0-9a-zA-Z])+)*$", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
+        [StringLength(15, ErrorMessage = "Preferred Host Name must be 1-15 characters.")]
         public string PreferredHostName { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Make is Required")]
