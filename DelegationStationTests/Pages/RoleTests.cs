@@ -44,7 +44,7 @@ namespace DelegationStationTests.Pages
                     GetRolesAsync = () => Task.FromResult(roles)
                 };
 
-                var myConfiguration = new Dictionary<string, string>
+                var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId.ToString()},
                     {"Nested:Key1", "NestedValue1"},
@@ -114,7 +114,7 @@ namespace DelegationStationTests.Pages
                     GetRolesAsync = () => Task.FromResult(roles)
                 };
 
-                var myConfiguration = new Dictionary<string, string>
+                var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId.ToString()},
                     {"Nested:Key1", "NestedValue1"},

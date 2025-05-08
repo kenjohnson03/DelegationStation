@@ -89,7 +89,7 @@ namespace DelegationStationTests.Pages
                     Task.FromResult(devices)
             };
 
-            var myConfiguration = new Dictionary<string, string>
+            var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId},
                     {"Nested:Key1", "NestedValue1"},

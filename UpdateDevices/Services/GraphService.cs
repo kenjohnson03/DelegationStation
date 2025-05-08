@@ -354,7 +354,8 @@ namespace UpdateDevices.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            ManagedDevice? result = null;
+            ManagedDevice result = null;
+
             try
             {
                 result = await _graphClient.DeviceManagement.ManagedDevices[deviceID].GetAsync();

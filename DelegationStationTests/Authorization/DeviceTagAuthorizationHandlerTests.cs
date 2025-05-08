@@ -19,7 +19,7 @@ public class DeviceTagAuthorizationHandlerTests
 
         // Arrange: Create a DeviceTagAuthorizationHandler
         var context = new AuthorizationHandlerContext(requirements, claimsPrincipal, tag);
-        var myConfiguration = new Dictionary<string, string>
+        var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultGroupId.ToString()},
                     {"Nested:Key1", "NestedValue1"},
@@ -41,7 +41,7 @@ public class DeviceTagAuthorizationHandlerTests
             sb.AppendLine(reason.Message.ToString());
         }
 
-        // Assert    
+        // Assert
 
         Assert.AreEqual(shouldPass, context.HasSucceeded, sb.ToString());
     }
@@ -64,7 +64,7 @@ public class DeviceTagAuthorizationHandlerTests
         reqs.Add(DeviceTagOperations.Read);
 
         var context = new AuthorizationHandlerContext(reqs, claimsPrincipal, GetDeviceTag(TagRole.None, delegatedGroupId));
-        var myConfiguration = new Dictionary<string, string>
+        var myConfiguration = new Dictionary<string, string?>
                 {
                     {"Nested:Key1", "NestedValue1"},
                     {"Nested:Key2", "NestedValue2"}
@@ -85,7 +85,7 @@ public class DeviceTagAuthorizationHandlerTests
             sb.AppendLine(reason.Message.ToString());
         }
 
-        // Assert    
+        // Assert
 
         Assert.AreEqual(false, context.HasSucceeded, sb.ToString());
         Assert.AreEqual("Unable to find default admin group", context.FailureReasons.First().Message);
