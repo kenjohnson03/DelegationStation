@@ -135,7 +135,7 @@
             }
         }
 
-       <ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(() => DeleteDevice())" @ref="ConfirmDelete" />
+       <ConfirmMessage MessageBody=@confirmMessage ConfirmAction="@(async() =>await DeleteDevice())" @ref="ConfirmDelete" />
 
     </Authorized>
 
