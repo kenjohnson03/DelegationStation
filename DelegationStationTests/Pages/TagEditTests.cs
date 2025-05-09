@@ -408,7 +408,7 @@ namespace DelegationStationTests.Pages
                 GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };
 
-            var myConfiguration = new Dictionary<string, string>
+            var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId},
                     {"Nested:Key1", "NestedValue1"},
@@ -492,7 +492,7 @@ namespace DelegationStationTests.Pages
                 GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };
 
-            var myConfiguration = new Dictionary<string, string>
+            var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId},
                     {"Nested:Key1", "NestedValue1"},

@@ -21,7 +21,7 @@ namespace UpdateDevices.Services
     {
 
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
-        
+
         private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
 
@@ -322,7 +322,7 @@ namespace UpdateDevices.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            ManagedDevice? result = null;
+            ManagedDevice result = null;
             try
             {
                 var devices = await _graphClient.DeviceManagement.ManagedDevices.GetAsync((requestConfiguration) =>
@@ -354,7 +354,8 @@ namespace UpdateDevices.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            ManagedDevice? result = null;
+            ManagedDevice result = null;
+
             try
             {
                 result = await _graphClient.DeviceManagement.ManagedDevices[deviceID].GetAsync();
