@@ -28,7 +28,7 @@ namespace CorporateIdentifierSync
         [Function("AddNewDevices")]
         public async Task Run([TimerTrigger("%AddDevicesTriggerTime%")] TimerInfo myTimer)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 

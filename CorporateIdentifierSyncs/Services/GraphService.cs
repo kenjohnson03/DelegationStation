@@ -18,7 +18,7 @@ namespace CorporateIdentifierSync.Services
 
         public GraphService(IConfiguration configuration, ILogger<GraphService> logger)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -79,7 +79,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<bool> DeleteManagedDevice(string managedDeviceID)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -91,7 +91,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<ManagedDevice> GetManagedDevice(string make, string model, string serialNum)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 

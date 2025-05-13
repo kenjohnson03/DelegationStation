@@ -33,7 +33,7 @@ namespace UpdateDevices
             _graphService = graphService;
             _graphBetaService = graphBetaService;
 
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -49,7 +49,7 @@ namespace UpdateDevices
         [Function("UpdateDevices")]
         public async Task Run([TimerTrigger("%TriggerTime%")] TimerInfo timerInfo)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -82,7 +82,7 @@ namespace UpdateDevices
 
         private async Task RunDeviceUpdateActionsAsync(Microsoft.Graph.Models.ManagedDevice device)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 

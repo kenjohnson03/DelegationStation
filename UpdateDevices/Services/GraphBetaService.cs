@@ -24,7 +24,7 @@ namespace UpdateDevices.Services
 
         public GraphBetaService(IConfiguration configuration, ILogger<GraphBetaService> logger)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -83,7 +83,7 @@ namespace UpdateDevices.Services
 
         public async Task<bool> SetDeviceName(string managedDeviceID, string newHostName)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 

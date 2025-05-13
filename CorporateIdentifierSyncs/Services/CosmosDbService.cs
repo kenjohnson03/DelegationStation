@@ -19,16 +19,16 @@ namespace CorporateIdentifierSync.Services
 
         public CosmosDbService(ILogger<CosmosDbService> logger)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger = logger;
 
-            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
-            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
-            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
-            string cosmosEndpoint = Environment.GetEnvironmentVariable("COSMOS_ENDPOINT", EnvironmentVariableTarget.Process);
+            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process) ?? "";
+            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process) ?? "";
+            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process) ?? "";
+            string cosmosEndpoint = Environment.GetEnvironmentVariable("COSMOS_ENDPOINT", EnvironmentVariableTarget.Process) ?? "";
 
             if (string.IsNullOrEmpty(containerName))
             {
@@ -81,7 +81,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetAddedDevices()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -107,7 +107,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetDevicesMarkedForDeletion()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -136,13 +136,13 @@ namespace CorporateIdentifierSync.Services
 
         public async Task UpdateDevice(Device device)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger.DSLogInformation("Updating device " + device.Id + ".", fullMethodName);
 
-            ItemResponse<Device> response = null;
+            ItemResponse<Device> response;
             response = await _container.UpsertItemAsync(device);
             _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
 
@@ -156,7 +156,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetDevicesSyncedBefore(DateTime date)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -186,7 +186,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<DelegationStationShared.Models.DeviceTag> GetDeviceTag(string id)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -207,7 +207,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<string>> GetSyncEnabledDeviceTags()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 

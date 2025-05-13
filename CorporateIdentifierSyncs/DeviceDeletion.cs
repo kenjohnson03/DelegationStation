@@ -26,7 +26,7 @@ namespace CorporateIdentifierSync
         [Function("DeviceDeletion")]
         public async Task Run([TimerTrigger("%DeleteDevicesTriggerTime%")] TimerInfo myTimer)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -69,7 +69,7 @@ namespace CorporateIdentifierSync
                 {
                     managedDevice = await _graphService.GetManagedDevice(device.Make, device.Model, device.SerialNumber);
 
-                    if (managedDevice != null)
+                    if (managedDevice != null && managedDevice.Id != null)
                     {
                         _logger.DSLogInformation($"Found managed device {managedDevice.Id} in Intune that matches device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                         delManagedDevice = await _graphService.DeleteManagedDevice(managedDevice.Id);
@@ -84,7 +84,14 @@ namespace CorporateIdentifierSync
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Unable to delete managed device: {managedDevice.Id} {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
+                    if (managedDevice == null)
+                    {
+                        _logger.DSLogException($"Unable to query managed device for {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
+                    }
+                    else
+                    {
+                        _logger.DSLogException($"Unable to delete managed device: {managedDevice.Id} {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
+                    }
                     delManagedDevice = false;
                 }
 
@@ -138,7 +145,14 @@ namespace CorporateIdentifierSync
                 }
                 else
                 {
-                    _logger.DSLogError($"Deletion from Intune failed for device {device.Id} (managedDevice ID: {managedDevice.Id}.  Not deleting from Delegation Station", fullMethodName);
+                    if (managedDevice != null && managedDevice.Id != null)
+                    {
+                        _logger.DSLogError($"Deletion from Intune failed for device {device.Id} (managedDevice ID: {managedDevice.Id}).  Not deleting from Delegation Station", fullMethodName);
+                    }
+                    else
+                    {
+                        _logger.DSLogError($"Deletion from Intune failed for device {device.Id} Not deleting from Delegation Station", fullMethodName);
+                    }
 
                 }
             }

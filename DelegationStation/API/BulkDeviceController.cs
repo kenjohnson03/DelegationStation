@@ -93,7 +93,7 @@ namespace DelegationStation.API
                     }
                     else
                     {
-                        deviceOSstring = Enum.GetName(typeof(DeviceOS), device.OS);
+                        deviceOSstring = Enum.GetName(typeof(DeviceOS), device.OS) ?? "";
                     }
 
                     sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},{deviceOSstring},{device.PreferredHostName},,{device.AddedBy}");
