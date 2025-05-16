@@ -79,7 +79,7 @@ namespace CorporateIdentifierSync
                 // Set OS if not set
                 if(device.OS == null)
                 {
-                    device.OS = DeviceOS.Windows;
+                    device.OS = DeviceOS.Unknown;
                 }
 
 
@@ -103,7 +103,7 @@ namespace CorporateIdentifierSync
                     if (isCorpIDSyncEnabledForTag)
                     {
                         string identifier = "";
-                        if (device.OS == DeviceOS.Windows)
+                        if ((device.OS == DeviceOS.Windows) || (device.OS == DeviceOS.Unknown))
                         {
                             device.CorporateIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
                             _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
