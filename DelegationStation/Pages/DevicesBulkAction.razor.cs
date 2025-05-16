@@ -209,18 +209,28 @@ namespace DelegationStation.Pages
                                         logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                         continue;
                                     }
+                                    else
+                                    {
+                                        if (os_out == DeviceOS.Unknown)
+                                        {
+                                            var message = $"File upload error.\nFile Name: {file.Name}\nInvalid OS.  Valid values include:  Windows, MacOS, iOS and Android.\nCorrelation Id: {c.ToString()}";
+                                            fileError.Add(message);
+                                            logger.LogWarning($"{message}\nUser: {userName} {userId}");
+                                            continue;
+                                        }
+                                    }
                                     os = os_out;
                                 }
 
-                                    var newDevice = new DeviceBulk()
-                                    {
-                                        Make = input[CsvColumns.Make],
-                                        Model = input[CsvColumns.Model],
-                                        SerialNumber = input[CsvColumns.SerialNumber],
-                                        OS = os,
-                                        PreferredHostName = input[CsvColumns.HostName],
-                                        Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[CsvColumns.Action].ToLower()))
-                                    };
+                                var newDevice = new DeviceBulk()
+                                {
+                                    Make = input[CsvColumns.Make],
+                                    Model = input[CsvColumns.Model],
+                                    SerialNumber = input[CsvColumns.SerialNumber],
+                                    OS = os,
+                                    PreferredHostName = input[CsvColumns.HostName],
+                                    Action = (DeviceBulkAction)Enum.Parse(typeof(DeviceBulkAction), (input[CsvColumns.Action].ToLower()))
+                                };
                                 var context = new ValidationContext(newDevice, null, null);
                                 var results = new List<ValidationResult>();
 

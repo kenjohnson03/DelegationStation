@@ -95,7 +95,7 @@ namespace CorporateIdentifierSync
                         _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
 
                         string identifier = "";
-                        if (device.OS == DeviceOS.Windows)
+                        if ((device.OS == DeviceOS.Windows) || (device.OS == DeviceOS.Unknown))
                         {
                             identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
                         }

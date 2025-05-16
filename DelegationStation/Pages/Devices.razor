@@ -42,11 +42,13 @@
                     </td>
                     <td>
                         <InputSelect @bind-Value=searchDevice.OS class="form-select" id="OS">
-                            <option disabled selected value>Select OS</option>
-                            <option value=""></option>
+                            <option selected value>Select OS</option>
                             @foreach (var os in Enum.GetValues(typeof(DeviceOS)))
                             {
-                                <option value=@os>@os</option>
+                                @if ((DeviceOS) os != DeviceOS.Unknown)
+                                {
+                                  <option value=@os>@os</option>
+                                }
                             }
                         </InputSelect>
                     </td>
@@ -153,9 +155,12 @@
                 <label for="Operating System" class="form-label">Device OS</label>
                 <InputSelect @bind-Value=newDevice.OS class="form-select" id="OS">
                     <option disabled selected value>Select OS</option>
-                    @foreach (string os in Enum.GetNames(typeof(DeviceOS)))
+                    @foreach (var os in Enum.GetValues(typeof(DeviceOS)))
                     {
-                        <option value=@os>@os</option>
+                        @if ((DeviceOS)os != DeviceOS.Unknown)
+                        {
+                            <option value=@os>@os</option>
+                        }
                     }
                 </InputSelect>
             </div>
