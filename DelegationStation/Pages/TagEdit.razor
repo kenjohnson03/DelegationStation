@@ -3,6 +3,7 @@
 @using DelegationStation.Interfaces;
 @using Microsoft.Graph.Models;
 @using DelegationStation.Shared;
+@using DelegationStationShared.Enums;
 
 @inject ILogger<TagEdit> logger
 @inject IDeviceTagDBService deviceTagDBService
@@ -374,7 +375,7 @@
                             <input type="submit" class="btn btn-primary mt-2 mb-3 @(@validateActionInputs() ? "" : "disabled")" value="Add Action" />
 
                         </EditForm>
-                
+
 
                 @if (!string.IsNullOrEmpty(tagErrorMessage))
                 {
@@ -409,7 +410,7 @@
                                         <tr class="">
                                             <td>@a.ActionType</td>
                                             <td>@a.Name</td>
-                                            <td>@a.Value</td>                                           
+                                            <td>@a.Value</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -418,7 +419,7 @@
                     </NotAuthorized>
                 </AuthorizeView>
 
-                
+
             </EditForm>
         }
         @if (!string.IsNullOrEmpty(userMessage))

@@ -5,6 +5,7 @@ using Microsoft.Graph.Beta.Models;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -25,7 +26,7 @@ namespace CorporateIdentifierSync
         public async Task Run([TimerTrigger("%ConfirmSyncTriggerTime%")] TimerInfo myTimer)
         {
 
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -93,18 +94,26 @@ namespace CorporateIdentifierSync
                     {
                         _logger.DSLogInformation("Corporate Identifier not found, adding back to CorporateIdentifiers", fullMethodName);
 
-                        string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
-                        try
+                        string identifier = "";
+                        if (device.OS == DeviceOS.Windows)
                         {
-                            ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
-                            device.CorporateIdentityID = deviceIdentity.Id;
-                            device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                            corpIDUpdated = true;
+                            identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                            identifier = device.SerialNumber;
                         }
+                            try
+                            {
+                                ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(device.CorporateIdentityType, identifier);
+                                device.CorporateIdentityID = deviceIdentity.Id;
+                                device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                                corpIDUpdated = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                            }
 
                     }
                     else
@@ -114,7 +123,7 @@ namespace CorporateIdentifierSync
 
                     if (corpIDFound || corpIDUpdated)
                     {
-                        device.Status = Device.DeviceStatus.Synced;
+                        device.Status = DeviceStatus.Synced;
                     }
                 }
                 else  // !tagSetToSync
@@ -122,13 +131,13 @@ namespace CorporateIdentifierSync
                     _logger.DSLogInformation($"Tag {device.Tags[0]} is not set to sync.", fullMethodName);
 
                     // if device was synced remove from CorporateIdentifiers
-                    if (device.Status == Device.DeviceStatus.Synced)
+                    if (device.Status == DeviceStatus.Synced)
                     {
                         _logger.DSLogInformation("Device was synced, but is tag is not set to sync.  Removing from CorporateIdentifiers", fullMethodName);
                         try
                         {
                             successfullyUnsynced = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                            device.Status = Device.DeviceStatus.NotSyncing;
+                            device.Status = DeviceStatus.NotSyncing;
                             device.CorporateIdentityID = "";
                             device.CorporateIdentity = "";
                         }

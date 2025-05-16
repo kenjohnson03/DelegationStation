@@ -7,6 +7,7 @@ using DelegationStationShared;
 using DelegationStationShared.Models;
 using Azure.Core;
 using Azure.Identity;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -18,16 +19,16 @@ namespace CorporateIdentifierSync.Services
 
         public CosmosDbService(ILogger<CosmosDbService> logger)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger = logger;
 
-            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process);
-            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process);
-            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process);
-            string cosmosEndpoint = Environment.GetEnvironmentVariable("COSMOS_ENDPOINT", EnvironmentVariableTarget.Process);
+            string containerName = Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME", EnvironmentVariableTarget.Process) ?? "";
+            string databaseName = Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME", EnvironmentVariableTarget.Process) ?? "";
+            var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING", EnvironmentVariableTarget.Process) ?? "";
+            string cosmosEndpoint = Environment.GetEnvironmentVariable("COSMOS_ENDPOINT", EnvironmentVariableTarget.Process) ?? "";
 
             if (string.IsNullOrEmpty(containerName))
             {
@@ -80,7 +81,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetAddedDevices()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -89,7 +90,7 @@ namespace CorporateIdentifierSync.Services
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" " +
                 "AND (NOT IS_DEFINED(c.Status) OR (c.Status = @status)) " +
                 "OFFSET 0 LIMIT 10000");
-            query.WithParameter("@status", Device.DeviceStatus.Added);
+            query.WithParameter("@status", DeviceStatus.Added);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
 
@@ -106,12 +107,12 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetDevicesMarkedForDeletion()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status");
-            query.WithParameter("@status", Device.DeviceStatus.Deleting);
+            query.WithParameter("@status", DeviceStatus.Deleting);
 
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
@@ -135,13 +136,13 @@ namespace CorporateIdentifierSync.Services
 
         public async Task UpdateDevice(Device device)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger.DSLogInformation("Updating device " + device.Id + ".", fullMethodName);
 
-            ItemResponse<Device> response = null;
+            ItemResponse<Device> response;
             response = await _container.UpsertItemAsync(device);
             _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
 
@@ -155,15 +156,15 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<Device>> GetDevicesSyncedBefore(DateTime date)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             // Only return devices that are in Synced or NotSyncing status
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND NOT (c.Status = @deleting)" +
                 " AND NOT (c.Status = @added) AND c.LastCorpIdentitySync <= @date");
-            query.WithParameter("@deleting", Device.DeviceStatus.Deleting);
-            query.WithParameter("@added", Device.DeviceStatus.Added);
+            query.WithParameter("@deleting", DeviceStatus.Deleting);
+            query.WithParameter("@added", DeviceStatus.Added);
             query.WithParameter("@date", date);
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();
@@ -185,7 +186,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<DelegationStationShared.Models.DeviceTag> GetDeviceTag(string id)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -206,7 +207,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<List<string>> GetSyncEnabledDeviceTags()
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 

@@ -1,5 +1,6 @@
 using DelegationStation.Services;
 using DelegationStation.Shared;
+using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -104,7 +105,13 @@ namespace DelegationStation.Pages
             userMessage = string.Empty;
             try
             {
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, searchDevice.PreferredHostName);
+                int? deviceOSID = null;
+                if (searchDevice.OS != null)
+                {
+                    deviceOSID = (int) searchDevice.OS;
+                }
+
+                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostName);
             }
             catch (Exception ex)
             {

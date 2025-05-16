@@ -6,6 +6,7 @@ using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 using DelegationStationShared.Models;
+using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -27,7 +28,7 @@ namespace CorporateIdentifierSync
         [Function("AddNewDevices")]
         public async Task Run([TimerTrigger("%AddDevicesTriggerTime%")] TimerInfo myTimer)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -75,6 +76,13 @@ namespace CorporateIdentifierSync
             foreach (Device device in devicesToMigrate)
             {
 
+                // Set OS if not set
+                if(device.OS == null)
+                {
+                    device.OS = DeviceOS.Windows;
+                }
+
+
                 // Get Device Tag sync setting
                 bool isCorpIDSyncEnabledForTag = false;
                 if (device.Tags.Count == 0)
@@ -94,22 +102,35 @@ namespace CorporateIdentifierSync
                 {
                     if (isCorpIDSyncEnabledForTag)
                     {
+                        string identifier = "";
+                        if (device.OS == DeviceOS.Windows)
+                        {
+                            device.CorporateIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
+                            _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
-                        _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
-                        string identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
-                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(identifier);
+                            // Putting make and model in quotes to handle commas
+                            string escapedMake = "\"" + device.Make + "\"";
+                            string escapedModel = "\"" + device.Model + "\"";
+                            identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
+                        }
+                        else
+                        {
+                            device.CorporateIdentityType = ImportedDeviceIdentityType.SerialNumber;
+                            identifier = device.SerialNumber;
+                        }
+                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(device.CorporateIdentityType, identifier);
 
                         // Set the Corporate Identifier values
                         device.CorporateIdentityID = deviceIdentity.Id;
                         device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
-                        device.Status = Device.DeviceStatus.Synced;
+                        device.Status = DeviceStatus.Synced;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
-                        device.CorporateIdentityType = "manufacturerModelSerial";
+
                     }
                     else
                     {
                         _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} tag {device.Tags[0]} is not enabled for sync.", fullMethodName);
-                        device.Status = Device.DeviceStatus.NotSyncing;
+                        device.Status = DeviceStatus.NotSyncing;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
                     }
 

@@ -20,7 +20,7 @@ namespace CorporateIdentifierSync.Services
 
         public GraphBetaService(IConfiguration configuration, ILogger<GraphBetaService> logger)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -78,16 +78,16 @@ namespace CorporateIdentifierSync.Services
         }
 
 
-        public async Task<ImportedDeviceIdentity> AddCorporateIdentifier(string identifier)
+        public async Task<ImportedDeviceIdentity> AddCorporateIdentifier(ImportedDeviceIdentityType type, string identifier)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
             _logger.DSLogInformation($"Adding identifier: {identifier}", fullMethodName);
 
             ImportedDeviceIdentity importedDevice = new ImportedDeviceIdentity();
-            importedDevice.ImportedDeviceIdentityType = ImportedDeviceIdentityType.ManufacturerModelSerial;
+            importedDevice.ImportedDeviceIdentityType = type;
             importedDevice.ImportedDeviceIdentifier = identifier;
 
             List<ImportedDeviceIdentity> addList = new List<ImportedDeviceIdentity>();
@@ -111,7 +111,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<bool> CorporateIdentifierExists(string identifierId)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
@@ -145,7 +145,7 @@ namespace CorporateIdentifierSync.Services
 
         public async Task<bool> DeleteCorporateIdentifier(string ID)
         {
-            string methodName = ExtensionHelper.GetMethodName();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 

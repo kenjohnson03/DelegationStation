@@ -4,6 +4,7 @@ using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
+using DelegationStationShared.Enums;
 
 namespace DelegationStationTests.Pages
 {
@@ -82,7 +83,7 @@ namespace DelegationStationTests.Pages
                 Make = "1",
                 Model = "2",
                 SerialNumber = "3",
-                Status = Device.DeviceStatus.Added,
+                Status = DeviceStatus.Added,
                 Tags = new List<string>() { deviceTag1.Id.ToString() }
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
@@ -93,7 +94,7 @@ namespace DelegationStationTests.Pages
                     Task.FromResult(devices)
             };
 
-            var myConfiguration = new Dictionary<string, string>
+            var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId},
                     {"Nested:Key1", "NestedValue1"},
