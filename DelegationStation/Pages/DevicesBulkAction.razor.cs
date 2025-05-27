@@ -173,7 +173,7 @@ namespace DelegationStation.Pages
 
                             if (input.Length != CsvColumns.Count)
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}. Invalid number of columns. Input contains {input.Length} columns and should have {CsvColumns.Count}.\nCorrelation Id: {c.ToString()}";
+                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}:\n Invalid number of columns. Input contains {input.Length} columns and should have {CsvColumns.Count}.\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
                                 logger.LogError($"{message}\nUser: {userName} {userId}");
                                 isLoading = false;
@@ -191,7 +191,7 @@ namespace DelegationStation.Pages
                                 // Validate Make, Model, SerialNumber, Action
                                 if (input[CsvColumns.Action].ToLower() != "add" && input[CsvColumns.Action].ToLower() != "remove")
                                 {
-                                    var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
+                                    var message = $"Line {line}:\n Invalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                     fileError.Add(message);
                                     logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                     continue;
@@ -204,7 +204,7 @@ namespace DelegationStation.Pages
                                 {
                                     if (!Enum.TryParse(input[CsvColumns.OS].Trim(), true, out DeviceOS os_out))
                                     {
-                                        var message = $"File upload error.\nFile Name: {file.Name}\nInvalid OS.  Valid values include:  Windows, MacOS, iOS and Android.\nCorrelation Id: {c.ToString()}";
+                                        var message = $"Line {line}:\n Invalid OS.  Valid values include:  Windows, MacOS, iOS and Android.\nCorrelation Id: {c.ToString()}";
                                         fileError.Add(message);
                                         logger.LogWarning($"{message}\nUser: {userName} {userId}");
                                         continue;
@@ -252,9 +252,9 @@ namespace DelegationStation.Pages
                             }
                             catch (Exception ex)
                             {
-                                var message = $"File upload error.\nFile Name: {file.Name}\nLine {line}.\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                                var message = $"File upload error.\nFile Name: {file.Name}\nCorrelation Id: {c.ToString()}";
                                 fileError.Add(message);
-                                logger.LogError($"{message}\nUser: {userName} {userId}");
+                                logger.LogError($"{c.ToString()} {message}\nUser: {userName} {userId} Exception: {ex.Message}");
                                 isLoading = false;
                                 return;
                             }
@@ -263,9 +263,9 @@ namespace DelegationStation.Pages
                 }
                 catch (Exception ex)
                 {
-                    var message = $"File upload error.\nFile Name: {file.Name}\n{ex.Message}\nCorrelation Id: {c.ToString()}";
+                    var message = $"File upload error.\nFile Name: {file.Name}\nCorrelation Id: {c.ToString()}";
                     fileError.Add(message);
-                    logger.LogError($"{message}\nUser: {userName} {userId}");
+                    logger.LogError($"{c.ToString()} {message}\nUser: {userName} {userId} Exception: {ex.Message}");
                 }
                 finally
                 {
