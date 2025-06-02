@@ -38,7 +38,6 @@ namespace DelegationStationTests.Validation
         [DataRow("InvalidMake123*")]
         [DataRow("InvalidMake123+")]
         [DataRow("InvalidMake123=")]
-        [DataRow("InvalidMake123+")]
         [DataRow("InvalidMake123{")]
         [DataRow("InvalidMake123}")]
         [DataRow("InvalidMake123[")]

@@ -151,7 +151,6 @@ namespace DelegationStationTests.Validation
         [DataRow("InvalidSN123^")]
         [DataRow("InvalidSN123*")]
         [DataRow("InvalidSN123=")]
-        [DataRow("InvalidSN123+")]
         [DataRow("InvalidSN123{")]
         [DataRow("InvalidSN123}")]
         [DataRow("InvalidSN123[")]
