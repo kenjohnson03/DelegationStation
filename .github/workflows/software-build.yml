@@ -47,7 +47,9 @@ jobs:
       uses: darenm/Setup-VSTest@v1      
         
     - name: Restore dependencies
-      run: dotnet restore  
+      run: |
+        dotnet restore  
+        dotnet add package Microsoft.Net.Sdk.Compilers.Toolset --version 9.0.3
 
     - name: Build #Test Project
       run: |
