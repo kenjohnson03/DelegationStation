@@ -26,7 +26,7 @@ namespace DelegationStationShared.Models
 
         [RegularExpression(@"^[0-9a-zA-Z](([0-9a-zA-Z-])*([0-9a-zA-Z])+)*$", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
         [StringLength(15, ErrorMessage = "Preferred Host Name must be 1-15 characters.")]
-        [Required]
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Preferred Hostname is Required")]
         public string PreferredHostName { get; set; }
 
         public string PartitionKey { get; set; }

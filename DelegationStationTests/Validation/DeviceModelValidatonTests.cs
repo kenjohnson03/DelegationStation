@@ -7,6 +7,67 @@ namespace DelegationStationTests.Validation
     {
 
         [TestMethod]
+        public void VerifyMakeIsRequired()
+        {
+            var device = new Device
+            {
+                Make = "",
+                Model = "Model",
+                SerialNumber = "99999",
+                PreferredHostName = "hostname"
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Required")));
+        }
+
+        [TestMethod]
+        public void VerifyModelIsRequired()
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "",
+                SerialNumber = "99999",
+                PreferredHostName = "hostname"
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Required")));
+        }
+
+        [TestMethod]
+        public void VerifySNIsRequired()
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "",
+                PreferredHostName = "hostname"
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Required")));
+        }
+
+        [TestMethod]
+        public void VerifyHostnameIsRequired()
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "99999",
+                PreferredHostName = ""
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Required")));
+        }
+
+
+        [TestMethod]
         [DataRow("ValidMake123")]
         [DataRow("ValidMake123-")]
         [DataRow("ValidMake123_")]
@@ -186,7 +247,70 @@ namespace DelegationStationTests.Validation
 
         }
 
+        [TestMethod]
+        [DataRow("ValidHostname12345")]
+        [DataRow("valid-hostname")]
+        [DataRow("valid-host-name")]
+        public void VerifyValidHostnameAllowed(string hostname)
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "12345",
+                PreferredHostName = hostname
 
+            };
+            Assert.IsFalse(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Only use")));
+
+        }
+
+        [TestMethod]
+        [DataRow("InvalidHostname123,")]
+        [DataRow("InvalidHostname123&")]
+        [DataRow("InvalidHostname123(")]
+        [DataRow("InvalidHostname123)")]
+        [DataRow("InvalidHostname123+")]
+        [DataRow("InvalidHostname123!")]
+        [DataRow("InvalidHostname123@")]
+        [DataRow("InvalidHostname123#")]
+        [DataRow("InvalidHostname123$")]
+        [DataRow("InvalidHostname123%")]
+        [DataRow("InvalidHostname123^")]
+        [DataRow("InvalidHostname123*")]
+        [DataRow("InvalidHostname123=")]
+        [DataRow("InvalidHostname123+")]
+        [DataRow("InvalidHostname123{")]
+        [DataRow("InvalidHostname123}")]
+        [DataRow("InvalidHostname123[")]
+        [DataRow("InvalidHostname123]")]
+        [DataRow("InvalidHostname123\\")]
+        [DataRow("InvalidHostname123/")]
+        [DataRow("InvalidHostname123|")]
+        [DataRow("InvalidHostname123?")]
+        [DataRow("InvalidHostname123<")]
+        [DataRow("InvalidHostname123>")]
+        [DataRow("InvalidHostname123~")]
+        [DataRow("InvalidHostname123'")]
+        [DataRow("InvalidHostname123\"")]
+        [DataRow("InvalidHostname123`")]
+        [DataRow("-InvalidHostname123")]
+        [DataRow("InvalidHostname123-")]
+        public void VerifyInvalidHostnameNotAllowed(string hostname)
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "12345",
+                PreferredHostName = hostname
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("Only use")));
+
+        }
 
         private IList<ValidationResult> ValidateModel(object model)
         {
