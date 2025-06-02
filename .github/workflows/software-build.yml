@@ -48,9 +48,8 @@ jobs:
         
     - name: Restore dependencies
       run: |
-        dotnet restore  
-        dotnet add package Microsoft.Net.Sdk.Compilers.Toolset --version 9.0.3
-
+        dotnet restore /p:BuildWithNetFrameworkHostedCompiler=true
+        
     - name: Build #Test Project
       run: |
         msbuild.exe ${{ env.SRC_DIR }}/DelegationStation.sln /p:platform="Any CPU" /p:configuration="Release"       
