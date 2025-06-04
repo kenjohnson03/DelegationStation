@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using DelegationStationShared.Enums;
 
 namespace DelegationStationTests.Validation
 {
@@ -14,7 +15,8 @@ namespace DelegationStationTests.Validation
                 Make = "",
                 Model = "Model",
                 SerialNumber = "99999",
-                PreferredHostname = "hostname"
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -29,7 +31,8 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "",
                 SerialNumber = "99999",
-                PreferredHostname = "hostname"
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -44,7 +47,8 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "",
-                PreferredHostname = "hostname"
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -59,7 +63,8 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "99999",
-                PreferredHostname = ""
+                PreferredHostname = "",
+                OS = DeviceOS.Windows
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -82,7 +87,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = make,
                 Model = "Model",
-                SerialNumber = "00000"
+                SerialNumber = "00000",
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsFalse(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -120,7 +127,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = make,
                 Model = "Model",
-                SerialNumber = "00000"
+                SerialNumber = "00000",
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsTrue(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -143,7 +152,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = "Make",
                 Model = model,
-                SerialNumber = "00000"
+                SerialNumber = "00000",
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsFalse(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -180,7 +191,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = "Make",
                 Model = model,
-                SerialNumber = "00000"
+                SerialNumber = "00000",
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsTrue(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -198,7 +211,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = "Make",
                 Model = "Model",
-                SerialNumber = serialNumber
+                SerialNumber = serialNumber,
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsFalse(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -240,7 +255,9 @@ namespace DelegationStationTests.Validation
             {
                 Make = "Make",
                 Model = "Model",
-                SerialNumber = serialNumber
+                SerialNumber = serialNumber,
+                PreferredHostname = "hostname",
+                OS = DeviceOS.Windows
             };
             Assert.IsTrue(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
@@ -248,7 +265,7 @@ namespace DelegationStationTests.Validation
         }
 
         [TestMethod]
-        [DataRow("ValidHostname12345")]
+        [DataRow("ValidHostname123")]
         [DataRow("valid-hostname")]
         [DataRow("valid-host-name")]
         public void VerifyValidHostnameAllowed(string hostname)
@@ -258,7 +275,8 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "12345",
-                PreferredHostname = hostname
+                PreferredHostname = hostname,
+                OS = DeviceOS.Windows
 
             };
             Assert.IsFalse(ValidateModel(device).Any(
@@ -304,12 +322,31 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "12345",
-                PreferredHostname = hostname
+                PreferredHostname = hostname,
+                OS = DeviceOS.Windows
             };
 
+            // Only testing regex in this test
             Assert.IsTrue(ValidateModel(device).Any(
                 v => (v.ErrorMessage ?? "").Contains("Only use")));
 
+        }
+
+        [TestMethod]
+        [DataRow("HostnameTooLong1")]
+        public void VerifyHostnameLengthValidation(string hostname)
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "12345",
+                PreferredHostname = hostname,
+                OS = DeviceOS.Windows
+            };
+            // Only testing length in this test
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("must be 1-15 characters")));
         }
 
         private IList<ValidationResult> ValidateModel(object model)
