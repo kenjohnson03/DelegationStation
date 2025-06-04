@@ -24,10 +24,10 @@ namespace DelegationStationShared.Models
         [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Only use letters, numbers, -, _, or . for SerialNumber value.")]
         public string SerialNumber { get; set; }
 
-        [RegularExpression(@"^[0-9a-zA-Z](([0-9a-zA-Z-])*([0-9a-zA-Z])+)*$", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Host Name value.")]
-        [StringLength(15, ErrorMessage = "Preferred Host Name must be 1-15 characters.")]
+        [RegularExpression(@"^[0-9a-zA-Z](([0-9a-zA-Z-])*([0-9a-zA-Z])+)*$", ErrorMessage = "Only use letters, numbers, or hyphen for Preferred Hostname value. Hyphens may not be at beginning or end.")]
+        [StringLength(15, ErrorMessage = "Preferred Hostname must be 1-15 characters.")]
         [Required(AllowEmptyStrings = false, ErrorMessage = "Preferred Hostname is Required")]
-        public string PreferredHostName { get; set; }
+        public string PreferredHostname { get; set; }
 
         public string PartitionKey { get; set; }
 
@@ -67,7 +67,7 @@ namespace DelegationStationShared.Models
         {
             Id = Guid.NewGuid();
             PartitionKey = this.Id.ToString();
-            PreferredHostName = string.Empty;
+            PreferredHostname = string.Empty;
             Make = string.Empty;
             Model = string.Empty;
             SerialNumber = string.Empty;

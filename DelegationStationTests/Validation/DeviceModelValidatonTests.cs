@@ -14,7 +14,7 @@ namespace DelegationStationTests.Validation
                 Make = "",
                 Model = "Model",
                 SerialNumber = "99999",
-                PreferredHostName = "hostname"
+                PreferredHostname = "hostname"
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -29,7 +29,7 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "",
                 SerialNumber = "99999",
-                PreferredHostName = "hostname"
+                PreferredHostname = "hostname"
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -44,7 +44,7 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "",
-                PreferredHostName = "hostname"
+                PreferredHostname = "hostname"
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -59,7 +59,7 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "99999",
-                PreferredHostName = ""
+                PreferredHostname = ""
             };
 
             Assert.IsTrue(ValidateModel(device).Any(
@@ -258,7 +258,7 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "12345",
-                PreferredHostName = hostname
+                PreferredHostname = hostname
 
             };
             Assert.IsFalse(ValidateModel(device).Any(
@@ -304,7 +304,7 @@ namespace DelegationStationTests.Validation
                 Make = "Make",
                 Model = "Model",
                 SerialNumber = "12345",
-                PreferredHostName = hostname
+                PreferredHostname = hostname
             };
 
             Assert.IsTrue(ValidateModel(device).Any(

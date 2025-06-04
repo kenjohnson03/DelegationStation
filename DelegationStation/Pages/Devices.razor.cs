@@ -111,7 +111,7 @@ namespace DelegationStation.Pages
                     deviceOSID = (int) searchDevice.OS;
                 }
 
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostName);
+                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
             }
             catch (Exception ex)
             {

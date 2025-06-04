@@ -25,7 +25,7 @@
                     <th>Model</th>
                     <th>Serial Number</th>
                     <th>OS</th>
-                    <th>Preferred Host Name</th>
+                    <th>Preferred Hostname</th>
                     <th>Tag</th>
                     <th>State</th>
                     <th></th>
@@ -53,7 +53,7 @@
                         </InputSelect>
                     </td>
                     <td>
-                        <input type="text" @bind="searchDevice.PreferredHostName" class="form-control" placeholder="Preferred Host Name" />
+                        <input type="text" @bind="searchDevice.PreferredHostname" class="form-control" placeholder="Preferred Hostname" />
                     </td>
                     <td></td>
                     <td></td>
@@ -89,7 +89,7 @@
                             <td class="align-middle">@device.Model</td>
                             <td class="align-middle">@device.SerialNumber</td>
                             <td class="align-middle">@device.OS</td>
-                            <td class="align-middle">@device.PreferredHostName</td>
+                            <td class="align-middle">@device.PreferredHostname</td>
                             <td class="align-middle">
                                 @foreach (string t in device.Tags)
                                 {
@@ -166,9 +166,9 @@
                 <ValidationMessage For=@(() => newDevice.OS) />
             </div>
             <div class="mb-3">
-                <label for="PreferredHostName" class="form-label">Preferred Host Name</label>
-                <InputText @bind-Value=newDevice.PreferredHostName class="form-control" id="PreferredHostName"></InputText>
-                <ValidationMessage For=@(() => newDevice.PreferredHostName) />
+                <label for="PreferredHostname" class="form-label">Preferred Hostname</label>
+                <InputText @bind-Value=newDevice.PreferredHostname class="form-control" id="PreferredHostname"></InputText>
+                <ValidationMessage For=@(() => newDevice.PreferredHostname) />
             </div>
             <div class="mb-3">
                 <label for="Tags" class="form-label">Tags:</label>
