@@ -3,7 +3,6 @@
 @using DelegationStationShared.Models;
 @using DelegationStationShared.Enums;
 
-
 @inject IDeviceTagDBService deviceTagDBService
 @inject IDeviceDBService deviceDBService
 @inject ILogger<Tags> logger
@@ -27,7 +26,25 @@
                     <th>OS</th>
                     <th>Preferred Host Name</th>
                     <th>Tag</th>
-                    <th>State</th>
+                    <th>
+                        State
+                        <img src="css/bootstrap/icons/info-circle.svg" alt="Info Icon"
+                            data-bs-toggle="tooltip" data-bs-placement="top" title="@statusDefinitions" />
+                        @code {
+                            private string? statusDefinitions
+                            {
+                                get
+                                {
+                                    string result = "";
+                                    foreach (var status in StatusDefinitions)
+                                    {
+                                        result = result + status.Key.ToString() + ": " + status.Value.ToString() + "\n";
+                                    }
+                                    return result;
+                                }
+                            }
+                        }
+                    </th>
                     <th></th>
                 </tr>
                 <tr>

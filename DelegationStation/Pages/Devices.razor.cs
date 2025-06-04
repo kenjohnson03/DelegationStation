@@ -34,6 +34,13 @@ namespace DelegationStation.Pages
         private Device deleteDevice = new Device() { Id = Guid.Empty };
         private MarkupString confirmMessage = new MarkupString("");
 
+        private Dictionary<DeviceStatus, string> StatusDefinitions = new Dictionary<DeviceStatus, string>{   
+            { DeviceStatus.Added, "Device has been added to the system but not yet synced with corporate identifiers." },
+            { DeviceStatus.Synced, "Device has been successfully synced with corporate identifiers." },
+            { DeviceStatus.Deleting, "Device is in the process of being deleted from the system." },
+            { DeviceStatus.NotSyncing, "Device is not currently syncing with corporate identifiers." }
+        };
+
         protected override async Task OnInitializedAsync()
         {
             if (AuthState is not null)
