@@ -176,7 +176,7 @@
                 @foreach (DeviceTag tag in deviceTags.Where(t => t.Name.ToLower().Contains(tagSearch.ToLower())))
                 {
                     <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" @onchange=@(() => AddRemoveTag(tag)) checked="@((newDevice.Tags.Where(t => t == tag.Id.ToString()).Count() > 0) ? "checked" : null)">
+                        <input class="form-check-input" type="checkbox" @onchange=@(() => AddRemoveTag(tag)) checked="@(newDevice.Tags.Any(t => t == tag.Id.ToString()))">
                         <label class="form-check-label" for="flexSwitchCheckDefault">@tag.Name</label>
                     </div>
                 }
