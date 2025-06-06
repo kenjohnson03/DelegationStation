@@ -349,6 +349,21 @@ namespace DelegationStationTests.Validation
                 v => (v.ErrorMessage ?? "").Contains("must be 1-15 characters")));
         }
 
+        [TestMethod]
+        public void VerifyOSIsRequired()
+        {
+            var device = new Device
+            {
+                Make = "Make",
+                Model = "Model",
+                SerialNumber = "12345",
+                PreferredHostname = "hostname"
+            };
+
+            Assert.IsTrue(ValidateModel(device).Any(
+                v => (v.ErrorMessage ?? "").Contains("required")));
+        }
+
         private IList<ValidationResult> ValidateModel(object model)
         {
             var validationResults = new List<ValidationResult>();
