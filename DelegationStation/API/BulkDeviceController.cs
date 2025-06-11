@@ -1,4 +1,5 @@
 ﻿using DelegationStation.Interfaces;
+using DelegationStationShared;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,6 +29,14 @@ namespace DelegationStation.API
         [HttpGet("BulkDevice")]
         public async Task<IActionResult> Download(string id = "")
         {
+            // There's other validation done later on in the code prior to the database call, which I didn't remove since it's called by other code
+            // But wanted to ensure we do validation as close to the call as possible
+            bool isValid = validateInput(id);
+            if (!isValid)
+            {
+                return BadRequest("Invalid tag id provided");
+            }
+
             List<string> groups = new List<string>();
             var roleClaims = User.Claims.Where(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
             roleClaims = roleClaims ?? new List<System.Security.Claims.Claim>();
@@ -37,11 +46,6 @@ namespace DelegationStation.API
             }
             Role userRole = new Role();
             string defaultGroup = _config.GetSection("DefaultAdminGroupObjectId").Value ?? "";
-
-            if (string.IsNullOrEmpty(id))
-            {
-                return BadRequest("Tag Id Empty");
-            }
 
             DeviceTag? tag = null;
             try
@@ -92,6 +96,25 @@ namespace DelegationStation.API
             byte[] fileBytes = Encoding.ASCII.GetBytes(sb.ToString());
 
             return File(fileBytes, "text/csv", fileName);
+        }
+
+
+        public bool validateInput(string id)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                _logger.LogError("BulkDeviceController Download error: Tag Id Empty");
+                return false;
+            }
+            else if (!System.Text.RegularExpressions.Regex.Match(id, DSConstants.GUID_REGEX).Success)
+            {
+                // Protecting against log injection
+                string loggableID = id.Replace("\n", "").Replace("\r", "").Replace("\t", "");
+                _logger.LogError($"BulkDeviceController Download error: Tag Id provide is not a valid GUID: {loggableID}");
+                return false;
+            }
+
+            return true;
         }
     }
 }
