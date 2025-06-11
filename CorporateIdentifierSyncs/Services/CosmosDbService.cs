@@ -86,10 +86,11 @@ namespace CorporateIdentifierSync.Services
             string fullMethodName = className + "." + methodName;
 
             // To ensure previously added devices are processed, check for devices without status as well as those set to Added
-            // to handle initially large number of devices and our large bulk uploads, limiting processing to 10K devices at a time
+            // to handle initially large number of devices and our large bulk uploads, limiting processing to 40K devices at a time
+            // TODO
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" " +
-                "AND (NOT IS_DEFINED(c.Status) OR (c.Status = @status)) " +
-                "OFFSET 0 LIMIT 10000");
+                "AND (NOT IS_DEFINED(c.Status) OR (c.Status = @status)) ORDER BY c.ModifiedUTC DESC " +
+                "OFFSET 0 LIMIT 5000");
             query.WithParameter("@status", DeviceStatus.Added);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);

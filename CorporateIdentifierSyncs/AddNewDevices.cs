@@ -73,6 +73,7 @@ namespace CorporateIdentifierSync
 
             // For each device set blank Corporate Identifier values
             int deviceCount = 0;
+            int totalDevices = devicesToMigrate.Count;
             foreach (Device device in devicesToMigrate)
             {
 
@@ -138,7 +139,7 @@ namespace CorporateIdentifierSync
                     await _dbService.UpdateDevice(device);
                     deviceCount++;
 
-                    _logger.DSLogInformation($"Successfully added Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                    _logger.DSLogInformation($"Successfully added Corporate Identifier for device {deviceCount}/{totalDevices}:  {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                 }
                 catch (Exception ex)
                 {
