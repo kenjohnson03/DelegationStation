@@ -47,20 +47,20 @@ namespace IntuneEnrollment
 
             FunctionSettings settings = await GetFunctionSettings();
             DateTime lastRun = settings.LastRun == null ? DateTime.UtcNow.AddDays(-30) : ((DateTime)settings.LastRun).AddHours(-1);
-            List<DelegationSharedLibrary.Models.Graph.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
+            List<DelegationStationShared.Models.Graph.ManagedDevice> devices = await GetNewDeviceManagementObjectsAsync(lastRun);
             if (devices == null)
             {
                 _logger.LogError($"{fullMethodName} Error: Failed to get new devices, exiting");
                 return;
             }
-            foreach (DelegationSharedLibrary.Models.Graph.ManagedDevice device in devices)
+            foreach (DelegationStationShared.Models.Graph.ManagedDevice device in devices)
             {
                 await RunDeviceUpdateActionsAsync(device);
             }
             await UpdateFunctionSettings();
         }
 
-        private static async Task<List<DelegationSharedLibrary.Models.Graph.ManagedDevice>> GetNewDeviceManagementObjectsAsync(DateTime dateTime)
+        private static async Task<List<DelegationStationShared.Models.Graph.ManagedDevice>> GetNewDeviceManagementObjectsAsync(DateTime dateTime)
         {
             MethodBase method = System.Reflection.MethodBase.GetCurrentMethod();
             string methodName = method.Name;
@@ -93,7 +93,7 @@ namespace IntuneEnrollment
 
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", graphAccessToken);
-            List<DelegationSharedLibrary.Models.Graph.ManagedDevice> devices = new List<DelegationSharedLibrary.Models.Graph.ManagedDevice>();
+            List<DelegationStationShared.Models.Graph.ManagedDevice> devices = new List<DelegationStationShared.Models.Graph.ManagedDevice>();
 
             try
             {
@@ -103,7 +103,7 @@ namespace IntuneEnrollment
                     var graphResponse = await httpClient.GetAsync(uri);
                     graphResponse.EnsureSuccessStatusCode();
                     var graphContent = await graphResponse.Content.ReadAsStringAsync();
-                    DelegationSharedLibrary.Models.Graph.ManagedDevices deviceResponse = JsonConvert.DeserializeObject<DelegationSharedLibrary.Models.Graph.ManagedDevices>(graphContent);
+                    DelegationStationShared.Models.Graph.ManagedDevices deviceResponse = JsonConvert.DeserializeObject<DelegationStationShared.Models.Graph.ManagedDevices>(graphContent);
                     
                     devices.AddRange(deviceResponse.value);
                     uri = deviceResponse.odataNextLink;
@@ -204,7 +204,7 @@ namespace IntuneEnrollment
             }
             
         }
-        private static async Task RunDeviceUpdateActionsAsync(DelegationSharedLibrary.Models.Graph.ManagedDevice device)
+        private static async Task RunDeviceUpdateActionsAsync(DelegationStationShared.Models.Graph.ManagedDevice device)
         {
             List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
             var databaseName = "DelegationStation";

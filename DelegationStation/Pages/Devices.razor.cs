@@ -65,7 +65,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTags()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -80,7 +80,7 @@ namespace DelegationStation.Pages
 
         private async Task GetDevices()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -99,7 +99,7 @@ namespace DelegationStation.Pages
 
         private async Task GetDevicesSearch()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -114,7 +114,7 @@ namespace DelegationStation.Pages
 
         private async Task AddDevice()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {

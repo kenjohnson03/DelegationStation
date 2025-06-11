@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace DelegationSharedLibrary.Models.Graph
+namespace DelegationStationShared.Models.Graph
 {    
     public class ManagedDevice
     {

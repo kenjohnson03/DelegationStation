@@ -72,7 +72,7 @@ namespace DelegationStation.Pages
 
         private async Task GetTags()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
@@ -99,7 +99,7 @@ namespace DelegationStation.Pages
 
         private async Task LoadFiles(InputFileChangeEventArgs e)
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isLoading = true;
@@ -175,7 +175,7 @@ namespace DelegationStation.Pages
                             try
                             {
                                 // Validate Make, Model, SerialNumber, Action
-                                if (input[3].ToLower() != "add" && input[3].ToLower() != "remove")
+                                if (input[3].ToLower().Trim() != "add" && input[3].ToLower().Trim() != "remove")
                                 {
                                     var message = $"File upload error.\nFile Name: {file.Name}\nInvalid action. Action should be either add or remove.\nCorrelation Id: {c.ToString()}";
                                     fileError.Add(message);
@@ -254,7 +254,7 @@ namespace DelegationStation.Pages
 
         private async Task UpdateDevices()
         {
-            Guid c = new Guid();
+            Guid c = Guid.NewGuid();
             userMessage = string.Empty;
 
             isUpdating = true;
