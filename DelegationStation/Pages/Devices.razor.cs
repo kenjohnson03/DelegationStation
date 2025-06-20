@@ -5,6 +5,7 @@ using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Pages
 {
@@ -18,6 +19,7 @@ namespace DelegationStation.Pages
 
         private List<string> groups = new List<string>();
         private List<Device> devices = new List<Device>();
+        private List<Device> AllDevices = new List<Device>();
         private List<DeviceTag> deviceTags = new List<DeviceTag>();
         private Device newDevice = new Device();
         private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
@@ -25,6 +27,9 @@ namespace DelegationStation.Pages
         private MarkupString deviceAddValidationMessage = new MarkupString("");
         private int pageSize = 10;
         private int currentPage = 0;
+        private int TotalDevices = 0;
+        private int TotalPages = 0;
+        private int PageSize = 10;
         private string search = "";
         private Device searchDevice = new Device();
         private bool devicesLoading = true;
@@ -93,7 +98,12 @@ namespace DelegationStation.Pages
             userMessage = string.Empty;
             try
             {
-                devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
+                //AllDevices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
+                GetFakeDevices();
+                TotalDevices = AllDevices.Count;
+                TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
+                //devices = await deviceTagDBService.GetDevicesByPageAsync(groups, currentPage, PageSize);
+                devices = GetFakeDevicesByPage(currentPage, PageSize);
             }
             catch (Exception ex)
             {
@@ -105,7 +115,72 @@ namespace DelegationStation.Pages
                 devicesLoading = false;
             }
         }
+        private void GetFakeDevices()
+        {         
+            //Make 32 fake devices with different serial numbers to test pagination
+            for (int i = 12; i <= 32; i++)
+            {
+                AllDevices.Add(new Device { Id = Guid.NewGuid(), Make = $"FakeMake{i}", Model = $"FakeModel{i}", SerialNumber = $"{i * 1000}" });
+            }
 
+        }
+        public List<Device> GetFakeDevicesByPage(int pageNumber, int pageSize)
+        {
+            List<Device> pagedDevices = new List<Device>();
+
+            if (AllDevices.Count < pageSize)
+            {
+                return AllDevices;
+            }
+
+            //System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            //int argCount = 0;
+
+            //if (groupIds.Contains(_DefaultGroup))
+            //{
+            //    sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            //}
+            //else
+            //{
+            //    sb.Append("SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+            //    foreach (string groupId in groupIds)
+            //    {
+            //        sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+            //        if (groupId != groupIds.Last())
+            //        {
+            //            sb.Append("OR ");
+            //        }
+            //        argCount++;
+            //    }
+            //    sb.Append(")");
+            //}
+            //sb.Append($" OFFSET {(pageNumber - 1) * pageSize} LIMIT {pageSize}");
+
+
+            //argCount = 0;
+            //QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            //if (!groupIds.Contains(_DefaultGroup))
+            //{
+            //    foreach (string groupId in groupIds)
+            //    {
+            //        q.WithParameter($"@arg{argCount}", groupId);
+            //        argCount++;
+            //    }
+            //}
+
+            //var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            //while (queryIterator.HasMoreResults)
+            //{
+            //    var response = await queryIterator.ReadNextAsync();
+            //    deviceTags.AddRange(response.ToList());
+            //}
+
+            //return deviceTags;
+            return pagedDevices;
+
+        }
         private async Task GetDevicesSearch()
         {
             Guid c = Guid.NewGuid();
@@ -214,6 +289,35 @@ namespace DelegationStation.Pages
         {
             confirmMessage = (MarkupString)$"<b>This will mark the device to be unenrolled and deleted from Corporate Identifiers and Delegation Station: </b></br></br><b>Make:</b> {deleteDevice.Make}<br /><b>Model:</b> {deleteDevice.Model}<br /><b>Serial Number:</b> {deleteDevice.SerialNumber}</br></br><b>Confirm you want to <u>unenroll</u> and <u>delete</u> this device:</b><br />";
             ConfirmDelete?.Show();
+        }
+
+        private async Task FirstPage()
+        {
+            currentPage = 1;
+            await GetDevices();
+        }
+
+        private async Task LastPage()
+        {
+            currentPage = TotalPages;
+            await GetDevices();
+        }
+        private async Task NextPage()
+        {
+            if (currentPage < TotalPages)
+            {
+                currentPage++;
+            }
+            await GetDevices();
+        }
+
+        private async Task PreviousPage()
+        {
+            if (currentPage > 1)
+            {
+                currentPage--;
+            }
+            await GetDevices();
         }
     }
 }
