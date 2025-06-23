@@ -123,7 +123,7 @@ namespace DelegationStation.API
             {
                 // Protecting against log injection
                 string loggableID = id.Replace("\n", "").Replace("\r", "").Replace("\t", "");
-                _logger.LogError($"BulkDeviceController Download error: Tag Id provide is not a valid GUID: {loggableID}");
+                _logger.LogError($"BulkDeviceController Download error: Tag Id provided is not a valid GUID: {loggableID}");
                 return "";
             }
 
