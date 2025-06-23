@@ -7,32 +7,23 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Configuration;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Graph;
-using Azure.Identity;
-using Microsoft.Graph.Models.ExternalConnectors;
 using System.Collections.Generic;
 using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using Microsoft.Azure.Cosmos;
 using System.Linq;
-using Microsoft.Graph.Chats.Item.SendActivityNotification;
-using Microsoft.Graph.Models;
 using System.Reflection;
 using DelegationStationShared.Models;
-using Microsoft.Graph.Models.TermStore;
 using System.Text;
-using Microsoft.Azure.Cosmos.Serialization.HybridRow.Layouts;
 
 namespace DelegationStation.Function
 {
     public static class IntuneEnrollmentFunction
     {
-        private static GraphServiceClient _graphClient;
+        //private static GraphServiceClient _graphClient;
         private static ILogger _logger;
-        private static HttpClient _graphHttpClient;
+        //private static HttpClient _graphHttpClient;
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
 
         [FunctionName("IntuneEnrollmentTrigger")]
