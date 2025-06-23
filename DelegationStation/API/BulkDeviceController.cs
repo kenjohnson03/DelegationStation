@@ -31,8 +31,8 @@ namespace DelegationStation.API
         {
             // There's other validation done later on in the code prior to the database call, which I didn't remove since it's called by other code
             // But wanted to ensure we do validation as close to the call as possible
-            bool isValid = validateInput(id);
-            if (!isValid)
+            string sanitizedID = validateInput(id);
+            if (sanitizedID == "")
             {
                 return BadRequest("Invalid tag id provided");
             }
@@ -50,11 +50,11 @@ namespace DelegationStation.API
             DeviceTag? tag = null;
             try
             {
-                tag = await _deviceTagDBService.GetDeviceTagAsync(id);
+                tag = await _deviceTagDBService.GetDeviceTagAsync(sanitizedID);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"BulkDeviceController Download error getting tag {id}.\nError: {ex.Message}");
+                _logger.LogError($"BulkDeviceController Download error getting tag {sanitizedID}.\nError: {ex.Message}");
                 return BadRequest("Unable to find tag");
             }
 
@@ -69,10 +69,10 @@ namespace DelegationStation.API
             }
 
             string fileName = "Devices.csv";
-            List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(id);
+            List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(sanitizedID);
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Make,Model,SerialNumber,Action,AddedBy");
-            if (!string.IsNullOrEmpty(id))
+            if (!string.IsNullOrEmpty(sanitizedID))
             {
                 foreach (Device device in devices)
                 {
@@ -99,22 +99,23 @@ namespace DelegationStation.API
         }
 
 
-        public bool validateInput(string id)
+
+        public string validateInput(string id)
         {
             if (string.IsNullOrEmpty(id))
             {
                 _logger.LogError("BulkDeviceController Download error: Tag Id Empty");
-                return false;
+                return "";
             }
             else if (!System.Text.RegularExpressions.Regex.Match(id, DSConstants.GUID_REGEX).Success)
             {
                 // Protecting against log injection
                 string loggableID = id.Replace("\n", "").Replace("\r", "").Replace("\t", "");
                 _logger.LogError($"BulkDeviceController Download error: Tag Id provide is not a valid GUID: {loggableID}");
-                return false;
+                return "";
             }
 
-            return true;
+            return id;
         }
     }
 }
