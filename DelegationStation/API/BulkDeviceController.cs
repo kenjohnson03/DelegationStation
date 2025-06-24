@@ -76,8 +76,6 @@ namespace DelegationStation.API
             
             if (!string.IsNullOrEmpty(sanitizedID))
             {
-                string deviceOSstring = "";
-
                 foreach (Device device in devices)
                 {
                     if (device.Make.Contains(","))
@@ -119,7 +117,8 @@ namespace DelegationStation.API
                 _logger.LogError("BulkDeviceController Download error: Tag Id Empty");
                 return "";
             }
-            else if (!System.Text.RegularExpressions.Regex.Match(id, DSConstants.GUID_REGEX).Success)
+
+            if (!System.Text.RegularExpressions.Regex.Match(id, DSConstants.GUID_REGEX).Success)
             {
                 // Protecting against log injection
                 string loggableID = id.Replace("\n", "").Replace("\r", "").Replace("\t", "");
@@ -127,7 +126,7 @@ namespace DelegationStation.API
                 return "";
             }
 
-            return id;
+            return id.Replace("\n", "").Replace("\r", "").Replace("\t", "");
         }
     }
 }
