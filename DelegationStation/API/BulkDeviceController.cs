@@ -1,4 +1,4 @@
-using DelegationStation.Interfaces;
+﻿using DelegationStation.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
@@ -73,7 +73,9 @@ namespace DelegationStation.API
             List<Device> devices = await _deviceDBService.GetDevicesByTagAsync(sanitizedID);
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Make,Model,SerialNumber,OS,PreferredHostname,Action,AddedBy");
-            
+
+            string deviceOSstring = string.Empty;
+
             if (!string.IsNullOrEmpty(sanitizedID))
             {
                 foreach (Device device in devices)
