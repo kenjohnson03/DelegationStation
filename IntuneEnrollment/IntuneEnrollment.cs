@@ -432,7 +432,10 @@ namespace DelegationStation.Function
             }
             else
             {
-                _logger.LogInformation($"Error: Unable to find Log Analytics Uri:\n{requestBody}");
+                //FIXME:  Need to santizie/validate logURI before logging
+                // commenting out for now
+                _logger.LogInformation($"Error: Unable to find Log Analytics Uri:\n");
+                //_logger.LogInformation($"Error: Unable to find Log Analytics Uri:\n{requestBody}");
             }
             return logUri;
         }
