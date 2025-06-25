@@ -426,7 +426,7 @@ namespace DelegationStation.Function
             if (logAnalyticsMatch.Success)
             {
                 logUri = logAnalyticsMatch.Groups[1].Value;
-                //FIXME:  Need to santizie/validate logURI before logging
+                //FIXME:  Need to sanitize/validate logURI before logging
                 // commenting out for now
                 //_logger.LogInformation($"Log Analytics Uri Used: {logUri}");
             }
