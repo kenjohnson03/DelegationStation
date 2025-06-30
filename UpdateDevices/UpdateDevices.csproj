@@ -6,11 +6,11 @@
     <OutputType>Exe</OutputType>
     <StartupObject></StartupObject>
   </PropertyGroup>
+    <ItemGroup>
+	    <None Include="local.settings.json" />
+    </ItemGroup>
   <ItemGroup>
-    <None Include="local.settings.json" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.13.2" />
+    <PackageReference Include="Azure.Identity" Version="1.14.0" />
     <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" Version="2.23.0" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.51.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.0.0" />
