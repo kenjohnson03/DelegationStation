@@ -104,12 +104,10 @@ namespace DelegationStation.Pages
             userMessage = string.Empty;
             try
             {
-                //AllDevices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
-                GetFakeDevices();
+                AllDevices = await deviceDBService.GetDevicesAsync(groups, search, pageSize);
                 TotalDevices = AllDevices.Count;
                 TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                //devices = await deviceTagDBService.GetDevicesByPageAsync(groups, currentPage, PageSize);
-                devices = GetFakeDevicesByPage(PageNumber, PageSize);
+                devices = GetDevicesByPage(PageNumber, PageSize);
             }
             catch (Exception ex)
             {
@@ -121,82 +119,7 @@ namespace DelegationStation.Pages
                 devicesLoading = false;
             }
         }
-        private void GetFakeDevices()
-        {   
-            AllDevices = new List<Device>();
-            //Make 32 fake devices with different serial numbers to test pagination
-            for (int i = 1; i <= 32; i++)
-            {
-                AllDevices.Add(new Device { Id = Guid.NewGuid(), Make = $"FakeMake{i}", Model = $"FakeModel{i}", SerialNumber = $"{i * 1000}" });
-            }
-
-        }
-        public List<Device> GetFakeDevicesByPage(int pageNumber, int pageSize)
-        {
-            List<Device> pagedDevices = new List<Device>();
-
-            if (AllDevices.Count < pageSize)
-            {
-                return AllDevices;
-            }
-            else
-            {
-                int startIndex = (pageNumber - 1) * pageSize;
-                int endIndex = Math.Min(startIndex + pageSize, AllDevices.Count);
-                for (int i = startIndex; i < endIndex; i++)
-                {
-                    pagedDevices.Add(AllDevices[i]);
-                }
-            }
-
-            //System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            //int argCount = 0;
-
-            //if (groupIds.Contains(_DefaultGroup))
-            //{
-            //    sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-            //}
-            //else
-            //{
-            //    sb.Append("SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
-
-            //    foreach (string groupId in groupIds)
-            //    {
-            //        sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-            //        if (groupId != groupIds.Last())
-            //        {
-            //            sb.Append("OR ");
-            //        }
-            //        argCount++;
-            //    }
-            //    sb.Append(")");
-            //}
-            //sb.Append($" OFFSET {(pageNumber - 1) * pageSize} LIMIT {pageSize}");
-
-
-            //argCount = 0;
-            //QueryDefinition q = new QueryDefinition(sb.ToString());
-
-            //if (!groupIds.Contains(_DefaultGroup))
-            //{
-            //    foreach (string groupId in groupIds)
-            //    {
-            //        q.WithParameter($"@arg{argCount}", groupId);
-            //        argCount++;
-            //    }
-            //}
-
-            //var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
-            //while (queryIterator.HasMoreResults)
-            //{
-            //    var response = await queryIterator.ReadNextAsync();
-            //    deviceTags.AddRange(response.ToList());
-            //}
-
-            //return deviceTags;
-            return pagedDevices;
-
-        }
+        
         public List<Device> GetDevicesByPage(int pageNumber, int pageSize)
         {
             List<Device> pagedDevices = new List<Device>();
@@ -215,51 +138,6 @@ namespace DelegationStation.Pages
                 }
             }
 
-            //System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            //int argCount = 0;
-
-            //if (groupIds.Contains(_DefaultGroup))
-            //{
-            //    sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-            //}
-            //else
-            //{
-            //    sb.Append("SELECT DISTINCT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
-
-            //    foreach (string groupId in groupIds)
-            //    {
-            //        sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-            //        if (groupId != groupIds.Last())
-            //        {
-            //            sb.Append("OR ");
-            //        }
-            //        argCount++;
-            //    }
-            //    sb.Append(")");
-            //}
-            //sb.Append($" OFFSET {(pageNumber - 1) * pageSize} LIMIT {pageSize}");
-
-
-            //argCount = 0;
-            //QueryDefinition q = new QueryDefinition(sb.ToString());
-
-            //if (!groupIds.Contains(_DefaultGroup))
-            //{
-            //    foreach (string groupId in groupIds)
-            //    {
-            //        q.WithParameter($"@arg{argCount}", groupId);
-            //        argCount++;
-            //    }
-            //}
-
-            //var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
-            //while (queryIterator.HasMoreResults)
-            //{
-            //    var response = await queryIterator.ReadNextAsync();
-            //    deviceTags.AddRange(response.ToList());
-            //}
-
-            //return deviceTags;
             return pagedDevices;
 
         }
