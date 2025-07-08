@@ -28,7 +28,6 @@ namespace DelegationStation.Pages
         private int pageSize = 10;
         private int TotalDevices = 0;
         private int TotalPages = 0;
-        private int PageSize = 10;
         private string search = "";
         private Device searchDevice = new Device();
         private bool devicesLoading = true;
@@ -97,17 +96,16 @@ namespace DelegationStation.Pages
                 logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
-
         private async Task GetDevices()
         {
             Guid c = Guid.NewGuid();
             userMessage = string.Empty;
             try
             {
-                AllDevices = await deviceDBService.GetDevicesAsync(groups, search, pageSize);
+                AllDevices = await deviceDBService.GetDevicesAsync(groups);
                 TotalDevices = AllDevices.Count;
                 TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                devices = GetDevicesByPage(PageNumber, PageSize);
+                devices = GetDevicesByPage(PageNumber, pageSize);
             }
             catch (Exception ex)
             {
@@ -124,17 +122,17 @@ namespace DelegationStation.Pages
         {
             List<Device> pagedDevices = new List<Device>();
 
-            if (devices.Count < pageSize)
+            if (AllDevices.Count < pageSize)
             {
-                return devices;
+                return AllDevices;
             }
             else
             {
                 int startIndex = (pageNumber - 1) * pageSize;
-                int endIndex = Math.Min(startIndex + pageSize, devices.Count);
+                int endIndex = Math.Min(startIndex + pageSize, AllDevices.Count);
                 for (int i = startIndex; i < endIndex; i++)
                 {
-                    pagedDevices.Add(devices[i]);
+                    pagedDevices.Add(AllDevices[i]);
                 }
             }
 
@@ -153,7 +151,10 @@ namespace DelegationStation.Pages
                     deviceOSID = (int) searchDevice.OS;
                 }
 
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                AllDevices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                TotalDevices = AllDevices.Count;
+                TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
+                FirstPage();
             }
             catch (Exception ex)
             {
@@ -251,33 +252,33 @@ namespace DelegationStation.Pages
             ConfirmDelete?.Show();
         }
 
-        private async Task FirstPage()
+        private void FirstPage()
         {
             PageNumber = 1;
-            await GetDevices();
+            devices = GetDevicesByPage(PageNumber, pageSize);
         }
 
-        private async Task LastPage()
+        private void LastPage()
         {
             PageNumber = TotalPages;
-            await GetDevices();
+            devices = GetDevicesByPage(PageNumber, pageSize);
         }
-        private async Task NextPage()
+        private void NextPage()
         {
             if (PageNumber < TotalPages)
             {
                 PageNumber++;
             }
-            await GetDevices();
+            devices = GetDevicesByPage(PageNumber, pageSize);
         }
 
-        private async Task PreviousPage()
+        private void PreviousPage()
         {
             if (PageNumber > 1)
             {
                 PageNumber--;
             }
-            await GetDevices();
+            devices = GetDevicesByPage(PageNumber, pageSize);
         }
     }
 }
