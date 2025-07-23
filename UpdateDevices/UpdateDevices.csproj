@@ -5,10 +5,7 @@
     <Nullable>annotations</Nullable>
     <OutputType>Exe</OutputType>
     <StartupObject></StartupObject>
-  </PropertyGroup>
-  <ItemGroup>
-    <None Include="local.settings.json" />
-  </ItemGroup>
+  </PropertyGroup>  
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.13.2" />
     <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" Version="2.23.0" />
