@@ -122,7 +122,7 @@ namespace DelegationStation.Pages
         {
             List<Device> pagedDevices = new List<Device>();
 
-            if (AllDevices.Count < pageSize)
+            if (AllDevices.Count <= pageSize)
             {
                 return AllDevices;
             }
