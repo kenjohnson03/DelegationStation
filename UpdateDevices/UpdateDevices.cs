@@ -135,7 +135,7 @@ namespace UpdateDevices
                 }
                 else
                 {
-                    _logger.DSLogInformation("Updated device name for: '" + device.Id + "from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                    _logger.DSLogInformation("Updated device name for: '" + device.Id + "' from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
                 }
             }
 
