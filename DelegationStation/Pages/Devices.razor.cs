@@ -1,11 +1,9 @@
-using DelegationStation.Services;
 using DelegationStation.Shared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Pages
 {
@@ -28,7 +26,6 @@ namespace DelegationStation.Pages
         private int pageSize = 10;
         private int TotalDevices = 0;
         private int TotalPages = 0;
-        private string search = "";
         private Device searchDevice = new Device();
         private bool devicesLoading = true;
         private string userMessage = string.Empty;
