@@ -18,6 +18,8 @@ namespace UpdateDevices
     public class UpdateDevices
     {
         private int _lastRunDays = 30;
+        private string _pawString;
+        private string _pawTagID;
 
         private readonly ILogger _logger;
         private readonly ICosmosDbService _dbService;
@@ -43,6 +45,22 @@ namespace UpdateDevices
                 _lastRunDays = 30;
                 _logger.DSLogWarning("FirstRunPastDays environment variable not set. Defaulting to 30 days", fullMethodName);
             }
+
+            // Get configuration values related to PAW - exit if not found
+            _pawString = Environment.GetEnvironmentVariable("PawDeviceNameContains", EnvironmentVariableTarget.Process);
+            if (String.IsNullOrEmpty(_pawString))
+            {
+                _logger.DSLogError("PawDeviceNameContains environment variable not set. Exiting.", fullMethodName);
+                Environment.Exit(1);
+            }
+            _pawTagID = Environment.GetEnvironmentVariable("PawTagID", EnvironmentVariableTarget.Process);
+            if (String.IsNullOrEmpty(_pawTagID))
+            {
+                _logger.DSLogError("PawTagID environment variable not set. Exiting.", fullMethodName);
+                Environment.Exit(1);
+            }
+            _logger.DSLogInformation($"PAW configuration values loaded successfully. Will block naming devices with {_pawString} in name that are not in tag {_pawTagID}.", fullMethodName);
+
 
         }
 
@@ -108,6 +126,8 @@ namespace UpdateDevices
             }
 
 
+
+
             DelegationStationShared.Models.Device d = await _dbService.GetDevice(device.Manufacturer, device.Model, device.SerialNumber);
             if (d == null)
             {
@@ -127,16 +147,25 @@ namespace UpdateDevices
             // Updated managed device name if provided and not already equal
             if (!String.IsNullOrEmpty(d.PreferredHostname) && (d.PreferredHostname != device.DeviceName))
             {
-                bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
-
-                if (!result)
+                // Only renames device name if device is in PAW tag
+                // or device is another tag and does not contain the PAW device name string
+                if (d.Tags.FirstOrDefault() == _pawTagID || !d.PreferredHostname.Contains(_pawString))
                 {
-                    _logger.DSLogWarning("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + " from " + device.DeviceName + " to " + d.PreferredHostname + "'.", fullMethodName);
+                    bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
+                    if (!result)
+                    {
+                        _logger.DSLogWarning("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + " from " + device.DeviceName + " to " + d.PreferredHostname + "'.", fullMethodName);
+                    }
+                    else
+                    {
+                        _logger.DSLogInformation("Updated device name for: '" + device.Id + "from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                    }
                 }
                 else
                 {
-                    _logger.DSLogInformation("Updated device name for: '" + device.Id + "from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                    _logger.DSLogWarning("RENAME BLOCKED: Device " + device.Id + " is attempting to be renamed to a PAW name " + d.PreferredHostname + " but is not in the PAW tag " + _pawTagID + ".", fullMethodName);
                 }
+
             }
 
             string deviceObjectID = await _graphService.GetDeviceObjectID(device.AzureADDeviceId);
@@ -168,7 +197,7 @@ namespace UpdateDevices
                         // If the user principal name is not in the allowed list, skip the tag
                         if (!string.IsNullOrEmpty(device.UserPrincipalName))
                         {
-                            if(!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
+                            if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
                             {
                                 _logger.DSLogWarning("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " does not match Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
                                 return;
