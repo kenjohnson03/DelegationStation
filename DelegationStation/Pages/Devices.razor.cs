@@ -5,6 +5,7 @@ using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.QuickGrid;
 using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Pages
@@ -45,6 +46,9 @@ namespace DelegationStation.Pages
             { DeviceStatus.Deleting, "Device is in the process of being deleted from the system." },
             { DeviceStatus.NotSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." }
         };
+
+        PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
+        private IQueryable<Device> loadedDevices = new List<Device>().AsQueryable();
 
         protected override async Task OnInitializedAsync()
         {
@@ -106,6 +110,7 @@ namespace DelegationStation.Pages
                 TotalDevices = AllDevices.Count;
                 TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
                 devices = GetDevicesByPage(PageNumber, pageSize);
+                loadedDevices = AllDevices.AsQueryable();
             }
             catch (Exception ex)
             {

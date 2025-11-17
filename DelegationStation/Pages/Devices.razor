@@ -15,7 +15,60 @@
 
 <AuthorizeView Context="authContext">
     <Authorized>
+        <div>
+            <Microsoft.AspNetCore.Components.QuickGrid.QuickGrid Items="@loadedDevices" Pagination="@pagination" Class="table table-striped table-sm">
+                <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Make" Property="@(p => p.Make)" />
+                <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Model" Property="@(p => p.Model)" />
+                <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Serial Number" Property="@(p => p.SerialNumber)" />
+                <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="OS" Property="@(p => p.OS)" />
+                <Microsoft.AspNetCore.Components.QuickGrid.PropertyColumn Title="Preferred Hostname" Property="@(p => p.PreferredHostname)" />
+                <Microsoft.AspNetCore.Components.QuickGrid.TemplateColumn Title="Tag">
+                    <ChildContent>
+                        @foreach (string t in context.Tags)
+                        {
+                            <span class="badge bg-secondary">@deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault()</span>
+                            <br />
+                        }
+                    </ChildContent>
+                </Microsoft.AspNetCore.Components.QuickGrid.TemplateColumn>
+                <Microsoft.AspNetCore.Components.QuickGrid.TemplateColumn >
+                    <HeaderTemplate>
+                        <b>State<Tooltip Tip=@statusDefinitions><img src="css/bootstrap/icons/info-circle.svg" alt="Info Icon" /></Tooltip></b>
+                    </HeaderTemplate>
+                    <ChildContent>
+                        @if (@context.Status == @DeviceStatus.Synced)
+                        {
+                            <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @context.LastCorpIdentitySync">@context.Status</span>
+                        }
+                        else if (@context.Status == @DeviceStatus.NotSyncing)
+                        {
+                            <span class="badge rounded-pill bg-light text-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Device in Tag Not Set to Sync. Last confirmed: @context.LastCorpIdentitySync">Added</span>
+                        }
+                        else if (@context.Status == @DeviceStatus.Deleting)
+                        {
+                            <span class="badge rounded-pill bg-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Marked To Delete: @context.MarkedToDeleteUTC">@context.Status</span>
+                        }
+                        else
+                        {
+                            <span class="badge rounded-pill bg-info" data-bas-toggle="tooltip" data-bs-placement="top" title="Device Added: @context.ModifiedUTC">@context.Status</span>
+                        }
+                    </ChildContent>
+                </Microsoft.AspNetCore.Components.QuickGrid.TemplateColumn>
+                    
+            </Microsoft.AspNetCore.Components.QuickGrid.QuickGrid>
+        </div>
 
+        @code {
+            string GetTag(Device device)
+            {
+            var tagNames = device.Tags.Select(t => deviceTags.Where(tag => tag.Id.ToString() == t).Select(tag => tag.Name.ToString()).FirstOrDefault());
+            return string.Join(", ", tagNames);
+            }
+           
+
+        }
+        <Paginator State="@pagination" />
+        
         <table class="table table-responsive">
             <thead>
 
