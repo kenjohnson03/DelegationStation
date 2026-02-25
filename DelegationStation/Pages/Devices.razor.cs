@@ -26,9 +26,10 @@ namespace DelegationStation.Pages
         private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
         private string tagSearch = "";
         private int pageSize = 10;
-        private int currentPage = 0;
-        //private int TotalDevices = 0;
-        //private int TotalPages = 0;
+        // Current 1-based page number for display and navigation
+        private int PageNumber = 1;
+        private int TotalDevices = 0;
+        private int TotalPages = 0;
         private string search = "";
         private Device searchDevice = new Device();
         private bool devicesLoading = true;
@@ -143,11 +144,12 @@ namespace DelegationStation.Pages
 
             try
             {
-                //AllDevices = await deviceDBService.GetDevicesAsync(groups);
-                //TotalDevices = AllDevices.Count;
-                //TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                //devices = GetDevicesByPage(PageNumber, pageSize);
-                devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
+                // Fetch total device count to compute total pages for pagination
+                TotalDevices = await deviceDBService.GetDeviceCountAsync(groups, search);
+                TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
+
+                // Lazy load only the current page of devices (0-based page index)
+                devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
@@ -308,33 +310,38 @@ namespace DelegationStation.Pages
             ConfirmDelete?.Show();
         }
 
-        //private void FirstPage()
-        //{
-        //    PageNumber = 1;
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the first page and reloads devices.</summary>
+        private async Task FirstPage()
+        {
+            PageNumber = 1;
+            await GetDevices();
+        }
 
-        //private void LastPage()
-        //{
-        //    PageNumber = TotalPages;
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
-        //private void NextPage()
-        //{
-        //    if (PageNumber < TotalPages)
-        //    {
-        //        PageNumber++;
-        //    }
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the last page and reloads devices.</summary>
+        private async Task LastPage()
+        {
+            PageNumber = TotalPages > 0 ? TotalPages : 1;
+            await GetDevices();
+        }
 
-        //private void PreviousPage()
-        //{
-        //    if (PageNumber > 1)
-        //    {
-        //        PageNumber--;
-        //    }
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the next page if one exists and reloads devices.</summary>
+        private async Task NextPage()
+        {
+            if (PageNumber < TotalPages)
+            {
+                PageNumber++;
+            }
+            await GetDevices();
+        }
+
+        /// <summary>Navigates to the previous page if one exists and reloads devices.</summary>
+        private async Task PreviousPage()
+        {
+            if (PageNumber > 1)
+            {
+                PageNumber--;
+            }
+            await GetDevices();
+        }
     }
 }

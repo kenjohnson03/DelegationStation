@@ -8,6 +8,8 @@ namespace DelegationStation.Interfaces
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds);
         Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, int? osID, string preferredHostname);
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0);
+        /// <summary>Returns the total number of devices accessible to the specified groups matching the search term.</summary>
+        Task<int> GetDeviceCountAsync(IEnumerable<string> groupIds, string search);
         Task<Device?> GetDeviceAsync(string make, string model, string serialNumber);
         Task<List<Device>> GetDevicesByTagAsync(string tagId);
         Task MarkDeviceToDeleteAsync(Device device);

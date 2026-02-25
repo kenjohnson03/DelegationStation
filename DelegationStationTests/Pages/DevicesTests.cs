@@ -57,7 +57,10 @@ namespace DelegationStationTests.Pages
                     GetDevicesAsyncIEnumerableOfString =
                         (groupIds) => Task.FromResult(devices),
                     GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
-                        (groupIds,search,pageSize,currentPage) => Task.FromResult(devices)
+                        (groupIds,search,pageSize,currentPage) => Task.FromResult(devices),
+                    // Stub for lazy loading: return a count matching the device list
+                    GetDeviceCountAsyncIEnumerableOfStringString =
+                        (groupIds, search) => Task.FromResult(devices.Count)
                 };
 
 
@@ -111,6 +114,121 @@ namespace DelegationStationTests.Pages
             }
         }
 
+        [TestMethod]
+        public void DevicesShouldShowPaginationControls()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange – two pages of 10 devices, 15 total
+                Guid defaultId = Guid.NewGuid();
+
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                DeviceTag deviceTag = new DeviceTag();
+                deviceTag.Name = "testTag";
+                deviceTags.Add(deviceTag);
+
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    GetDeviceTagsAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(deviceTags)
+                };
+
+                // First page: 10 devices
+                List<Device> firstPageDevices = Enumerable.Range(1, 10)
+                    .Select(i => new Device { Make = $"Make{i}", Model = "Model", SerialNumber = $"SN{i}" })
+                    .ToList();
+
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
+                        (groupIds, search, pageSize, page) => Task.FromResult(firstPageDevices),
+                    // 15 total devices → 2 pages of 10
+                    GetDeviceCountAsyncIEnumerableOfStringString =
+                        (groupIds, search) => Task.FromResult(15)
+                };
+
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
+
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act
+                var cut = RenderComponent<Devices>();
+
+                // Assert: pagination controls are rendered showing page 1 of 2
+                Assert.IsTrue(cut.Markup.Contains("1 of 2"), $"Pagination should show '1 of 2'. Actual:\n{cut.Markup}");
+                Assert.IsTrue(cut.Markup.Contains("aria-label=\"First\""), "First-page button should be rendered.");
+                Assert.IsTrue(cut.Markup.Contains("aria-label=\"Last\""), "Last-page button should be rendered.");
+                Assert.IsTrue(cut.Markup.Contains("aria-label=\"Next\""), "Next-page button should be rendered.");
+                Assert.IsTrue(cut.Markup.Contains("aria-label=\"Previous\""), "Previous-page button should be rendered.");
+            }
+        }
+
+        [TestMethod]
+        public void DevicesShouldShowPageOneOfOneWhenNoDevices()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange – zero devices
+                Guid defaultId = Guid.NewGuid();
+
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    GetDeviceTagsAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(deviceTags)
+                };
+
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
+                        (groupIds, search, pageSize, page) => Task.FromResult(new List<Device>()),
+                    // No devices → count is 0
+                    GetDeviceCountAsyncIEnumerableOfStringString =
+                        (groupIds, search) => Task.FromResult(0)
+                };
+
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
+
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act
+                var cut = RenderComponent<Devices>();
+
+                // Assert: no devices message is shown (no pagination row when count is 0)
+                Assert.IsTrue(cut.Markup.Contains("No devices found."), $"Should show no-devices message. Actual:\n{cut.Markup}");
+            }
+        }
+
         private void AddDefaultServices(string defaultId = "")
         {
 
@@ -144,7 +262,10 @@ namespace DelegationStationTests.Pages
             var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
                 GetDevicesAsyncIEnumerableOfStringStringInt32Int32 = (a, b, c, d) =>
-                    Task.FromResult(devices)
+                    Task.FromResult(devices),
+                // Stub for lazy loading: return a count matching the device list
+                GetDeviceCountAsyncIEnumerableOfStringString = (a, b) =>
+                    Task.FromResult(devices.Count)
             };
 
             var myConfiguration = new Dictionary<string, string?>
