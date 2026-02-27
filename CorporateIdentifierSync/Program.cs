@@ -18,7 +18,10 @@ namespace CorporateIdentifierSync
                 .ConfigureFunctionsWebApplication()
                 .ConfigureServices(services =>
                 {
-                    services.AddApplicationInsightsTelemetryWorkerService();
+                    services.AddApplicationInsightsTelemetryWorkerService(options =>
+                    {
+                        options.EnableAdaptiveSampling = false;
+                    });
                     services.ConfigureFunctionsApplicationInsights();
                     services.AddSingleton<ICosmosDbService, CosmosDbService>();
                     services.AddSingleton<IGraphService, GraphService>();
