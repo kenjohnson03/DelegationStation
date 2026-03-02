@@ -32,6 +32,8 @@ namespace DelegationStation.Pages
         private int TotalPages = 0;
         private string search = "";
         private Device searchDevice = new Device();
+        // Tracks whether the user's last action was a search (true) or a default page load (false)
+        private bool isSearchActive = false;
         private bool devicesLoading = true;
         private MarkupString userMessage = new MarkupString("");
 
@@ -141,6 +143,8 @@ namespace DelegationStation.Pages
         {
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
+            // Default mode: clear any active search state
+            isSearchActive = false;
 
             try
             {
@@ -187,6 +191,7 @@ namespace DelegationStation.Pages
         {
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
+            devicesLoading = true;
 
             try
             {
@@ -196,16 +201,58 @@ namespace DelegationStation.Pages
                     deviceOSID = (int)searchDevice.OS;
                 }
 
-                //AllDevices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
-                //TotalDevices = AllDevices.Count;
-                //TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                //FirstPage();
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                // Reset to page 1 whenever a new search is initiated
+                PageNumber = 1;
+                isSearchActive = true;
+
+                // Fetch the total count of matching devices to compute pagination
+                TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
+                    searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
+
+                // Lazy load only the first page of search results
+                devices = await deviceDBService.GetDevicesSearchAsync(
+                    searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
-                userMessage = (MarkupString)$"Error retrieving searching Devices.\nCorrelation Id: {c.ToString()}";
+                userMessage = (MarkupString)$"Error searching Devices.\nCorrelation Id: {c.ToString()}";
                 logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+            }
+            finally
+            {
+                devicesLoading = false;
+            }
+        }
+
+        /// <summary>
+        /// Reloads only the device list for the current page without resetting PageNumber.
+        /// Respects the current mode: uses search parameters when a search is active,
+        /// otherwise falls back to the default group-filtered device load.
+        /// </summary>
+        private async Task ReloadCurrentPage()
+        {
+            if (isSearchActive)
+            {
+                Guid c = Guid.NewGuid();
+                try
+                {
+                    int? deviceOSID = (int?)searchDevice.OS;
+                    // Fetch only the requested page of search results
+                    devices = await deviceDBService.GetDevicesSearchAsync(
+                        searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber,
+                        deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
+                }
+                catch (Exception ex)
+                {
+                    userMessage = (MarkupString)$"Error retrieving Devices.\nCorrelation Id: {c.ToString()}";
+                    logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+                }
+            }
+            else
+            {
+                // Default mode: delegate to GetDevices() which handles count + page fetch
+                await GetDevices();
             }
         }
 
@@ -314,14 +361,14 @@ namespace DelegationStation.Pages
         private async Task FirstPage()
         {
             PageNumber = 1;
-            await GetDevices();
+            await ReloadCurrentPage();
         }
 
         /// <summary>Navigates to the last page and reloads devices.</summary>
         private async Task LastPage()
         {
             PageNumber = TotalPages > 0 ? TotalPages : 1;
-            await GetDevices();
+            await ReloadCurrentPage();
         }
 
         /// <summary>Navigates to the next page if one exists and reloads devices.</summary>
@@ -331,7 +378,7 @@ namespace DelegationStation.Pages
             {
                 PageNumber++;
             }
-            await GetDevices();
+            await ReloadCurrentPage();
         }
 
         /// <summary>Navigates to the previous page if one exists and reloads devices.</summary>
@@ -341,7 +388,7 @@ namespace DelegationStation.Pages
             {
                 PageNumber--;
             }
-            await GetDevices();
+            await ReloadCurrentPage();
         }
     }
 }

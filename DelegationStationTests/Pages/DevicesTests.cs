@@ -229,6 +229,70 @@ namespace DelegationStationTests.Pages
             }
         }
 
+        [TestMethod]
+        public void DevicesShouldShowPaginationAfterSearch()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange – search returns 15 devices → 2 pages of 10
+                Guid defaultId = Guid.NewGuid();
+
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    GetDeviceTagsAsyncIEnumerableOfStringString = (groupIds, name) => Task.FromResult(deviceTags)
+                };
+
+                List<Device> firstPageDevices = Enumerable.Range(1, 10)
+                    .Select(i => new Device { Make = "Dell", Model = $"Model{i}", SerialNumber = $"SN{i}" })
+                    .ToList();
+
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    // Initial load returns nothing
+                    GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
+                        (g, s, ps, p) => Task.FromResult(new List<Device>()),
+                    GetDeviceCountAsyncIEnumerableOfStringString =
+                        (g, s) => Task.FromResult(0),
+                    // Search returns 15 total; first page has 10 devices
+                    GetDeviceSearchCountAsyncStringStringStringNullableOfInt32String =
+                        (make, model, sn, os, hostname) => Task.FromResult(15),
+                    GetDevicesSearchAsyncStringStringStringNullableOfInt32StringInt32Int32 =
+                        (make, model, sn, os, hostname, ps, p) => Task.FromResult(firstPageDevices)
+                };
+
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
+
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act – render component and trigger Search
+                var cut = RenderComponent<Devices>();
+                var makeInput = cut.Find("input[placeholder='Make']");
+                makeInput.Change("Dell");
+                var searchButton = cut.FindAll("button").First(b => b.TextContent.Trim() == "Search");
+                searchButton.Click();
+
+                // Assert: pagination shows "1 of 2" after search with 15 results
+                Assert.IsTrue(cut.Markup.Contains("1 of 2"), $"Pagination should show '1 of 2' after search. Actual:\n{cut.Markup}");
+                Assert.IsTrue(cut.Markup.Contains("Dell"), "First-page search results should be visible.");
+            }
+        }
+
         private void AddDefaultServices(string defaultId = "")
         {
 
