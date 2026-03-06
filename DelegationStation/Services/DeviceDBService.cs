@@ -280,11 +280,10 @@ namespace DelegationStation.Services
 
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true) OR ( d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true))");
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true)");
             q.WithParameter("@make", device.Make);
             q.WithParameter("@model", device.Model);
             q.WithParameter("@serial", device.SerialNumber);
-            q.WithParameter("@name", device.PreferredHostname);
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
             while (deviceQueryIterator.HasMoreResults)
             {
@@ -294,6 +293,18 @@ namespace DelegationStation.Services
             if (devices.Count != 0)
             {
                 throw new Exception("Device already exists.");
+            }
+            q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true)");
+            q.WithParameter("@name", device.PreferredHostname);
+            deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+            while (deviceQueryIterator.HasMoreResults)
+            {
+                var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                devices.AddRange(qIresponse.ToList());
+            }
+            if (devices.Count != 0)
+            {
+                throw new Exception("PreferredHostname already in use.");
             }
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
