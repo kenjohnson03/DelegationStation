@@ -94,41 +94,23 @@ namespace DelegationStation.Services
             }
         }
 
-        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, int? osID, string preferredHostname)
+        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, int? osID, string preferredHostname, int pageSize = 10, int page = 0)
         {
             List<Device> devices = new List<Device>();
-            string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
-            if (!string.IsNullOrEmpty(make.Trim()))
-            {
-                queryBuilder += "AND CONTAINS(d.Make, @make, true) ";
-            }
+            string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\"";
+            queryBuilder += BuildDeviceSearchWhereClause(make, model, serialNumber, osID, preferredHostname);
 
-            if (!string.IsNullOrEmpty(model.Trim()))
-            {
-                queryBuilder += " AND CONTAINS(d.Model, @model, true)";
-            }
-
-            if (!string.IsNullOrEmpty(serialNumber.Trim()))
-            {
-                queryBuilder += " AND CONTAINS(d.SerialNumber, @serial, true)";
-            }
-
-            if (osID != null)
-            {
-                queryBuilder += " AND d.OS=@os";
-            }
-            if (!string.IsNullOrEmpty(preferredHostname.Trim()))
-            {
-                queryBuilder += " AND CONTAINS(d.PreferredHostname, @hostname, true)";
-            }
+            // Apply ordering and pagination so only one page of results is fetched
+            queryBuilder += " ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit";
 
             QueryDefinition q = new QueryDefinition(queryBuilder);
-
             q.WithParameter("@make", make);
             q.WithParameter("@model", model);
             q.WithParameter("@serial", serialNumber);
             q.WithParameter("@os", osID);
             q.WithParameter("@hostname", preferredHostname);
+            q.WithParameter("@offset", page * pageSize);
+            q.WithParameter("@limit", pageSize);
 
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
             while (deviceQueryIterator.HasMoreResults)
@@ -138,6 +120,61 @@ namespace DelegationStation.Services
             }
 
             return devices;
+        }
+
+        /// <summary>
+        /// Returns the total count of devices that match the given per-field search criteria.
+        /// Used for server-side pagination of the advanced search on the Devices page.
+        /// </summary>
+        public async Task<int> GetDeviceSearchCountAsync(string make, string model, string serialNumber, int? osID, string preferredHostname)
+        {
+            string queryBuilder = "SELECT VALUE COUNT(1) FROM d WHERE d.Type = \"Device\"";
+            queryBuilder += BuildDeviceSearchWhereClause(make, model, serialNumber, osID, preferredHostname);
+
+            QueryDefinition q = new QueryDefinition(queryBuilder);
+            q.WithParameter("@make", make);
+            q.WithParameter("@model", model);
+            q.WithParameter("@serial", serialNumber);
+            q.WithParameter("@os", osID);
+            q.WithParameter("@hostname", preferredHostname);
+
+            int count = 0;
+            var countIterator = this._container.GetItemQueryIterator<int>(q);
+            while (countIterator.HasMoreResults)
+            {
+                var response = await countIterator.ReadNextAsync();
+                count += response.Sum();
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Builds the SQL WHERE clause fragment for per-field device searches.
+        /// Appends an AND condition for each non-empty/non-null filter value.
+        /// The caller is responsible for binding the corresponding @make, @model,
+        /// @serial, @os, and @hostname parameters on the QueryDefinition.
+        /// </summary>
+        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            if (!string.IsNullOrEmpty(make.Trim()))
+                sb.Append(" AND CONTAINS(d.Make, @make, true)");
+
+            if (!string.IsNullOrEmpty(model.Trim()))
+                sb.Append(" AND CONTAINS(d.Model, @model, true)");
+
+            if (!string.IsNullOrEmpty(serialNumber.Trim()))
+                sb.Append(" AND CONTAINS(d.SerialNumber, @serial, true)");
+
+            if (osID != null)
+                sb.Append(" AND d.OS=@os");
+
+            if (!string.IsNullOrEmpty(preferredHostname.Trim()))
+                sb.Append(" AND CONTAINS(d.PreferredHostname, @hostname, true)");
+
+            return sb.ToString();
         }
 
         public async Task<List<Device>> GetDevicesByTagAsync(string tagId)
@@ -429,6 +466,115 @@ namespace DelegationStation.Services
             device.Status = DeviceStatus.Deleting;
             device.MarkedToDeleteUTC = DateTime.UtcNow;
             await this._container.UpsertItemAsync<Device>(device);
+        }
+
+        /// <summary>
+        /// Returns the total count of devices accessible to the specified groups that match the search term.
+        /// Used for pagination to determine the total number of pages.
+        /// </summary>
+        public async Task<int> GetDeviceCountAsync(IEnumerable<string> groupIds, string search)
+        {
+            int numDevices = 0;
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
+
+            // Filter to valid GUIDs only
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+
+            if (groupIds.Count() < 1)
+            {
+                return 0;
+            }
+
+            // Step 1: get the tags the user has access to (same logic as GetDevicesAsync)
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
+
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            }
+            else
+            {
+                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
+            }
+
+            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            while (queryIterator.HasMoreResults)
+            {
+                var response = await queryIterator.ReadNextAsync();
+                deviceTags.AddRange(response.ToList());
+            }
+
+            // Step 2: count devices accessible via those tags that match the search term
+            sb = new System.Text.StringBuilder();
+            argCount = 0;
+
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT VALUE COUNT(1) FROM d WHERE d.Type = \"Device\"");
+            }
+            else
+            {
+                sb.Append("SELECT VALUE COUNT(1) FROM d WHERE d.Type = \"Device\" AND (");
+
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    sb.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
+                    if (tag != deviceTags.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+
+            sb.Append(" AND (CONTAINS(d.Make, @search, true) OR CONTAINS(d.Model, @search, true) OR CONTAINS(d.SerialNumber, @search, true))");
+
+            argCount = 0;
+            q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    q.WithParameter($"@arg{argCount}", tag.Id);
+                    argCount++;
+                }
+            }
+            q.WithParameter("@search", search);
+
+            var countQueryIterator = this._container.GetItemQueryIterator<int>(q);
+            if (countQueryIterator.HasMoreResults)
+            {
+                FeedResponse<int> response = await countQueryIterator.ReadNextAsync();
+                numDevices = response.FirstOrDefault();
+            }
+
+            return numDevices;
         }
 
     }
