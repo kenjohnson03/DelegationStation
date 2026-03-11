@@ -102,6 +102,12 @@ namespace CorporateIdentifierSync.Services
 
             // Note:  If entry already exists, it will just return object
             var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
+
+            if (result?.Value == null || result.Value.Count == 0)
+            {
+                throw new Exception($"Graph returned a null or empty response for identifier following successful post: {identifier}");
+            }
+
             deviceIdentity = result.Value[0];
             _logger.DSLogInformation($"Identifier Added: {deviceIdentity.ImportedDeviceIdentifier}", fullMethodName);
 
@@ -133,7 +139,19 @@ namespace CorporateIdentifierSync.Services
             {
                 // This is the error returned when it tries to delete an object that's not found
                 // Return true since it's already not present
-                _logger.DSLogInformation($"Device corporate identifier {identifierId} not found in Graph", fullMethodName);
+                _logger.DSLogInformation($"Device corporate identifier {identifierId} not found in Graph. " +
+                                         $"ODataError -- Code: {odataError.Error?.Code}, Message: {odataError.Error?.Message}",
+                                         fullMethodName);
+                return false;
+            }
+            catch (ODataError odataError)
+            {
+                _logger.DSLogError($"ODataError querying identifier {identifierId}. " +
+                    $"StatusCode: {odataError.ResponseStatusCode}, " +
+                    $"Code: {odataError.Error?.Code}, " +
+                    $"Message: {odataError.Error?.Message}, " +
+                    $"InnerError: {odataError.Error?.InnerError?.AdditionalData}",
+                    fullMethodName);
                 return false;
             }
             catch (Exception ex)

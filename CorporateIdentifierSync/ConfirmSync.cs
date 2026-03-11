@@ -6,6 +6,7 @@ using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
+using Microsoft.Graph.Beta.Models.ODataErrors;
 
 namespace CorporateIdentifierSync
 {
@@ -115,9 +116,17 @@ namespace CorporateIdentifierSync
                             device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
                             corpIDUpdated = true;
                         }
+                        catch (ODataError odataError)
+                        {
+                            _logger.DSLogError($"ODataError adding identifier {identifier}. " +
+                                               $"StatusCode: {odataError.ResponseStatusCode}, " +
+                                               $"Code: {odataError.Error?.Code}, " +
+                                               $"Message: {odataError.Error?.Message}, " +
+                                               $"InnerError: {odataError.Error?.InnerError?.AdditionalData}", fullMethodName);
+                        }
                         catch (Exception ex)
                         {
-                            _logger.DSLogError($"Error adding corporate identifier for device {device.Id}: {ex.Message}", fullMethodName);
+                            _logger.DSLogException($"Error adding corporate identifier for device {device.Id}.", ex, fullMethodName);
                         }
 
                     }
