@@ -1,11 +1,11 @@
 using CorporateIdentifierSync.Interfaces;
+using DelegationStationShared;
+using DelegationStationShared.Enums;
+using DelegationStationShared.Extensions;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
-using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
-using DelegationStationShared;
-using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -97,7 +97,10 @@ namespace CorporateIdentifierSync
                         string identifier = "";
                         if ((device.OS == DeviceOS.Windows) || (device.OS == DeviceOS.Unknown))
                         {
-                            identifier = $"{device.Make},{device.Model},{device.SerialNumber}";
+                            // Putting make and model in quotes to handle commas
+                            string escapedMake = "\"" + device.Make + "\"";
+                            string escapedModel = "\"" + device.Model + "\"";
+                            identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
 
                         }
                         else
