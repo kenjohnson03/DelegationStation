@@ -117,6 +117,7 @@ namespace DelegationStation.Pages
             {
                 messageStore.Add(editContext.Field(err.Key), err.Value);
                 logger?.LogInformation("Validation error added - Field: {FieldName}, Errors: {@Errors}", err.Key, err.Value);
+                editContext.NotifyValidationStateChanged();
             }
 
 
@@ -245,10 +246,11 @@ namespace DelegationStation.Pages
 
                 DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
 
-                logger?.LogDebug("Retrieved tag {TagId} ({TagName}) for device {SerialNumber}",
-                    tag.Id, tag.Name, newDevice.SerialNumber);
-
-                if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+                logger?.LogDebug("Retrieved tag {TagId} ({TagName}) and Regex = {DeviceNameRegex} for device {SerialNumber}",
+                    tag.Id, tag.Name, tag.DeviceNameRegex, newDevice.SerialNumber);
+                var authRequest = await authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read);
+                if (!authRequest.Succeeded)
+                    //if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
                 {
                     userMessage = (MarkupString)$"Error: Not authorized to add devices to tag {tag.Id} {tag.Name}.\nCorrelation Id: {c.ToString()}";
                     logger.LogError("Authorization failed: User not authorized to add devices to tag {TagId} ({TagName}). CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
