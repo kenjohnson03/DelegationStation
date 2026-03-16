@@ -81,12 +81,14 @@ namespace DelegationStation.Pages
 
         private void HandleValidationRequested(object? sender, ValidationRequestedEventArgs args)
         {
+            /// ADD LOGS HERE
             if (messageStore == null || editContext == null)
                 return;
 
             messageStore?.Clear();
 
             //custom validation
+            // MOAR TRY/CATCH AND LOGS
             var validationErrors = Validation.NewDeviceValidation.ValidateDevice(newDevice, deviceTags);
 
             foreach(var err in validationErrors)
