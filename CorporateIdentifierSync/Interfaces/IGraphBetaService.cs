@@ -9,5 +9,7 @@ namespace CorporateIdentifierSync.Interfaces
         Task<bool> DeleteCorporateIdentifier(string identifierID);
 
         Task<bool> CorporateIdentifierExists(string identiferID);
+
+        Task<int> GetCorporateDeviceIdentifierCountAsync();
     }
 }

@@ -1,4 +1,5 @@
-﻿using DelegationStationShared.Models;
+﻿using CorporateIdentifierSync.Models;
+using DelegationStationShared.Models;
 
 namespace CorporateIdentifierSync.Interfaces
 {
@@ -13,11 +14,20 @@ namespace CorporateIdentifierSync.Interfaces
         Task DeleteDevice(Device device);
 
         Task<List<Device>> GetDevicesSyncedBefore(DateTime date);
+        Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date);
 
         Task<DeviceTag> GetDeviceTag(string id);
 
-        Task<List<string>> GetSyncEnabledDeviceTags();
+        Task<List<string>> GetSyncingDeviceTags();
 
+        Task<List<string>> GetNonSyncingDeviceTags();
 
+        Task<CorpIDCounter> GetCorpIDCounter();
+
+        Task SetCorpIDCounter(CorpIDCounter counter);
+
+        Task<List<Device>> GetSyncedDevices(int batchSize);
+
+        Task<List<Device>> GetNotSyncingDevices(int batchSize);
     }
 }

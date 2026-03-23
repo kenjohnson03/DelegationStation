@@ -1,12 +1,12 @@
 using CorporateIdentifierSync.Interfaces;
+using DelegationStationShared;
+using DelegationStationShared.Enums;
+using DelegationStationShared.Extensions;
+using DelegationStationShared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
-using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
-using DelegationStationShared;
-using DelegationStationShared.Models;
-using DelegationStationShared.Enums;
 
 namespace CorporateIdentifierSync
 {
@@ -67,14 +67,39 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"Using BatchSize: {batchSize}.", fullMethodName);
             }
 
+            int totalCap = int.Parse(Environment.GetEnvironmentVariable("CORP_ID_TOTAL_CAP") ?? "320000");
+            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, totalCap);
 
+            int availableCorpIDs = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
+            _logger.DSLogInformation($"Available Corporate ID slots: {availableCorpIDs}.", fullMethodName);
 
+            if (availableCorpIDs <= 0)
+            {
+                _logger.DSLogWarning("No available Corporate ID slots. No work to do. Function is exiting.", fullMethodName);
+                return;
+            }
+
+            int effectiveBatchSize = Math.Min(batchSize, availableCorpIDs);
+            _logger.DSLogInformation($"Effective batch size (min of BatchSize {batchSize} and available slots {availableCorpIDs}): {effectiveBatchSize}.", fullMethodName);
+
+            //Reserve Corporate ID slots for this batch
+            int reservedSlots = await capacityManager.ReserveCorpIDs(effectiveBatchSize, CancellationToken.None);
+            if (reservedSlots == 0)
+            {
+                _logger.DSLogWarning("No available Corporate ID slots at reservation time.  No work to do.  Function is exiting.", fullMethodName);
+                return;
+            }
+            _logger.DSLogInformation($"Successfully reserved {reservedSlots} Corporate ID slots for this batch.", fullMethodName);
+            if(effectiveBatchSize!= reservedSlots)
+            {
+                effectiveBatchSize = reservedSlots;
+            }
 
             // Get All Devices without Corporate Identifier values or fields
             List<Device> devicesToMigrate = new List<Device>();
             try
             {
-                devicesToMigrate = await _dbService.GetAddedDevices(batchSize);
+                devicesToMigrate = await _dbService.GetAddedDevices(effectiveBatchSize);
                 _logger.DSLogInformation($"Found {devicesToMigrate.Count} devices to migrate.", fullMethodName);
             }
             catch (Exception ex)
@@ -86,6 +111,7 @@ namespace CorporateIdentifierSync
 
             // For each device set blank Corporate Identifier values
             int deviceCount = 0;
+            int devicesSynced = 0;
             int totalDevices = devicesToMigrate.Count;
             foreach (Device device in devicesToMigrate)
             {
@@ -134,6 +160,7 @@ namespace CorporateIdentifierSync
 
                         ImportedDeviceIdentityType corpIDType = CorpIDUtilities.GetCorpIDTypeForOS(device.OS);
                         ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(corpIDType, identifier);
+                        devicesSynced++;
 
                         // Set the Corporate Identifier values
                         device.CorporateIdentityID = deviceIdentity.Id;
@@ -161,7 +188,17 @@ namespace CorporateIdentifierSync
                 }
             }
 
-            _logger.DSLogInformation($"Successfully migrated {deviceCount} devices.", fullMethodName);
+            // Release any unused reserved Corporate ID slots
+            int nowAvailable = await capacityManager.CommitCorpIDCount(effectiveBatchSize, devicesSynced, CancellationToken.None);
+            _logger.DSLogInformation($"Successfully migrated {deviceCount} devices. {devicesSynced} devices were synced with Corporate Identifiers.", fullMethodName);
+            if (nowAvailable > 0)
+            {
+                _logger.DSLogInformation($"Current available Corporate ID slots: {nowAvailable}.", fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogWarning($"Current available Corporate ID slots: {nowAvailable}.", fullMethodName);
+            }
         }
     }
 }

@@ -177,6 +177,36 @@ namespace CorporateIdentifierSync.Services
                 return false;
             }
         }
+        public async Task<int> GetCorporateDeviceIdentifierCountAsync()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
 
+            _logger.DSLogInformation("Fetching corporate device identifier count from Graph.", fullMethodName);
+
+            try
+            {
+                var response = await _graphClient.DeviceManagement.ImportedDeviceIdentities.GetAsync(requestConfig =>
+                {
+                    requestConfig.QueryParameters.Count = true;
+                    requestConfig.Headers.Add("ConsistencyLevel", "eventual");
+                });
+
+                int count = (int)(response?.OdataCount ?? 0);
+                _logger.DSLogInformation($"Corporate device identifier count: {count}", fullMethodName);
+                return count;
+            }
+            catch (ODataError odataError)
+            {
+                _logger.DSLogError($"Graph OData error fetching corporate device identifier count: {odataError.Error?.Code} - {odataError.Error?.Message}", fullMethodName);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to fetch corporate device identifier count from Graph.", ex, fullMethodName);
+                return 0;
+            }
+        }
     }
 }

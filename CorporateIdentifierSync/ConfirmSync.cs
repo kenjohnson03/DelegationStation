@@ -66,7 +66,7 @@ namespace CorporateIdentifierSync
             _logger.DSLogInformation($"Checking devices last checked over {intervalHours} hours ago.", fullMethodName);
 
             // Get list of tags set to sync
-            List<string> tagsWithSyncEnabled = await _dbService.GetSyncEnabledDeviceTags();
+            List<string> tagsWithSyncEnabled = await _dbService.GetSyncingDeviceTags();
 
             // Get all devices with sync date older than X
             List<Device> devicesToCheck = await _dbService.GetDevicesSyncedBefore(DateTime.UtcNow.AddHours(-intervalHours));

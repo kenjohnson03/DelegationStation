@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
 using CorporateIdentifierSync.Interfaces;
+using CorporateIdentifierSync.Models;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
@@ -188,6 +189,93 @@ namespace CorporateIdentifierSync.Services
 
         }
 
+        public async Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            // Only return devices that are in Synced or NotSyncing status
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status AND c.LastCorpIdentitySync <= @date");
+            query.WithParameter("@status", DeviceStatus.Synced);
+            query.WithParameter("@date", date);
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failure querying Cosmos DB for devices missing CorporateIdentityID.\n", ex, fullMethodName);
+            }
+            return devices;
+
+        }
+        public async Task<List<Device>> GetSyncedDevices(int batchSize)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation($"Getting up to {batchSize} devices with status Synced.", fullMethodName);
+
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status OFFSET 0 LIMIT @batchSize");
+            query.WithParameter("@status", DeviceStatus.Synced);
+            query.WithParameter("@batchSize", batchSize);
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query Cosmos DB for Synced devices.", ex, fullMethodName);
+            }
+            return devices;
+        }
+
+        public async Task<List<Device>> GetNotSyncingDevices(int batchSize)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation($"Getting up to {batchSize} devices with status NotSyncing.", fullMethodName);
+
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status OFFSET 0 LIMIT @batchSize");
+            query.WithParameter("@status", DeviceStatus.NotSyncing);
+            query.WithParameter("@batchSize", batchSize);
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query Cosmos DB for NotSyncing devices.", ex, fullMethodName);
+            }
+            return devices;
+        }
+
         public async Task<DelegationStationShared.Models.DeviceTag> GetDeviceTag(string id)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
@@ -209,7 +297,7 @@ namespace CorporateIdentifierSync.Services
 
         }
 
-        public async Task<List<string>> GetSyncEnabledDeviceTags()
+        public async Task<List<string>> GetSyncingDeviceTags()
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
@@ -233,5 +321,83 @@ namespace CorporateIdentifierSync.Services
             return tagIDs;
 
         }
+
+        public async Task<List<string>> GetNonSyncingDeviceTags()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.PartitionKey = \"DeviceTag\" AND (NOT IS_DEFINED(c.CorpIDSyncEnabled) OR c.CorpIDSyncEnabled = false)");
+            var queryIterator = _container.GetItemQueryIterator<DeviceTag>(query);
+            List<string> tagIDs = new List<string>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    tagIDs.AddRange(response.Select(t => t.Id.ToString()).ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failure querying Cosmos DB for sync-disabled device tags.", ex, fullMethodName);
+            }
+            return tagIDs;
+        }
+
+        public async Task<CorpIDCounter> GetCorpIDCounter()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation("Getting CorpIDCounter from Cosmos DB.", fullMethodName);
+
+            try
+            {
+                QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey = \"CorpIDCounter\"");
+                var queryIterator = _container.GetItemQueryIterator<CorpIDCounter>(query);
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    var counter = response.FirstOrDefault();
+                    if (counter != null)
+                    {
+                        _logger.DSLogInformation($"CorpIDCounter found: {counter}.", fullMethodName);
+                        return counter;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to get CorpIDCounter from Cosmos DB.", ex, fullMethodName);
+            }
+
+            _logger.DSLogWarning("CorpIDCounter not found in Cosmos DB, returning default.", fullMethodName);
+            return new CorpIDCounter();
+        }
+
+        public async Task SetCorpIDCounter(CorpIDCounter counter)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation($"Upserting CorpIDCounter: {counter}.", fullMethodName);
+
+            try
+            {
+                await _container.UpsertItemAsync(counter, new PartitionKey(counter.PartitionKey));
+                _logger.DSLogInformation("CorpIDCounter upserted successfully.", fullMethodName);
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to upsert CorpIDCounter in Cosmos DB.", ex, fullMethodName);
+            }
+        }
+
+
     }
 }
