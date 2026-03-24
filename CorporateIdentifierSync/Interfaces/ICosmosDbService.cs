@@ -19,15 +19,12 @@ namespace CorporateIdentifierSync.Interfaces
         Task<DeviceTag> GetDeviceTag(string id);
 
         Task<List<string>> GetSyncingDeviceTags();
-
         Task<List<string>> GetNonSyncingDeviceTags();
 
         Task<CorpIDCounter> GetCorpIDCounter();
-
         Task SetCorpIDCounter(CorpIDCounter counter);
 
-        Task<List<Device>> GetSyncedDevices(int batchSize);
-
-        Task<List<Device>> GetNotSyncingDevices(int batchSize);
+        Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize);
+        Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int effectiveBatchSize);
     }
 }

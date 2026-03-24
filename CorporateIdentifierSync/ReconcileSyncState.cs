@@ -101,12 +101,9 @@ namespace CorporateIdentifierSync
             int corpIDsRemovedFromGraph = 0;
             int failureCount = 0;
 
-            List<Device> syncedDevices = await _dbService.GetSyncedDevices(batchSize);
-            List<Device> devicesToUnsync = syncedDevices
-                .Where(d => d.Tags.Count > 0 && tagsWithSyncDisabled.Contains(d.Tags[0]))
-                .ToList();
+            List<Device> devicesToUnsync = await _dbService.GetSyncedDevicesInTags(tagsWithSyncDisabled, batchSize);
 
-            _logger.DSLogInformation($"Found {devicesToUnsync.Count} Synced devices in disabled tags (from {syncedDevices.Count} Synced candidates).", fullMethodName);
+            _logger.DSLogInformation($"Found {devicesToUnsync.Count} Synced devices in disabled tags.", fullMethodName);
 
             foreach (Device device in devicesToUnsync)
             {
@@ -166,6 +163,7 @@ namespace CorporateIdentifierSync
             {
                 try
                 {
+                    // use object
                     var counter = await _dbService.GetCorpIDCounter();
                     if (corpIDsRemovedFromGraph > counter.CorpIDCount)
                     {
@@ -216,12 +214,10 @@ namespace CorporateIdentifierSync
             int effectiveBatchSize = Math.Min(batchSize, availableSlots);
             _logger.DSLogInformation($"Effective batch size for Section 2: {effectiveBatchSize} (min of batchSize {batchSize} and available slots {availableSlots}).", fullMethodName);
 
-            List<Device> notSyncingDevices = await _dbService.GetNotSyncingDevices(effectiveBatchSize);
-            List<Device> devicesToSync = notSyncingDevices
-                .Where(d => d.Tags.Count > 0 && tagsWithSyncEnabled.Contains(d.Tags[0]))
-                .ToList();
+            List<Device> devicesToSync = await _dbService.GetNotSyncingDevicesInTags(tagsWithSyncEnabled, effectiveBatchSize);
 
-            _logger.DSLogInformation($"Found {devicesToSync.Count} NotSyncing devices in enabled tags to add (from {notSyncingDevices.Count} NotSyncing candidates).", fullMethodName);
+            _logger.DSLogInformation($"Found {devicesToSync.Count} NotSyncing devices in enabled tags to add.", fullMethodName);
+
 
             if (devicesToSync.Count == 0)
             {

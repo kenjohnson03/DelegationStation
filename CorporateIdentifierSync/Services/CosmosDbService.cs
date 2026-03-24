@@ -216,18 +216,35 @@ namespace CorporateIdentifierSync.Services
             return devices;
 
         }
-        public async Task<List<Device>> GetSyncedDevices(int batchSize)
+
+        public async Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagIds, int batchSize)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"Getting up to {batchSize} devices with status Synced.", fullMethodName);
+            if (tagIds.Count == 0)
+            {
+                _logger.DSLogInformation("No tag IDs provided. Returning empty list.", fullMethodName);
+                return new List<Device>();
+            }
+
+            _logger.DSLogInformation($"Getting up to {batchSize} NotSyncing devices in {tagIds.Count} enabled tag(s).", fullMethodName);
+
+            string tagFilter = string.Join(" OR ", tagIds.Select((_, i) => $"t = @tag{i}"));
 
             QueryDefinition query = new QueryDefinition(
-                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status OFFSET 0 LIMIT @batchSize");
-            query.WithParameter("@status", DeviceStatus.Synced);
+                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status " +
+                $"AND EXISTS(SELECT VALUE t FROM t IN c.Tags WHERE {tagFilter}) " +
+                "ORDER BY c.ModifiedUTC ASC " +
+                "OFFSET 0 LIMIT @batchSize");
+
+            query.WithParameter("@status", DeviceStatus.NotSyncing);
             query.WithParameter("@batchSize", batchSize);
+            for (int i = 0; i < tagIds.Count; i++)
+            {
+                query.WithParameter($"@tag{i}", tagIds[i]);
+            }
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();
@@ -241,23 +258,39 @@ namespace CorporateIdentifierSync.Services
             }
             catch (Exception ex)
             {
-                _logger.DSLogException("Failed to query Cosmos DB for Synced devices.", ex, fullMethodName);
+                _logger.DSLogException("Failed to query Cosmos DB for NotSyncing devices in enabled tags.", ex, fullMethodName);
             }
             return devices;
         }
 
-        public async Task<List<Device>> GetNotSyncingDevices(int batchSize)
+        public async Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation($"Getting up to {batchSize} devices with status NotSyncing.", fullMethodName);
+            if (tagIds.Count == 0)
+            {
+                _logger.DSLogInformation("No tag IDs provided. Returning empty list.", fullMethodName);
+                return new List<Device>();
+            }
+
+            _logger.DSLogInformation($"Getting up to {batchSize} Synced devices in {tagIds.Count} disabled tag(s).", fullMethodName);
+
+            string tagFilter = string.Join(" OR ", tagIds.Select((_, i) => $"t = @tag{i}"));
 
             QueryDefinition query = new QueryDefinition(
-                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status OFFSET 0 LIMIT @batchSize");
-            query.WithParameter("@status", DeviceStatus.NotSyncing);
+                "SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status " +
+                $"AND EXISTS(SELECT VALUE t FROM t IN c.Tags WHERE {tagFilter}) " +
+                "ORDER BY c.ModifiedUTC ASC " +
+                "OFFSET 0 LIMIT @batchSize");
+
+            query.WithParameter("@status", DeviceStatus.Synced);
             query.WithParameter("@batchSize", batchSize);
+            for (int i = 0; i < tagIds.Count; i++)
+            {
+                query.WithParameter($"@tag{i}", tagIds[i]);
+            }
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();
@@ -271,7 +304,7 @@ namespace CorporateIdentifierSync.Services
             }
             catch (Exception ex)
             {
-                _logger.DSLogException("Failed to query Cosmos DB for NotSyncing devices.", ex, fullMethodName);
+                _logger.DSLogException("Failed to query Cosmos DB for Synced devices in disabled tags.", ex, fullMethodName);
             }
             return devices;
         }

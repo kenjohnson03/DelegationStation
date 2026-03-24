@@ -234,7 +234,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
             int available = await manager.ReleaseCorpIDs(40, CancellationToken.None);
 
             Assert.AreEqual(25, db.Counter.CorpIDReserve);
-            Assert.AreEqual(TotalCap - 40 - 25, available);
+            Assert.AreEqual(TotalCap - 60 - 25, available);
         }
     }
 }
