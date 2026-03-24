@@ -125,12 +125,12 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReserveCorpIDs_PersistsReserveToDatabase()
         {
-            var db = new FakeCosmosDbService();
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 500 } };
             var manager = CreateManager(db);
 
             await manager.ReserveCorpIDs(25, CancellationToken.None);
 
-            Assert.AreEqual(25, db.Counter.CorpIDReserve);
+            Assert.AreEqual(525, db.Counter.CorpIDReserve);
         }
 
         // -------------------------------------------------------------------------
@@ -195,9 +195,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 100 } };
             var manager = CreateManager(db);
 
-            await manager.ReleaseCorpIDs(30, CancellationToken.None);
+            int available = await manager.ReleaseCorpIDs(30, CancellationToken.None);
 
             Assert.AreEqual(70, db.Counter.CorpIDCount);
+            Assert.AreEqual(TotalCap - 70, available);
         }
 
         [TestMethod]
@@ -206,9 +207,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 10 } };
             var manager = CreateManager(db);
 
-            await manager.ReleaseCorpIDs(50, CancellationToken.None);
+            int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
 
             Assert.AreEqual(0, db.Counter.CorpIDCount);
+            Assert.AreEqual(1000, available);
         }
 
         [TestMethod]
@@ -219,6 +221,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
 
+            Assert.AreEqual(150, db.Counter.CorpIDCount);
             Assert.AreEqual(TotalCap - 150, available);
         }
 
@@ -228,9 +231,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 100, CorpIDReserve = 25 } };
             var manager = CreateManager(db);
 
-            await manager.ReleaseCorpIDs(40, CancellationToken.None);
+            int available = await manager.ReleaseCorpIDs(40, CancellationToken.None);
 
             Assert.AreEqual(25, db.Counter.CorpIDReserve);
+            Assert.AreEqual(TotalCap - 40 - 25, available);
         }
     }
 }

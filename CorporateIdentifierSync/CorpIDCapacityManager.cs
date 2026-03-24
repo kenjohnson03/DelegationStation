@@ -2,7 +2,6 @@
 using DelegationStationShared;
 using Microsoft.Extensions.Logging;
 using DelegationStationShared.Extensions;
-using Microsoft.Graph.Applications.GetAvailableExtensionProperties;
 
 namespace CorporateIdentifierSync
 {
@@ -45,7 +44,7 @@ namespace CorporateIdentifierSync
             var available = _totalCap - counter.GetTotal();
             int reserved = 0;
 
-            if (available < count)
+            if (available >= count)
             {
                 counter.CorpIDReserve += count;
                 reserved = count;
@@ -54,7 +53,7 @@ namespace CorporateIdentifierSync
             {
                 reserved = 0;
             }
-            else
+            else  // available < count
             {
                 counter.CorpIDReserve += available;
                 reserved = available;
