@@ -296,7 +296,7 @@ namespace DeviceAudit
 
             try
             {
-                var query = new QueryDefinition("SELECT DISTINCT VALUE c.AddedBy FROM c WHERE c.Type = 'Device'");
+                var query = new QueryDefinition("SELECT DISTINCT VALUE c.AddedBy FROM c WHERE c.Type = 'Device' AND IS_DEFINED(c.AddedBy) AND c.AddedBy != null");
                 var iterator = _container.GetItemQueryIterator<string>(query);
 
                 while (iterator.HasMoreResults)
