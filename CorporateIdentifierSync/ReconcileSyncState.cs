@@ -274,6 +274,7 @@ namespace CorporateIdentifierSync
                     device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
                     device.Status = DeviceStatus.Synced;
                     device.LastCorpIdentitySync = DateTime.UtcNow;
+                    device.CorpIDFailureCount = 0;
                     addedCount++;
 
                     _logger.DSLogInformation($"Added Corp ID for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
@@ -284,6 +285,9 @@ namespace CorporateIdentifierSync
                     // Reset to Added so AddNewDevices will retry
                     device.CorporateIdentityID = null;
                     device.Status = DeviceStatus.Added;
+
+                    //not checking against max here since this should only ever be the first failure
+                    device.CorpIDFailureCount++;
                     device.LastCorpIdentitySync = DateTime.MinValue;
                 }
 
@@ -293,7 +297,7 @@ namespace CorporateIdentifierSync
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Failed to update device {device.Id} in Delegation Station after Corp ID add.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to update device {device.Make} {device.Model} {device.SerialNumber} in Delegation Station after Corp ID add.", ex, fullMethodName);
                 }
             }
 

@@ -68,6 +68,7 @@ namespace CorporateIdentifierSync
             }
             _logger.DSLogInformation($"Checking devices last synced over {intervalHours} hours ago.", fullMethodName);
 
+
             //
             // Only checking devices that are in tags with sync enabled.
             // Get list of tags with sync enabled. If none found, log and exit.
@@ -141,13 +142,18 @@ namespace CorporateIdentifierSync
                         device.CorporateIdentityID = deviceIdentity.Id;
                         device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
+                        device.Status = DeviceStatus.Synced;
+                        device.CorpIDFailureCount = 0;
                         devicesReadded++;
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Error re-adding corporate identifier for device {device.Id}: ", ex, fullMethodName);
+                        _logger.DSLogException($"Error re-adding corporate identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
                         // Reset to Added so AddNewDevices will retry
                         device.CorporateIdentityID = null;
+
+                        // Not checking against max since this should only ever be the first failure
+                        device.CorpIDFailureCount++;
                         device.Status = DeviceStatus.Added;
                         devicesFailedReAdd++;
                     }
@@ -164,7 +170,7 @@ namespace CorporateIdentifierSync
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Failed to update device record {device.Make} {device.Model} {device.SerialNumber} in Delegation Station.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to update device record {device.Make} {device.Model} {device.SerialNumber} in Delegation Station. CorporateIdentifier details may be out of sync.", ex, fullMethodName);
                 }
             }
 

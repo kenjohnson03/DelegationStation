@@ -79,6 +79,9 @@ namespace CorporateIdentifierSync
                 return;
             }
 
+            int MAX_CORPID_RETRIES = int.Parse(Environment.GetEnvironmentVariable("MAX_CORPID_RETRIES") ?? "10");
+            _logger.DSLogInformation($"Max Corporate Identifier retries before marking device as Failed: {MAX_CORPID_RETRIES}.", fullMethodName);
+
             int effectiveBatchSize = Math.Min(batchSize, availableCorpIDs);
             _logger.DSLogInformation($"Effective batch size (min of BatchSize {batchSize} and available slots {availableCorpIDs}): {effectiveBatchSize}.", fullMethodName);
 
@@ -167,6 +170,7 @@ namespace CorporateIdentifierSync
                         device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
                         device.Status = DeviceStatus.Synced;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
+                        device.CorpIDFailureCount = 0;
 
                     }
                     else
@@ -176,8 +180,6 @@ namespace CorporateIdentifierSync
                         device.LastCorpIdentitySync = DateTime.UtcNow;
                     }
 
-                    // Update the DB entry with the new Corporate Identifier info
-                    await _dbService.UpdateDevice(device);
                     deviceCount++;
 
                     _logger.DSLogInformation($"Successfully added Corporate Identifier for device {deviceCount}/{totalDevices}:  {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
@@ -185,6 +187,27 @@ namespace CorporateIdentifierSync
                 catch (Exception ex)
                 {
                     _logger.DSLogException($"Error adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
+                    device.CorpIDFailureCount++;
+                    if(device.CorpIDFailureCount > MAX_CORPID_RETRIES)
+                    {
+                        _logger.DSLogError($"Device {device.Make} {device.Model} {device.SerialNumber} has exceeded max Corporate Identifier retries. Marking as Failed.", fullMethodName);
+                        device.Status = DeviceStatus.Failed;
+
+                    }
+                    else
+                    {
+                        _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} has failed to sync Corporate Identifier {device.CorpIDFailureCount} times. It will be retried in the next sync cycle.", fullMethodName);
+                }
+
+                try
+                {
+                    // Update the DB entry with the new Corporate Identifier info
+                    await _dbService.UpdateDevice(device);
+
+                }
+                catch(Exception dbEx)
+                {
+                    _logger.DSLogException($"Device entry not updated - CorpIDStatus may not be in sync:  {device.Make} {device.Model} {device.SerialNumber}", dbEx, fullMethodName);
                 }
             }
 
@@ -201,4 +224,4 @@ namespace CorporateIdentifierSync
             }
         }
     }
-}
+}}
