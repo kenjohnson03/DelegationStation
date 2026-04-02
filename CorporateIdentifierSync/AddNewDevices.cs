@@ -16,12 +16,79 @@ namespace CorporateIdentifierSync
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
 
+        private bool _IsCorpIDSyncEnabled;
+        private int _BatchSize;
+        private int _MaxCorpIDsAllowed;
+        private int _MaxCorpIDRetries;
+
         public AddNewDevices(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService)
         {
             _logger = loggerFactory.CreateLogger<AddNewDevices>();
             _dbService = dbService;
             _graphBetaService = graphBetaService;
 
+        }
+
+        public void GetEnvironmentVariables()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            //
+            // Get CorpID sync flag
+            //
+            _IsCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean.  Defaulting to disabled.", fullMethodName);
+            }
+
+            //
+            // Get batch size for adding new devcies
+            //
+            _BatchSize = 5000;
+            string batchSizeString = Environment.GetEnvironmentVariable("AddDeviceBatchSize");
+            if (!int.TryParse(batchSizeString, out int bs) || bs <= 0)
+            {
+                _logger.DSLogError($"BatchSize is not set or invalid. Using default value: {_BatchSize}.", fullMethodName);
+            }
+            else
+            {
+                _BatchSize = bs;
+                _logger.DSLogInformation($"Using BatchSize: {_BatchSize}.", fullMethodName);
+            }
+
+            //
+            // Getting Max Allowed Corporate ID entries
+            //
+            _MaxCorpIDsAllowed = 10000;
+            string maxCorpIDsString = Environment.GetEnvironmentVariable("MAX_CORPIDS_ALLOWED");
+            if(!int.TryParse(maxCorpIDsString, out int max) || max <= 0)
+            {
+                _logger.DSLogError($"Max Corp IDS Allowed is not set or invalid.  Using default value: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+            else
+            {
+                _MaxCorpIDsAllowed = max;
+                _logger.DSLogInformation($"Maximum allowed Corporate Identifers for the tenant is set to: {_MaxCorpIDsAllowed}", fullMethodName);
+            }
+
+            //
+            // Set max times we'll retry adding a device to Corporate Identifiers before marking it as Failed
+            //
+            _MaxCorpIDRetries = 10;
+            string maxRetriesString = Environment.GetEnvironmentVariable("MAX_CORPID_RETRIES");
+            if (!int.TryParse(maxRetriesString, out int retries) || retries <= 0)
+            {
+                _logger.DSLogError($"MAX_CORPID_RETRIES is not set or invalid. Using default value: {_MaxCorpIDRetries}.", fullMethodName);
+            }
+            else
+            {
+                _MaxCorpIDRetries = retries;
+                _logger.DSLogInformation($"Max Corporate Identifier retries before marking device as Failed: {_MaxCorpIDRetries}.", fullMethodName);
+            }
         }
 
 
@@ -38,65 +105,48 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation("Next timer schedule at: " + myTimer.ScheduleStatus.Next, fullMethodName);
             }
 
-            bool isCorpIDSyncEnabled = false;
-            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
-            if (!result)
-            {
-                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Disabling sync.", fullMethodName);
-            }
-            else if (!isCorpIDSyncEnabled)
-            {
-                _logger.DSLogInformation("EnableCorpIDSync set to false. Disabling sync.", fullMethodName);
-            }
+            GetEnvironmentVariables();
 
-            if (!isCorpIDSyncEnabled)
+            //
+            //  We don't need to keep going if either sync is disabled
+            //
+            if (!_IsCorpIDSyncEnabled)
             {
                 _logger.DSLogInformation("Syncing not enabled.  No work to do.  Function is exiting.", fullMethodName);
                 return;
             }
 
-            int batchSize = 5000;
-            string batchSizeString = Environment.GetEnvironmentVariable("AddDeviceBatchSize", EnvironmentVariableTarget.Process);
-            if (!int.TryParse(batchSizeString, out int bs) || bs <= 0)
-            {
-                _logger.DSLogError($"BatchSize is not set or invalid. Using default value: {batchSize}.", fullMethodName);
-            }
-            else
-            {
-                batchSize = bs;
-                _logger.DSLogInformation($"Using BatchSize: {batchSize}.", fullMethodName);
-            }
+            //
+            // CorpID Capacity Manager will be used to ensure we stay under configured limit
+            //
+            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
-            int totalCap = int.Parse(Environment.GetEnvironmentVariable("CORP_ID_TOTAL_CAP") ?? "320000");
-            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, totalCap);
-
+            //
+            //
+            //
             int availableCorpIDs = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
             _logger.DSLogInformation($"Available Corporate ID slots: {availableCorpIDs}.", fullMethodName);
 
-            if (availableCorpIDs <= 0)
-            {
-                _logger.DSLogWarning("No available Corporate ID slots. No work to do. Function is exiting.", fullMethodName);
-                return;
-            }
+            // FIXME:  Because we're processing new devices, we need to keep going because some devices we're adding
+            // might not be configured to add to Corporate IDs
+            //if (availableCorpIDs <= 0)
+            //{
+            //    _logger.DSLogWarning("No available Corporate ID slots. No work to do. Function is exiting.", fullMethodName);
+            //    return;
+            //}
 
-            int MAX_CORPID_RETRIES = int.Parse(Environment.GetEnvironmentVariable("MAX_CORPID_RETRIES") ?? "10");
-            _logger.DSLogInformation($"Max Corporate Identifier retries before marking device as Failed: {MAX_CORPID_RETRIES}.", fullMethodName);
-
-            int effectiveBatchSize = Math.Min(batchSize, availableCorpIDs);
-            _logger.DSLogInformation($"Effective batch size (min of BatchSize {batchSize} and available slots {availableCorpIDs}): {effectiveBatchSize}.", fullMethodName);
+            int requestSize = Math.Min(_BatchSize, availableCorpIDs);
+            _logger.DSLogInformation($"Reserving {requestSize} CorporateID entries", fullMethodName);
 
             //Reserve Corporate ID slots for this batch
-            int reservedSlots = await capacityManager.ReserveCorpIDs(effectiveBatchSize, CancellationToken.None);
+            int reservedSlots = await capacityManager.ReserveCorpIDs(requestSize, CancellationToken.None);
             if (reservedSlots == 0)
             {
-                _logger.DSLogWarning("No available Corporate ID slots at reservation time.  No work to do.  Function is exiting.", fullMethodName);
-                return;
+                //_logger.DSLogWarning("No available Corporate ID slots at reservation time.  No work to do.  Function is exiting.", fullMethodName);
+                //return;
+                _logger.DSLogWarning($"No available CorpID slots at reservation time.  Will continue processing devices in tags that are not set to sync.", fullMethodName);
             }
             _logger.DSLogInformation($"Successfully reserved {reservedSlots} Corporate ID slots for this batch.", fullMethodName);
-            if(effectiveBatchSize!= reservedSlots)
-            {
-                effectiveBatchSize = reservedSlots;
-            }
 
             // Get All Devices without Corporate Identifier values or fields
             List<Device> devicesToMigrate = new List<Device>();
@@ -188,7 +238,7 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogException($"Error adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
                     device.CorpIDFailureCount++;
-                    if(device.CorpIDFailureCount > MAX_CORPID_RETRIES)
+                    if(device.CorpIDFailureCount > _MaxCorpIDRetries)
                     {
                         _logger.DSLogError($"Device {device.Make} {device.Model} {device.SerialNumber} has exceeded max Corporate Identifier retries. Marking as Failed.", fullMethodName);
                         device.Status = DeviceStatus.Failed;
@@ -224,4 +274,5 @@ namespace CorporateIdentifierSync
             }
         }
     }
+
 }}
