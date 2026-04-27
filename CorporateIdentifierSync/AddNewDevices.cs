@@ -116,24 +116,50 @@ namespace CorporateIdentifierSync
                 return;
             }
 
+
             //
+            // First process all devices added that aren't to be synced
+            // Not batching these currently since Graph is not involved and Cosmos is usually fast
+            //
+            List<string> nonSyncingTagIDs = await _dbService.GetNonSyncingDeviceTags();
+            List<Device> notSyncingDevices = await _dbService.GetAddedDevicesNotSyncing(nonSyncingTagIDs);
+
+            _logger.DSLogInformation("Processing devices in tags that aren't set to sync to CorpIDs first", fullMethodName);
+            foreach (Device device in notSyncingDevices)
+            {
+                try
+                {
+                    _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} tag {device.Tags[0]} is not enabled for sync.", fullMethodName);
+                    device.Status = DeviceStatus.NotSyncing;
+                    device.LastCorpIdentitySync = DateTime.UtcNow;
+
+                    // Update the DB entry with the new Corporate Identifier info
+                    await _dbService.UpdateDevice(device);
+
+                }
+                catch (Exception dbEx)
+                {
+                    _logger.DSLogException($"Device entry not updated for non-syncing device (should be retried next run):  {device.Make} {device.Model} {device.SerialNumber}", dbEx, fullMethodName);
+                }
+            }
+
+            //
+            // Now process devices to sync (which will be limited by batch settings)
             // CorpID Capacity Manager will be used to ensure we stay under configured limit
             //
             var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
-            //
-            //
-            //
             int availableCorpIDs = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
             _logger.DSLogInformation($"Available Corporate ID slots: {availableCorpIDs}.", fullMethodName);
 
-            // FIXME:  Because we're processing new devices, we need to keep going because some devices we're adding
-            // might not be configured to add to Corporate IDs
-            //if (availableCorpIDs <= 0)
-            //{
-            //    _logger.DSLogWarning("No available Corporate ID slots. No work to do. Function is exiting.", fullMethodName);
-            //    return;
-            //}
+
+            // If we're out of CorpIds, it's time to exit
+            // IMPORTANT:  Any devices not processed because we're out of CorpIDs won't get counted as retries.  Do we like this?
+            if (availableCorpIDs <= 0)
+            {
+                _logger.DSLogWarning("No available Corporate ID slots. Function is exiting.", fullMethodName);
+                return;
+            }
 
             int requestSize = Math.Min(_BatchSize, availableCorpIDs);
             _logger.DSLogInformation($"Reserving {requestSize} CorporateID entries", fullMethodName);
@@ -142,17 +168,17 @@ namespace CorporateIdentifierSync
             int reservedSlots = await capacityManager.ReserveCorpIDs(requestSize, CancellationToken.None);
             if (reservedSlots == 0)
             {
-                //_logger.DSLogWarning("No available Corporate ID slots at reservation time.  No work to do.  Function is exiting.", fullMethodName);
-                //return;
-                _logger.DSLogWarning($"No available CorpID slots at reservation time.  Will continue processing devices in tags that are not set to sync.", fullMethodName);
+                _logger.DSLogWarning("No available Corporate ID slots at reservation time.  Function is exiting.", fullMethodName);
+                return;
             }
             _logger.DSLogInformation($"Successfully reserved {reservedSlots} Corporate ID slots for this batch.", fullMethodName);
 
             // Get All Devices without Corporate Identifier values or fields
             List<Device> devicesToMigrate = new List<Device>();
+            List<string> syncingTagIDs = await _dbService.GetSyncingDeviceTags();
             try
             {
-                devicesToMigrate = await _dbService.GetAddedDevices(effectiveBatchSize);
+                devicesToMigrate = await _dbService.GetAddedDevicesToSync(syncingTagIDs, reservedSlots);
                 _logger.DSLogInformation($"Found {devicesToMigrate.Count} devices to migrate.", fullMethodName);
             }
             catch (Exception ex)
@@ -262,7 +288,7 @@ namespace CorporateIdentifierSync
             }
 
             // Release any unused reserved Corporate ID slots
-            int nowAvailable = await capacityManager.CommitCorpIDCount(effectiveBatchSize, devicesSynced, CancellationToken.None);
+            int nowAvailable = await capacityManager.CommitCorpIDCount(reservedSlots, devicesSynced, CancellationToken.None);
             _logger.DSLogInformation($"Successfully migrated {deviceCount} devices. {devicesSynced} devices were synced with Corporate Identifiers.", fullMethodName);
             if (nowAvailable > 0)
             {

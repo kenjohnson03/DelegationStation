@@ -109,6 +109,96 @@ namespace CorporateIdentifierSync.Services
             return devices;
 
         }
+        public async Task<List<Device>> GetAddedDevicesToSync(List<string> tagIds, int batchSize)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (tagIds.Count == 0)
+            {
+                _logger.DSLogInformation("No tag IDs provided. Returning empty list.", fullMethodName);
+                return new List<Device>();
+            }
+
+            _logger.DSLogInformation($"Getting up to {batchSize} Added devices in {tagIds.Count} sync-enabled tag(s).", fullMethodName);
+
+            string tagFilter = string.Join(" OR ", tagIds.Select((_, i) => $"t = @tag{i}"));
+
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.Type = \"Device\" " +
+                "AND (NOT IS_DEFINED(c.Status) OR c.Status = @status) " +
+                $"AND EXISTS(SELECT VALUE t FROM t IN c.Tags WHERE {tagFilter}) " +
+                "ORDER BY c.ModifiedUTC ASC " +
+                "OFFSET 0 LIMIT @batchSize");
+
+            query.WithParameter("@status", DeviceStatus.Added);
+            query.WithParameter("@batchSize", batchSize);
+            for (int i = 0; i < tagIds.Count; i++)
+            {
+                query.WithParameter($"@tag{i}", tagIds[i]);
+            }
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query Cosmos DB for Added devices in sync-enabled tags.", ex, fullMethodName);
+            }
+            return devices;
+        }
+
+        public async Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIds)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            if (tagIds.Count == 0)
+            {
+                _logger.DSLogInformation("No tag IDs provided. Returning empty list.", fullMethodName);
+                return new List<Device>();
+            }
+
+            _logger.DSLogInformation($"Getting all Added devices in {tagIds.Count} sync-disabled tag(s).", fullMethodName);
+
+            string tagFilter = string.Join(" OR ", tagIds.Select((_, i) => $"t = @tag{i}"));
+
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.Type = \"Device\" " +
+                "AND (NOT IS_DEFINED(c.Status) OR c.Status = @status) " +
+                $"AND EXISTS(SELECT VALUE t FROM t IN c.Tags WHERE {tagFilter}) ");
+
+            query.WithParameter("@status", DeviceStatus.Added);
+            for (int i = 0; i < tagIds.Count; i++)
+            {
+                query.WithParameter($"@tag{i}", tagIds[i]);
+            }
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            try
+            {
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    devices.AddRange(response.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query Cosmos DB for Added devices in sync-disabled tags.", ex, fullMethodName);
+            }
+            return devices;
+        }
 
         public async Task<List<Device>> GetDevicesMarkedForDeletion()
         {
