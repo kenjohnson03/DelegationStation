@@ -119,11 +119,9 @@ namespace CorporateIdentifierSync
 
             //
             // First process all devices added that aren't to be synced
-            // Not batching these currently since Graph is not involved and Cosmos is usually fast
             //
             List<string> nonSyncingTagIDs = await _dbService.GetNonSyncingDeviceTags();
-            List<Device> notSyncingDevices = await _dbService.GetAddedDevicesNotSyncing(nonSyncingTagIDs);
-
+            List<Device> notSyncingDevices = await _dbService.GetAddedDevicesNotSyncing(nonSyncingTagIDs, _BatchSize);
             _logger.DSLogInformation("Processing devices in tags that aren't set to sync to CorpIDs first", fullMethodName);
             foreach (Device device in notSyncingDevices)
             {

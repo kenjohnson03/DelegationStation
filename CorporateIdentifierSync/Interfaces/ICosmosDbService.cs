@@ -6,7 +6,7 @@ namespace CorporateIdentifierSync.Interfaces
     public interface ICosmosDbService
     {
         Task<List<Device>> GetAddedDevices(int batchSize);
-        Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIds);
+        Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIds, int batchSize);
         Task<List<Device>> GetAddedDevicesToSync(List<string> tagIds, int batchSize);
 
         Task<List<Device>> GetDevicesMarkedForDeletion();
