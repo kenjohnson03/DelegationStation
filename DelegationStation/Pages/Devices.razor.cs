@@ -149,6 +149,8 @@ namespace DelegationStation.Pages
             try
             {
                 // Fetch total device count to compute total pages for pagination
+                TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
+                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, null, searchDevice.PreferredHostname);
                 TotalDevices = await deviceDBService.GetDeviceCountAsync(groups, search);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
@@ -207,12 +209,14 @@ namespace DelegationStation.Pages
 
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
-                    searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                //TotalDevices = await deviceDBService.GetDeviceCountAsync(groups, search);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
                 // Lazy load only the first page of search results
                 devices = await deviceDBService.GetDevicesSearchAsync(
-                    searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
+                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, 
+                    deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
@@ -240,7 +244,7 @@ namespace DelegationStation.Pages
                     int? deviceOSID = (int?)searchDevice.OS;
                     // Fetch only the requested page of search results
                     devices = await deviceDBService.GetDevicesSearchAsync(
-                        searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber,
+                        groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber,
                         deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
                 }
                 catch (Exception ex)
