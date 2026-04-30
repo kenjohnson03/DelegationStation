@@ -182,31 +182,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-
-            if (!string.IsNullOrEmpty(make.Trim()))
-            {
-                sb.Append(" AND CONTAINS(d.Make, @make, true)");
-            }
-
-            if (!string.IsNullOrEmpty(model.Trim()))
-            {
-                sb.Append(" AND CONTAINS(d.Model, @model, true)");
-            }
-
-            if (!string.IsNullOrEmpty(serialNumber.Trim()))
-            {
-                sb.Append(" AND CONTAINS(d.SerialNumber, @serial, true)");
-            }
-
-            if (osID != null)
-            {
-                sb.Append(" AND d.OS=@os");
-            }
-
-            if (!string.IsNullOrEmpty(preferredHostname.Trim()))
-            {
-                sb.Append(" AND CONTAINS(d.PreferredHostname, @hostname, true)");
-            }
+            sb.Append(BuildDeviceSearchWhereClause(make, model, serialNumber, osID, preferredHostname));
 
             sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
 
