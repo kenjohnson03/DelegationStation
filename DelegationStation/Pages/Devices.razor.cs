@@ -69,12 +69,7 @@ namespace DelegationStation.Pages
                 user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
                 userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
                 userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            }
-
-            //if (PageNumber < 1)
-            //{
-            //    PageNumber = 1;
-            //}
+            }            
 
             UpdateClaims();
             await GetTags();
@@ -151,7 +146,6 @@ namespace DelegationStation.Pages
                 // Fetch total device count to compute total pages for pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, null, searchDevice.PreferredHostname);
-                TotalDevices = await deviceDBService.GetDeviceCountAsync(groups, search);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
                 // Lazy load only the current page of devices (0-based page index)
@@ -168,27 +162,7 @@ namespace DelegationStation.Pages
             }
         }
 
-        //public List<Device> GetDevicesByPage(int pageNumber, int pageSize)
-        //{
-        //    List<Device> pagedDevices = new List<Device>();
-
-        //    if (AllDevices.Count <= pageSize)
-        //    {
-        //        return AllDevices;
-        //    }
-        //    else
-        //    {
-        //        int startIndex = (pageNumber - 1) * pageSize;
-        //        int endIndex = Math.Min(startIndex + pageSize, AllDevices.Count);
-        //        for (int i = startIndex; i < endIndex; i++)
-        //        {
-        //            pagedDevices.Add(AllDevices[i]);
-        //        }
-        //    }
-
-        //    return pagedDevices;
-
-        //}
+        
         private async Task GetDevicesSearch()
         {
             Guid c = Guid.NewGuid();
@@ -210,7 +184,6 @@ namespace DelegationStation.Pages
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
-                //TotalDevices = await deviceDBService.GetDeviceCountAsync(groups, search);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
                 // Lazy load only the first page of search results

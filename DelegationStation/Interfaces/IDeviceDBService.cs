@@ -7,8 +7,6 @@ namespace DelegationStation.Interfaces
         Task<Device> AddOrUpdateDeviceAsync(Device device);
         Task<List<Device>> GetDevicesSearchAsync(IEnumerable<string> groupIds, string make, string model, string serialNumber, int? osID, string preferredHostname, int pageSize = 10, int page = 0);
         Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0);
-        /// <summary>Returns the total number of devices accessible to the specified groups matching the search term.</summary>
-        Task<int> GetDeviceCountAsync(IEnumerable<string> groupIds, string search);
         /// <summary>Returns the total number of devices matching the given per-field search criteria.</summary>
         Task<int> GetDeviceSearchCountAsync(IEnumerable<string> groupIds, string make, string model, string serialNumber, int? osID, string preferredHostname);
         Task<Device?> GetDeviceAsync(string make, string model, string serialNumber);

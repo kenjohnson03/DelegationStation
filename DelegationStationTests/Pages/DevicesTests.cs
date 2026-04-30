@@ -54,13 +54,11 @@ namespace DelegationStationTests.Pages
 
                 var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
                 {
-                    GetDevicesAsyncIEnumerableOfString =
-                        (groupIds) => Task.FromResult(devices),
                     GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
                         (groupIds,search,pageSize,currentPage) => Task.FromResult(devices),
                     // Stub for lazy loading: return a count matching the device list
-                    GetDeviceCountAsyncIEnumerableOfStringString =
-                        (groupIds, search) => Task.FromResult(devices.Count)
+                    GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
+                        (groupIds, make, model, serialNumber, osID, preferredHostname) => Task.FromResult(devices.Count)
                 };
 
 
@@ -164,19 +162,22 @@ namespace DelegationStationTests.Pages
                 };
 
                 IEnumerable<string>? capturedGroupIds = null;
-
+                string search = "";
                 var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
                 {
+                    
                     // Initial page load returns nothing so search results are clearly distinguishable
-                    GetDevicesAsyncIEnumerableOfStringInt32Int32 =
-                        (groupIds, pageSize, currentPage) => Task.FromResult(new List<Device>()),
+                    GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
+                        (groupIds, search, pageSize, currentPage) => Task.FromResult(new List<Device>()),
                     // Search stub: capture the groupIds passed and return only the authorized device
-                    GetDevicesSearchAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
-                        (groupIds, make, model, serialNumber, osID, preferredHostname) =>
+                    GetDevicesSearchAsyncIEnumerableOfStringStringStringStringNullableOfInt32StringInt32Int32 =
+                        (groupIds, make, model, serialNumber, osID, preferredHostname, pageSize, currentPage) =>
                         {
                             capturedGroupIds = groupIds;
                             return Task.FromResult(new List<Device>() { authorizedDevice });
-                        }
+                        },
+                        GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
+                            (groupIds, make, model, serialNumber, osID, preferredHostname) => Task.FromResult(1)
                 };
 
                 var myConfiguration = new Dictionary<string, string?>
@@ -249,8 +250,8 @@ namespace DelegationStationTests.Pages
                     GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
                         (groupIds, search, pageSize, page) => Task.FromResult(firstPageDevices),
                     // 15 total devices → 2 pages of 10
-                    GetDeviceCountAsyncIEnumerableOfStringString =
-                        (groupIds, search) => Task.FromResult(15)
+                    GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
+                        (groupIds, make, model, serialNumber, osID, preferredHostname) => Task.FromResult(15)
                 };
 
                 var myConfiguration = new Dictionary<string, string?>
@@ -304,8 +305,8 @@ namespace DelegationStationTests.Pages
                     GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
                         (groupIds, search, pageSize, page) => Task.FromResult(new List<Device>()),
                     // No devices → count is 0
-                    GetDeviceCountAsyncIEnumerableOfStringString =
-                        (groupIds, search) => Task.FromResult(0)
+                    GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
+                        (groupIds, make, model, serialNumber, osID, preferredHostname) => Task.FromResult(0)
                 };
 
                 var myConfiguration = new Dictionary<string, string?>
@@ -358,13 +359,13 @@ namespace DelegationStationTests.Pages
                     // Initial load returns nothing
                     GetDevicesAsyncIEnumerableOfStringStringInt32Int32 =
                         (g, s, ps, p) => Task.FromResult(new List<Device>()),
-                    GetDeviceCountAsyncIEnumerableOfStringString =
-                        (g, s) => Task.FromResult(0),
+                    //GetDeviceCountAsyncIEnumerableOfStringString =
+                    //    (g, s) => Task.FromResult(0),
                     // Search returns 15 total; first page has 10 devices
-                    GetDeviceSearchCountAsyncStringStringStringNullableOfInt32String =
-                        (make, model, sn, os, hostname) => Task.FromResult(15),
-                    GetDevicesSearchAsyncStringStringStringNullableOfInt32StringInt32Int32 =
-                        (make, model, sn, os, hostname, ps, p) => Task.FromResult(firstPageDevices)
+                    GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String =
+                        (groupIds, make, model, sn, os, hostname) => Task.FromResult(15),
+                    GetDevicesSearchAsyncIEnumerableOfStringStringStringStringNullableOfInt32StringInt32Int32 =
+                        (groupIds, make, model, sn, os, hostname, ps, p) => Task.FromResult(firstPageDevices)
                 };
 
                 var myConfiguration = new Dictionary<string, string?>
@@ -429,8 +430,8 @@ namespace DelegationStationTests.Pages
                 GetDevicesAsyncIEnumerableOfStringStringInt32Int32 = (a, b, c, d) =>
                     Task.FromResult(devices),
                 // Stub for lazy loading: return a count matching the device list
-                GetDeviceCountAsyncIEnumerableOfStringString = (a, b) =>
-                    Task.FromResult(devices.Count)
+                GetDeviceSearchCountAsyncIEnumerableOfStringStringStringStringNullableOfInt32String = 
+                (groupIds, make, model, sn, os, hostname) => Task.FromResult(devices.Count)
             };
 
             var myConfiguration = new Dictionary<string, string?>
