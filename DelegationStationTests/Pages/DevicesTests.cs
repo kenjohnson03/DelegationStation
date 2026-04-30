@@ -162,7 +162,6 @@ namespace DelegationStationTests.Pages
                 };
 
                 IEnumerable<string>? capturedGroupIds = null;
-                string search = "";
                 var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
                 {
                     
