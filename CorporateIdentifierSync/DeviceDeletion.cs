@@ -15,12 +15,47 @@ namespace CorporateIdentifierSync
         private readonly IGraphService _graphService;
         private readonly IGraphBetaService _graphBetaService;
 
+        private bool _IsCorpIDSyncEnabled;
+        private int _MaxCorpIDsAllowed;
+
         public DeviceDeletion(ILogger<DeviceDeletion> logger, ICosmosDbService dbService, IGraphService graphService, IGraphBetaService graphBetaService)
         {
             _logger = logger;
             _dbService = dbService;
             _graphService = graphService;
             _graphBetaService = graphBetaService;
+        }
+
+        public void GetEnvironmentVariables()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            //
+            // Get CorpID sync flag
+            //
+            _IsCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
+            }
+
+            //
+            // Get maximum allowed Corporate ID entries
+            //
+            _MaxCorpIDsAllowed = 10000;
+            string maxCorpIDsString = Environment.GetEnvironmentVariable("MAX_CORPIDS_ALLOWED");
+            if (!int.TryParse(maxCorpIDsString, out int max) || max <= 0)
+            {
+                _logger.DSLogError($"MAX_CORPIDS_ALLOWED is not set or invalid. Using default value: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+            else
+            {
+                _MaxCorpIDsAllowed = max;
+                _logger.DSLogInformation($"Maximum allowed Corporate Identifiers for the tenant is set to: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
         }
 
         [Function("DeviceDeletion")]
@@ -37,16 +72,7 @@ namespace CorporateIdentifierSync
             }
 
 
-            bool isCorpIDSyncEnabled = false;
-            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
-            if (!result)
-            {
-                _logger.DSLogError("CorpIDSyncEnabled not set or not a valid boolean. Disabling CorpID deletions.", fullMethodName);
-            }
-            else if (!isCorpIDSyncEnabled)
-            {
-                _logger.DSLogInformation("CorpIDSyncEnabled set to false. Disabling CorpID deletions.", fullMethodName);
-            }
+            GetEnvironmentVariables();
 
             //
             // Get All devices marked for deletion
@@ -105,7 +131,7 @@ namespace CorporateIdentifierSync
                 //{
                 bool delCorpID = false;
 
-                if (isCorpIDSyncEnabled)
+                if (_IsCorpIDSyncEnabled)
                 {
                     // Delete from Corporate Identifiers
                     if (!String.IsNullOrEmpty(device.CorporateIdentityID))
@@ -167,8 +193,7 @@ namespace CorporateIdentifierSync
             {
                 _logger.DSLogInformation($"Successfully deleted {corpIDsDeletedCount} Corporate Identifiers.", fullMethodName);
             }
-            int totalCap = int.Parse(Environment.GetEnvironmentVariable("CORP_ID_TOTAL_CAP") ?? "320000");
-            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, totalCap);
+            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
             try
             {

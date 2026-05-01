@@ -17,10 +17,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
         public Task<CorpIDCounter> GetCorpIDCounter() => Task.FromResult(Counter);
 
-        public Task SetCorpIDCounter(CorpIDCounter counter)
+        public Task<bool> TrySetCorpIDCounter(CorpIDCounter counter,string ETag)
         {
             Counter = counter;
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task<List<Device>> GetAddedDevices(int batchSize) => throw new NotImplementedException();

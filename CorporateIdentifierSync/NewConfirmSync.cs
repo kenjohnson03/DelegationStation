@@ -9,20 +9,69 @@ using Device = DelegationStationShared.Models.Device;
 
 namespace CorporateIdentifierSync
 {
-    public class NewConfirmSync
+    public class ConfirmSync
     {
         private readonly ILogger _logger;
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
 
-        public NewConfirmSync(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService)
+        private bool _IsCorpIDSyncEnabled;
+        private int _SyncIntervalHours;
+        private int _MaxCorpIDsAllowed;
+
+        public ConfirmSync(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService)
         {
-            _logger = loggerFactory.CreateLogger<NewConfirmSync>();
+            _logger = loggerFactory.CreateLogger<ConfirmSync>();
             _dbService = dbService;
             _graphBetaService = graphBetaService;
         }
 
-        [Function("NewConfirmSync")]
+        public void GetEnvironmentVariables()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            //
+            // Get CorpID sync flag
+            //
+            _IsCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
+            }
+
+            //
+            // Get sync interval hours
+            //
+            _SyncIntervalHours = 0;
+            if (!int.TryParse(Environment.GetEnvironmentVariable("SyncIntervalHours"), out _SyncIntervalHours))
+            {
+                _logger.DSLogError("SyncIntervalHours is not set or not a valid integer. Defaulting to 0.", fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogInformation($"Using SyncIntervalHours: {_SyncIntervalHours}.", fullMethodName);
+            }
+
+            //
+            // Get maximum allowed Corporate ID entries
+            //
+            _MaxCorpIDsAllowed = 10000;
+            string maxCorpIDsString = Environment.GetEnvironmentVariable("MAX_CORPIDS_ALLOWED");
+            if (!int.TryParse(maxCorpIDsString, out int max) || max <= 0)
+            {
+                _logger.DSLogError($"MAX_CORPIDS_ALLOWED is not set or invalid. Using default value: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+            else
+            {
+                _MaxCorpIDsAllowed = max;
+                _logger.DSLogInformation($"Maximum allowed Corporate Identifiers for the tenant is set to: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+        }
+
+        [Function("ConfirmSync")]
         public async Task Run([TimerTrigger("%NewConfirmSyncTriggerTime%")] TimerInfo myTimer)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
@@ -36,38 +85,26 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}", fullMethodName);
             }
 
-            //
-            //  Check whether syncing is enabled and get sync interval from environment variables. If not enabled or invalid, log and exit.
-            //
-            bool isCorpIDSyncEnabled = false;
-            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
-            if (!result)
-            {
-                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Disabling sync.", fullMethodName);
-            }
-            else if (!isCorpIDSyncEnabled)
-            {
-                _logger.DSLogInformation("EnableCorpIDSync set to false. Disabling sync.", fullMethodName);
-            }
+            GetEnvironmentVariables();
 
-            if (!isCorpIDSyncEnabled)
+            //
+            //  We don't need to keep going if syncing is disabled
+            //
+            if (!_IsCorpIDSyncEnabled)
             {
                 _logger.DSLogInformation("Syncing not enabled.  No work to do.  Function is exiting.", fullMethodName);
                 return;
             }
 
-
             //
-            // Get sync interval hours and calculate cutoff time for devices to check based on last sync time. If invalid, log and exit.
+            // Validate sync interval. If invalid (0 from failed parse), log and exit.
             //
-            int intervalHours = 0;
-            if (!int.TryParse(Environment.GetEnvironmentVariable("SyncIntervalHours", EnvironmentVariableTarget.Process), out intervalHours))
+            if (_SyncIntervalHours <= 0)
             {
-                _logger.DSLogError("SyncIntervalHours is not set or not a valid integer. Exiting.", fullMethodName);
+                _logger.DSLogError("SyncIntervalHours is not set or invalid. Exiting.", fullMethodName);
                 return;
             }
-            _logger.DSLogInformation($"Checking devices last synced over {intervalHours} hours ago.", fullMethodName);
-
+            _logger.DSLogInformation($"Checking devices last synced over {_SyncIntervalHours} hours ago.", fullMethodName);
 
             //
             // Only checking devices that are in tags with sync enabled.
@@ -81,9 +118,9 @@ namespace CorporateIdentifierSync
             }
 
             //
-            // Get all devies that were synced before the cutoff time, and filter to only those in sync-enabled tags.
+            // Get all devices that were synced before the cutoff time, and filter to only those in sync-enabled tags.
             //
-            List<Device> candidates = await _dbService.GetSyncedDevicesSyncedBefore(DateTime.UtcNow.AddHours(-intervalHours));
+            List<Device> candidates = await _dbService.GetSyncedDevicesSyncedBefore(DateTime.UtcNow.AddHours(-_SyncIntervalHours));
             List<Device> devicesToCheck = candidates
                 .Where(d => d.Tags.Count > 0 && tagsWithSyncEnabled.Contains(d.Tags[0]))
                 .ToList();
@@ -93,7 +130,6 @@ namespace CorporateIdentifierSync
             //
             //  Track the count of devices in various states for logging
             //
-            //int deviceCount = 0;
             int devicesFound = 0;
             int devicesReadded = 0;
             int devicesFailedReAdd = 0;
@@ -159,7 +195,6 @@ namespace CorporateIdentifierSync
                     }
                 }
 
-
                 //
                 //  Update device entry
                 //
@@ -174,7 +209,7 @@ namespace CorporateIdentifierSync
                 }
             }
 
-            _logger.DSLogInformation($"NewConfirmSync completed. Processed {devicesFound + devicesReadded + devicesFailedReAdd} devices: {devicesFound} found, {devicesReadded} re-added, " +
+            _logger.DSLogInformation($"ConfirmSync completed. Processed {devicesFound + devicesReadded + devicesFailedReAdd} devices: {devicesFound} found, {devicesReadded} re-added, " +
                                      $"{devicesFailedReAdd} failed to re-add.", fullMethodName);
 
             //
@@ -182,8 +217,7 @@ namespace CorporateIdentifierSync
             //
             if (devicesFailedReAdd > 0)
             {
-                int totalCap = int.Parse(Environment.GetEnvironmentVariable("CORP_ID_TOTAL_CAP") ?? "320000");
-                var capacityManager = new CorpIdCapacityManager(_dbService, _logger, totalCap);
+                var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
                 await capacityManager.ReleaseCorpIDs(devicesFailedReAdd, CancellationToken.None);
             }
         }
