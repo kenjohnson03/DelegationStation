@@ -218,7 +218,14 @@ namespace CorporateIdentifierSync
             if (devicesFailedReAdd > 0)
             {
                 var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
-                await capacityManager.ReleaseCorpIDs(devicesFailedReAdd, CancellationToken.None);
+                try
+                {
+                    await capacityManager.ReleaseCorpIDs(devicesFailedReAdd, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException($"Failed to release {devicesFailedReAdd} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
+                }
             }
         }
     }

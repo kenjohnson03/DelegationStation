@@ -233,8 +233,17 @@ namespace CorporateIdentifierSync
 
             var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
-            int availableSlots = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
-            _logger.DSLogInformation($"Available Corp ID slots after Section 1: {availableSlots}.", fullMethodName);
+            int availableSlots;
+            try
+            {
+                availableSlots = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
+                _logger.DSLogInformation($"Available Corp ID slots: {availableSlots}.", fullMethodName);
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Exiting.  Failed to retrieve available Corp ID count.", ex, fullMethodName);
+                return 0;
+            }
 
             if (availableSlots <= 0)
             {
@@ -257,12 +266,21 @@ namespace CorporateIdentifierSync
             }
 
             // Reserve slots atomically — returned value may be less than requested if capacity tightened since the availability check
-            int actualReserved = await capacityManager.ReserveCorpIDs(devicesToSync.Count, CancellationToken.None);
-            _logger.DSLogInformation($"Requested {devicesToSync.Count} slots, reserved {actualReserved}.", fullMethodName);
+            int actualReserved;
+            try
+            {
+                actualReserved = await capacityManager.ReserveCorpIDs(devicesToSync.Count, CancellationToken.None);
+                _logger.DSLogInformation($"Requested {devicesToSync.Count} slots, reserved {actualReserved}.", fullMethodName);
+            }
+            catch(Exception ex)
+            {
+                _logger.DSLogException("Exiting. Failed to reserve Corp ID slots.", ex, fullMethodName);
+                return 0;
+            }
 
             if (actualReserved == 0)
             {
-                _logger.DSLogWarning("No Corp ID slots could be reserved. Skipping Section 2.", fullMethodName);
+                _logger.DSLogWarning("No Corp ID slots could be reserved.", fullMethodName);
                 return 0;
             }
 
@@ -334,8 +352,15 @@ namespace CorporateIdentifierSync
 
             // Commit: moves actualReserved out of CorpIDReserve and records addedCount in CorpIDCount.
             // Any slots reserved but not added (failures) are released automatically by CommitCorpIDCount.
-            int available = await capacityManager.CommitCorpIDCount(actualReserved, addedCount, CancellationToken.None);
-            _logger.DSLogInformation($"Section 2 complete. Committed {addedCount} Corp IDs. Released {actualReserved - addedCount} unused reserved slots. {available} CorpIDs now available.", fullMethodName);
+            try
+            {
+                int available = await capacityManager.CommitCorpIDCount(actualReserved, addedCount, CancellationToken.None);
+                _logger.DSLogInformation($"Section 2 complete. Committed {addedCount} Corp IDs. Released {actualReserved - addedCount} unused reserved slots. {available} CorpIDs now available.", fullMethodName);
+            }
+            catch(Exception ex)
+            {
+                _logger.DSLogException("Failed to commit Corp ID count after additions. Manual resolution may be required.", ex, fullMethodName);
+            }
 
             return addedCount;
         }

@@ -65,14 +65,13 @@ namespace CorporateIdentifierSync
 
                 try
                 {
-                    // will return failure if counter changed since last read, so we'll need to re-read, recalculate and retry
                     success = await _dbService.TrySetCorpIDCounter(counter, counter.ETag);
 
                 }
                 catch (Exception ex)
                 {
-                    // TODO:  Do we need additional retry logic here?
                     _logger.DSLogException("Exception caught saving CorpID Counter: ", ex, fullMethodName);
+                    throw;
                 }
             } while (!success);
 
@@ -95,16 +94,25 @@ namespace CorporateIdentifierSync
 
                 if (reserved > counter.CorpIDReserve)
                 {
-                    _logger.DSLogWarning($"Drift detected:  Attempted to unreserved {reserved} devices but only {counter.CorpIDReserve} tracked as reserved.");
+                    _logger.DSLogWarning($"Drift detected:  Attempted to unreserved {reserved} devices but only {counter.CorpIDReserve} tracked as reserved.", fullMethodName);
                 }
                 counter.CorpIDReserve = Math.Max(0, counter.CorpIDReserve - reserved);
 
                 counter.CorpIDCount += added;
                 if (counter.CorpIDCount > _totalCap)
                 {
-                    _logger.DSLogWarning($"Drift detected:  Committing new entries to CorpID increased total above cap.");
+                    _logger.DSLogWarning($"Drift detected:  Committing new entries to CorpID increased total above cap.", fullMethodName);
                 }
-                success = await _dbService.TrySetCorpIDCounter(counter,counter.ETag);
+
+                try
+                {
+                    success = await _dbService.TrySetCorpIDCounter(counter, counter.ETag);
+                }
+                catch(Exception ex)
+                {
+                    _logger.DSLogException("Exception caught trying to update CorpIDCounter", ex, fullMethodName);
+                    throw;
+                }
 
                 available = _totalCap - counter.GetTotal();
             }
@@ -145,6 +153,7 @@ namespace CorporateIdentifierSync
                 catch (Exception ex)
                 {
                     _logger.DSLogException($"Failed to update CorpIDCounter after releasing {releaseCount} Corp IDs.", ex, fullMethodName);
+                    throw;
                 }
             }
             while (!success);

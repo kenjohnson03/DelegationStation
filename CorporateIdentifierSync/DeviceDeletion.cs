@@ -1,7 +1,6 @@
 using CorporateIdentifierSync.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using Microsoft.Graph.Models;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
@@ -136,11 +135,18 @@ namespace CorporateIdentifierSync
                     // Delete from Corporate Identifiers
                     if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                     {
-                        delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                        if (delCorpID)
+                        try
                         {
-                            corpIDsDeletedCount++;
-                            _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                            delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            if (delCorpID)
+                            {
+                                corpIDsDeletedCount++;
+                                _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogException($"Could not delete CorpID for: {device.Make} {device.Model} {device.SerialNumber} (ID: {device.CorporateIdentityID}", ex, fullMethodName);
                         }
                     }
                     else
@@ -192,17 +198,17 @@ namespace CorporateIdentifierSync
             if (corpIDsDeletedCount > 0)
             {
                 _logger.DSLogInformation($"Successfully deleted {corpIDsDeletedCount} Corporate Identifiers.", fullMethodName);
-            }
-            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
+                var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
-            try
-            {
-                int available = await capacityManager.ReleaseCorpIDs(corpIDsDeletedCount, CancellationToken.None);
-                _logger.DSLogInformation($"Available CorpIDs after release: {available}", fullMethodName);
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Failed to release CorpIDs after deletions.", ex, fullMethodName);
+                try
+                {
+                    int available = await capacityManager.ReleaseCorpIDs(corpIDsDeletedCount, CancellationToken.None);
+                    _logger.DSLogInformation($"Available CorpIDs after release: {available}", fullMethodName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException("Failed to release CorpIDs after deletions.", ex, fullMethodName);
+                }
             }
         }
     }

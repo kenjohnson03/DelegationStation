@@ -9,7 +9,6 @@ using DelegationStationShared.Models;
 using Azure.Core;
 using Azure.Identity;
 using DelegationStationShared.Enums;
-using System.Net;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -531,12 +530,5 @@ namespace CorporateIdentifierSync.Services
 
         }
 
-
-
-        private static bool IsTransient(HttpStatusCode statusCode) =>
-            statusCode is HttpStatusCode.RequestTimeout     // 408
-              or (HttpStatusCode)449                        // RetryWith
-              or HttpStatusCode.InternalServerError         // 500
-              or HttpStatusCode.ServiceUnavailable;         // 503
     }
 }
