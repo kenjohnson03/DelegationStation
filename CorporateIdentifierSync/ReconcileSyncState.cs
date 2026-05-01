@@ -15,11 +15,62 @@ namespace CorporateIdentifierSync
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
 
+        private bool _IsCorpIDSyncEnabled;
+        private int _BatchSize;
+        private int _MaxCorpIDsAllowed;
+
         public ReconcileSyncState(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService)
         {
             _logger = loggerFactory.CreateLogger<ReconcileSyncState>();
             _dbService = dbService;
             _graphBetaService = graphBetaService;
+        }
+
+        public void GetEnvironmentVariables()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            //
+            // Get CorpID sync flag
+            //
+            _IsCorpIDSyncEnabled = false;
+            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
+            if (!result)
+            {
+                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
+            }
+
+            //
+            // Get batch size for reconciling devices
+            //
+            _BatchSize = 1000;
+            string batchSizeString = Environment.GetEnvironmentVariable("ReconcileSyncBatchSize");
+            if (!int.TryParse(batchSizeString, out int bs) || bs <= 0)
+            {
+                _logger.DSLogWarning($"ReconcileSyncBatchSize is not set or invalid. Using default value: {_BatchSize}.", fullMethodName);
+            }
+            else
+            {
+                _BatchSize = bs;
+                _logger.DSLogInformation($"Using ReconcileSyncBatchSize: {_BatchSize}.", fullMethodName);
+            }
+
+            //
+            // Get maximum allowed Corporate ID entries
+            //
+            _MaxCorpIDsAllowed = 10000;
+            string maxCorpIDsString = Environment.GetEnvironmentVariable("MAX_CORPIDS_ALLOWED");
+            if (!int.TryParse(maxCorpIDsString, out int max) || max <= 0)
+            {
+                _logger.DSLogError($"MAX_CORPIDS_ALLOWED is not set or invalid. Using default value: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+            else
+            {
+                _MaxCorpIDsAllowed = max;
+                _logger.DSLogInformation($"Maximum allowed Corporate Identifiers for the tenant is set to: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
         }
 
         [Function("ReconcileSyncState")]
@@ -36,51 +87,28 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}", fullMethodName);
             }
 
+            GetEnvironmentVariables();
+
             //
             // Check if syncing is enabled via environment variable before doing any work
             //
-            bool isCorpIDSyncEnabled = false;
-            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync", EnvironmentVariableTarget.Process), out isCorpIDSyncEnabled);
-            if (!result)
-            {
-                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Disabling sync.", fullMethodName);
-            }
-            else if (!isCorpIDSyncEnabled)
-            {
-                _logger.DSLogInformation("EnableCorpIDSync set to false. Disabling sync.", fullMethodName);
-            }
 
-            if (!isCorpIDSyncEnabled)
+            if (!_IsCorpIDSyncEnabled)
             {
                 _logger.DSLogInformation("Syncing not enabled. No work to do. Function is exiting.", fullMethodName);
                 return;
             }
 
             //
-            // Determine batch size for processing devices, with a default and logging for visibility
-            //
-            int batchSize = 1000;
-            string batchSizeString = Environment.GetEnvironmentVariable("ReconcileSyncBatchSize", EnvironmentVariableTarget.Process);
-            if (!int.TryParse(batchSizeString, out int bs) || bs <= 0)
-            {
-                _logger.DSLogWarning($"ReconcileSyncBatchSize is not set or invalid. Using default value: {batchSize}.", fullMethodName);
-            }
-            else
-            {
-                batchSize = bs;
-                _logger.DSLogInformation($"Using ReconcileSyncBatchSize: {batchSize}.", fullMethodName);
-            }
-
-            //
             // Remove any devices from CorpID that are synced, but are no longer in a tag set to sync
             //
-            int corpIDsRemoved = await RemoveSyncedDevicesInDisabledTagsAsync(batchSize);
+            int corpIDsRemoved = await RemoveSyncedDevicesInDisabledTagsAsync(_BatchSize);
             _logger.DSLogInformation($"Removed Corp IDs for {corpIDsRemoved} devices in disabled tags.", fullMethodName);
 
             //
             // Add any devices to CorpID that are not syncing, but are in a tag set to sync - up to the batch size and available capacity
             //
-            int corpIDsAdded = await AddNotSyncingDevicesInEnabledTagsAsync(batchSize);
+            int corpIDsAdded = await AddNotSyncingDevicesInEnabledTagsAsync(_BatchSize);
             _logger.DSLogInformation($"Added Corp IDs for {corpIDsAdded} devices in enabled tags.", fullMethodName);
 
             _logger.DSLogInformation("ReconcileSyncState completed.", fullMethodName);
@@ -163,15 +191,19 @@ namespace CorporateIdentifierSync
             {
                 try
                 {
-                    // use object
-                    var counter = await _dbService.GetCorpIDCounter();
-                    if (corpIDsRemovedFromGraph > counter.CorpIDCount)
-                    {
-                        _logger.DSLogError($"Drift detected: Attempting to decrement counter by {corpIDsRemovedFromGraph} but current count is {counter.CorpIDCount}.", fullMethodName);
-                    }
-                    counter.CorpIDCount = Math.Max(0, counter.CorpIDCount - corpIDsRemovedFromGraph);
-                    await _dbService.SetCorpIDCounter(counter);
-                    _logger.DSLogInformation($"Decremented CorpIDCounter by {corpIDsRemovedFromGraph} to {counter.CorpIDCount}.", fullMethodName);
+                    //// use object
+                    //var counter = await _dbService.GetCorpIDCounter();
+                    //if (corpIDsRemovedFromGraph > counter.CorpIDCount)
+                    //{
+                    //    _logger.DSLogError($"Drift detected: Attempting to decrement counter by {corpIDsRemovedFromGraph} but current count is {counter.CorpIDCount}.", fullMethodName);
+                    //}
+                    //counter.CorpIDCount = Math.Max(0, counter.CorpIDCount - corpIDsRemovedFromGraph);
+                    //await _dbService.SetCorpIDCounter(counter);
+                    //_logger.DSLogInformation($"Decremented CorpIDCounter by {corpIDsRemovedFromGraph} to {counter.CorpIDCount}.", fullMethodName);
+                    CorpIdCapacityManager capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
+                    int available = await capacityManager.ReleaseCorpIDs(corpIDsRemovedFromGraph,CancellationToken.None);
+
+                    _logger.DSLogInformation($"Released {corpIDsRemovedFromGraph} from Capacity Manager.  {available} CorpIDs remain.", fullMethodName);
                 }
                 catch (Exception ex)
                 {
@@ -199,8 +231,7 @@ namespace CorporateIdentifierSync
                 return 0;
             }
 
-            int totalCap = int.Parse(Environment.GetEnvironmentVariable("CORP_ID_TOTAL_CAP") ?? "320000");
-            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, totalCap);
+            var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
 
             int availableSlots = await capacityManager.GetAvailableCorpIDCount(CancellationToken.None);
             _logger.DSLogInformation($"Available Corp ID slots after Section 1: {availableSlots}.", fullMethodName);
@@ -303,8 +334,8 @@ namespace CorporateIdentifierSync
 
             // Commit: moves actualReserved out of CorpIDReserve and records addedCount in CorpIDCount.
             // Any slots reserved but not added (failures) are released automatically by CommitCorpIDCount.
-            await capacityManager.CommitCorpIDCount(actualReserved, addedCount, CancellationToken.None);
-            _logger.DSLogInformation($"Section 2 complete. Committed {addedCount} Corp IDs. Released {actualReserved - addedCount} unused reserved slots.", fullMethodName);
+            int available = await capacityManager.CommitCorpIDCount(actualReserved, addedCount, CancellationToken.None);
+            _logger.DSLogInformation($"Section 2 complete. Committed {addedCount} Corp IDs. Released {actualReserved - addedCount} unused reserved slots. {available} CorpIDs now available.", fullMethodName);
 
             return addedCount;
         }

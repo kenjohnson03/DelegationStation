@@ -40,33 +40,42 @@ namespace CorporateIdentifierSync
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            var counter = await _dbService.GetCorpIDCounter();
-            var available = _totalCap - counter.GetTotal();
+            var success = false;
             int reserved = 0;
 
-            if (available >= count)
+            do
             {
-                counter.CorpIDReserve += count;
-                reserved = count;
-            }
-            else if (available==0)
-            {
-                reserved = 0;
-            }
-            else  // available < count
-            {
-                counter.CorpIDReserve += available;
-                reserved = available;
-            }
+                var counter = await _dbService.GetCorpIDCounter();
+                var available = _totalCap - counter.GetTotal();
 
-            try
-            {
-                await _dbService.SetCorpIDCounter(counter);
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Exception caught saving CorpID Counter: ", ex, fullMethodName);
-            }
+                if (available >= count)
+                {
+                    counter.CorpIDReserve += count;
+                    reserved = count;
+                }
+                else if (available == 0)
+                {
+                    reserved = 0;
+                }
+                else  // available < count
+                {
+                    counter.CorpIDReserve += available;
+                    reserved = available;
+                }
+
+                try
+                {
+                    // will return failure if counter changed since last read, so we'll need to re-read, recalculate and retry
+                    success = await _dbService.TrySetCorpIDCounter(counter, counter.ETag);
+
+                }
+                catch (Exception ex)
+                {
+                    // TODO:  Do we need additional retry logic here?
+                    _logger.DSLogException("Exception caught saving CorpID Counter: ", ex, fullMethodName);
+                }
+            } while (!success);
+
             return reserved;
         }
 
@@ -74,22 +83,33 @@ namespace CorporateIdentifierSync
         // Optionally releases CorpIDs that are no longer active (e.g. failed re-adds) by decrementing CorpIDCount, with drift detection.
         public async Task<int> CommitCorpIDCount(int reserved, int added, CancellationToken ct)
         {
-            var counter = await _dbService.GetCorpIDCounter();
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
 
-            if (reserved > counter.CorpIDReserve)
+            var success = false;
+            int available = 0;
+            do
             {
-                _logger.DSLogWarning($"Drift detected:  Attempted to unreserved {reserved} devices but only {counter.CorpIDReserve} tracked as reserved.");
-            }
-            counter.CorpIDReserve = Math.Max(0, counter.CorpIDReserve - reserved);
+                var counter = await _dbService.GetCorpIDCounter();
 
-            counter.CorpIDCount += added;
-            if (counter.CorpIDCount > _totalCap)
-            {
-                _logger.DSLogWarning($"Drift detected:  Committing new entries to CorpID increased total above cap.");
-            }
-            await _dbService.SetCorpIDCounter(counter);
+                if (reserved > counter.CorpIDReserve)
+                {
+                    _logger.DSLogWarning($"Drift detected:  Attempted to unreserved {reserved} devices but only {counter.CorpIDReserve} tracked as reserved.");
+                }
+                counter.CorpIDReserve = Math.Max(0, counter.CorpIDReserve - reserved);
 
-            var available = _totalCap - counter.GetTotal();
+                counter.CorpIDCount += added;
+                if (counter.CorpIDCount > _totalCap)
+                {
+                    _logger.DSLogWarning($"Drift detected:  Committing new entries to CorpID increased total above cap.");
+                }
+                success = await _dbService.TrySetCorpIDCounter(counter,counter.ETag);
+
+                available = _totalCap - counter.GetTotal();
+            }
+            while (!success);
+
             return available;
         }
 
@@ -101,26 +121,33 @@ namespace CorporateIdentifierSync
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            var counter = await _dbService.GetCorpIDCounter();
-            var available = _totalCap - counter.GetTotal();
 
-            if (releaseCount > counter.CorpIDCount)
+            var success = false;
+            int available = 0;
+            do
             {
-                _logger.DSLogWarning($"Drift detected: Attempting to decrement CorpIDCount by {releaseCount} but current count is {counter.CorpIDCount}.", fullMethodName);
-            }
-
-            counter.CorpIDCount = Math.Max(0, counter.CorpIDCount - releaseCount);
-
-            try
-            {
-                await _dbService.SetCorpIDCounter(counter);
+                var counter = await _dbService.GetCorpIDCounter();
                 available = _totalCap - counter.GetTotal();
-                _logger.DSLogInformation($"Decremented CorpIDCount by {releaseCount} to {counter.CorpIDCount}.", fullMethodName);
+
+                if (releaseCount > counter.CorpIDCount)
+                {
+                    _logger.DSLogWarning($"Drift detected: Attempting to decrement CorpIDCount by {releaseCount} but current count is {counter.CorpIDCount}.", fullMethodName);
+                }
+
+                counter.CorpIDCount = Math.Max(0, counter.CorpIDCount - releaseCount);
+
+                try
+                {
+                    success = await _dbService.TrySetCorpIDCounter(counter,counter.ETag);
+                    available = _totalCap - counter.GetTotal();
+                    _logger.DSLogInformation($"Decremented CorpIDCount by {releaseCount} to {counter.CorpIDCount}.", fullMethodName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException($"Failed to update CorpIDCounter after releasing {releaseCount} Corp IDs.", ex, fullMethodName);
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.DSLogException($"Failed to update CorpIDCounter after releasing {releaseCount} Corp IDs.", ex, fullMethodName);
-            }
+            while (!success);
 
             return available;
         }

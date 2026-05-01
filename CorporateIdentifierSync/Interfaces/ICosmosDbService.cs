@@ -24,7 +24,7 @@ namespace CorporateIdentifierSync.Interfaces
         Task<List<string>> GetNonSyncingDeviceTags();
 
         Task<CorpIDCounter> GetCorpIDCounter();
-        Task SetCorpIDCounter(CorpIDCounter counter);
+        Task<bool> TrySetCorpIDCounter(CorpIDCounter counter, string etag);
 
         Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize);
         Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize);

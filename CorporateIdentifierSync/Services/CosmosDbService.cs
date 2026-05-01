@@ -9,6 +9,7 @@ using DelegationStationShared.Models;
 using Azure.Core;
 using Azure.Identity;
 using DelegationStationShared.Enums;
+using System.Net;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -505,7 +506,7 @@ namespace CorporateIdentifierSync.Services
             return new CorpIDCounter();
         }
 
-        public async Task SetCorpIDCounter(CorpIDCounter counter)
+        public async Task<bool> TrySetCorpIDCounter(CorpIDCounter counter, string etag)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
@@ -515,15 +516,27 @@ namespace CorporateIdentifierSync.Services
 
             try
             {
-                await _container.UpsertItemAsync(counter, new PartitionKey(counter.PartitionKey));
-                _logger.DSLogInformation("CorpIDCounter upserted successfully.", fullMethodName);
+                var options = new ItemRequestOptions { IfMatchEtag = etag };
+                await _container.UpsertItemAsync(counter, new PartitionKey(counter.PartitionKey), options);
+
+                _logger.DSLogInformation("CorpIDCounter updated successfully.", fullMethodName);
+                return true;
             }
-            catch (Exception ex)
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
             {
-                _logger.DSLogException("Failed to upsert CorpIDCounter in Cosmos DB.", ex, fullMethodName);
+                _logger.DSLogInformation("Counter changed before updated requested. Should be handled by calling code.", fullMethodName);
+                return false;
             }
+            // TBD:  do we want to handle any other exception types in here??
+
         }
 
 
+
+        private static bool IsTransient(HttpStatusCode statusCode) =>
+            statusCode is HttpStatusCode.RequestTimeout     // 408
+              or (HttpStatusCode)449                        // RetryWith
+              or HttpStatusCode.InternalServerError         // 500
+              or HttpStatusCode.ServiceUnavailable;         // 503
     }
 }

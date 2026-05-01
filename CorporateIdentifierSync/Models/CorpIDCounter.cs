@@ -29,6 +29,9 @@ namespace CorporateIdentifierSync.Models
         {
             return CorpIDCount + CorpIDReserve;
         }
+
+        [JsonProperty("_etag")]
+        public string ETag { get; set; }
     }
 
    }
