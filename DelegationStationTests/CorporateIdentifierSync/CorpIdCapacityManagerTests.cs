@@ -24,11 +24,16 @@ namespace DelegationStationTests.CorporateIdentifierSync
         }
 
         public Task<List<Device>> GetAddedDevices(int batchSize) => throw new NotImplementedException();
+        public Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
+        public Task<List<Device>> GetAddedDevicesToSync(List<string> tagIDs, int batchsize) =>  throw new NotImplementedException();
         public Task<List<Device>> GetDevicesMarkedForDeletion() => throw new NotImplementedException();
         public Task UpdateDevice(Device device) => throw new NotImplementedException();
         public Task DeleteDevice(Device device) => throw new NotImplementedException();
         public Task<List<Device>> GetDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
+        public Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
+        public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
+
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
         public Task<List<string>> GetSyncingDeviceTags() => throw new NotImplementedException();
         public Task<List<string>> GetNonSyncingDeviceTags() => throw new NotImplementedException();
