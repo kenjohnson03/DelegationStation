@@ -104,9 +104,20 @@ namespace CorporateIdentifierSync.Services
             var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
             if ((result == null) || (result.Value[0] == null) || (result.Value[0].Status != true))
             {
-                string message = $"Graph returned non-true status attempting to add identifer: {identifier}";
-                _logger.DSLogError(message, fullMethodName);
-                throw new Exception(message);
+                // REST API returns 200OK even if it fails to add the identifier
+                // and instead provides a status field set to true if successful and false if note
+                //
+                // important to note that if the identifier already exist, it will treat it as a failure so we're going to confirm if it's present or not
+                // before throwing an exception
+                string identifierID = result.Value[0].Id;
+                bool alreadyExists = await CorporateIdentifierExists(identifierID);
+
+                if (!alreadyExists)
+                {
+                    string message = $"Graph returned non-true status attempting to add identifer: {identifier}";
+                    _logger.DSLogError(message, fullMethodName);
+                    throw new Exception(message);
+                }
             }
 
             deviceIdentity = result.Value[0];
@@ -167,7 +178,6 @@ namespace CorporateIdentifierSync.Services
             catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
             {
                 // This is the error returned when it tries to delete an object that's not found
-                // Return true since it's already not present
                 _logger.DSLogInformation($"Device corporate identifier {ID} not found in Graph.", fullMethodName);
                 return true;
             }
