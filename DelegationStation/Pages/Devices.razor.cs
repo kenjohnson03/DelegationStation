@@ -30,8 +30,8 @@ namespace DelegationStation.Pages
         private int PageNumber = 1;
         private int TotalDevices = 0;
         private int TotalPages = 0;
-        private string search = "";
         private Device searchDevice = new Device();
+        private Device activeSearchDevice = new Device();
         // Tracks whether the user's last action was a search (true) or a default page load (false)
         private bool isSearchActive = false;
         private bool devicesLoading = true;
@@ -140,16 +140,16 @@ namespace DelegationStation.Pages
             userMessage = new MarkupString("");
             // Default mode: clear any active search state
             isSearchActive = false;
-
+            activeSearchDevice = new Device();
             try
             {
-                // Fetch total device count to compute total pages for pagination
+                // Fetch total device count to compute total pages for pagination                
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
-                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, null, searchDevice.PreferredHostname);
+                    groups, activeSearchDevice);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
                 // Lazy load only the current page of devices (0-based page index)
-                devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, PageNumber - 1);
+                devices = await deviceDBService.GetDevicesAsync(groups, activeSearchDevice, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
@@ -170,26 +170,23 @@ namespace DelegationStation.Pages
             devicesLoading = true;
 
             try
-            {
-                int? deviceOSID = null;
-                if (searchDevice.OS != null)
-                {
-                    deviceOSID = (int)searchDevice.OS;
-                }
-
+            {                
                 // Reset to page 1 whenever a new search is initiated
                 PageNumber = 1;
                 isSearchActive = true;
-
+                activeSearchDevice.OS = searchDevice.OS;
+                activeSearchDevice.SerialNumber = searchDevice.SerialNumber;
+                activeSearchDevice.Make = searchDevice.Make;
+                activeSearchDevice.Model = searchDevice.Model;
+                activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
-                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                    groups, activeSearchDevice);
                 TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
                 // Lazy load only the first page of search results
                 devices = await deviceDBService.GetDevicesSearchAsync(
-                    groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, 
-                    deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
+                    groups, activeSearchDevice, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
@@ -214,11 +211,9 @@ namespace DelegationStation.Pages
                 Guid c = Guid.NewGuid();
                 try
                 {
-                    int? deviceOSID = (int?)searchDevice.OS;
                     // Fetch only the requested page of search results
                     devices = await deviceDBService.GetDevicesSearchAsync(
-                        groups, searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber,
-                        deviceOSID, searchDevice.PreferredHostname, pageSize, PageNumber - 1);
+                        groups, activeSearchDevice, pageSize, PageNumber - 1);
                 }
                 catch (Exception ex)
                 {

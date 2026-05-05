@@ -3,7 +3,6 @@ using Azure.Identity;
 using DelegationStation.Interfaces;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Azure.Cosmos;
 
 namespace DelegationStation.Services
@@ -95,7 +94,7 @@ namespace DelegationStation.Services
             }
         }
 
-        public async Task<List<Device>> GetDevicesSearchAsync(IEnumerable<string> groupIds, string make, string model, string serialNumber, int? osID, string preferredHostname, int pageSize = 10, int page = 0)
+        public async Task<List<Device>> GetDevicesSearchAsync(IEnumerable<string> groupIds, Device searchDevice, int pageSize = 10, int page = 0)
         {
             List<Device> devices = new List<Device>();
             // Filter out invalid group IDs from user's groups
@@ -162,7 +161,11 @@ namespace DelegationStation.Services
             //
             sb = new System.Text.StringBuilder();
             argCount = 0;
-
+            int? deviceOSID = null;
+            if (searchDevice.OS != null)
+            {
+                deviceOSID = (int)searchDevice.OS;
+            }
             if (groupIds.Contains(_DefaultGroup))
             {
                 sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
@@ -182,10 +185,10 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            sb.Append(BuildDeviceSearchWhereClause(make, model, serialNumber, osID, preferredHostname));
+            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname));
 
             sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
-
+            
             argCount = 0;
             q = new QueryDefinition(sb.ToString());
 
@@ -198,11 +201,11 @@ namespace DelegationStation.Services
                 }
             }
 
-            q.WithParameter("@make", make);
-            q.WithParameter("@model", model);
-            q.WithParameter("@serial", serialNumber);
-            q.WithParameter("@os", osID);
-            q.WithParameter("@hostname", preferredHostname);
+            q.WithParameter("@make", searchDevice.Make);
+            q.WithParameter("@model", searchDevice.Model);
+            q.WithParameter("@serial", searchDevice.SerialNumber);
+            q.WithParameter("@os", deviceOSID);
+            q.WithParameter("@hostname", searchDevice.PreferredHostname);
             q.WithParameter("@offset", page * pageSize);
             q.WithParameter("@limit", pageSize);
 
@@ -220,7 +223,7 @@ namespace DelegationStation.Services
         /// Returns the total count of devices that match the given per-field search criteria.
         /// Used for server-side pagination of the advanced search on the Devices page.
         /// </summary>
-        public async Task<int> GetDeviceSearchCountAsync(IEnumerable<string> groupIds, string make, string model, string serialNumber, int? osID, string preferredHostname)
+        public async Task<int> GetDeviceSearchCountAsync(IEnumerable<string> groupIds, Device searchDevice)
         {
             List<Device> devices = new List<Device>();
             // Filter out invalid group IDs from user's groups
@@ -302,9 +305,12 @@ namespace DelegationStation.Services
                 }
                 queryBuilder.Append(")");
             }
-
-            queryBuilder.Append(BuildDeviceSearchWhereClause(make, model, serialNumber, osID, preferredHostname));
-
+            int? deviceOSID = null;
+            if (searchDevice.OS != null)
+            {
+                deviceOSID = (int)searchDevice.OS;
+            }
+            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname));
             q = new QueryDefinition(queryBuilder.ToString());
             if (!groupIds.Contains(_DefaultGroup))
             {
@@ -314,11 +320,11 @@ namespace DelegationStation.Services
                     argCount++;
                 }
             }
-            q.WithParameter("@make", make);
-            q.WithParameter("@model", model);
-            q.WithParameter("@serial", serialNumber);
-            q.WithParameter("@os", osID);
-            q.WithParameter("@hostname", preferredHostname);
+            q.WithParameter("@make", searchDevice.Make);
+            q.WithParameter("@model", searchDevice.Model);
+            q.WithParameter("@serial", searchDevice.SerialNumber);
+            q.WithParameter("@os", deviceOSID);
+            q.WithParameter("@hostname", searchDevice.PreferredHostname);
 
             int count = 0;
             var countIterator = this._container.GetItemQueryIterator<int>(q);
@@ -446,7 +452,7 @@ namespace DelegationStation.Services
             return response;
         }
 
-        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search,  int pageSize = 10, int page = 0)
+        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, Device searchDevice,  int pageSize = 10, int page = 0)
         {
             List<Device> devices = new List<Device>();
 
