@@ -312,6 +312,7 @@ namespace DelegationStation.Services
             }
             queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname));
             q = new QueryDefinition(queryBuilder.ToString());
+            argCount = 0;
             if (!groupIds.Contains(_DefaultGroup))
             {
                 foreach (DeviceTag tag in deviceTags)
