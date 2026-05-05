@@ -284,7 +284,7 @@ namespace DelegationStation.Services
             {
                 return 0;
             }
-
+            argCount = 0;
             var queryBuilder = new System.Text.StringBuilder();
             if (groupIds.Contains(_DefaultGroup))
             {
