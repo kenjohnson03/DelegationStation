@@ -69,6 +69,13 @@ namespace DelegationStation.Pages
 
             try
             {
+                var existingRoles = await roleDBService.GetRolesAsync();
+                if (existingRoles.Any(r => r.Name.Equals(role.Name, StringComparison.OrdinalIgnoreCase) && r.Id != role.Id))
+                {
+                    userMessage = $"Error: A role with the name \"{role.Name}\" already exists.";
+                    return;
+                }
+
                 role.Attributes.Where(a => a == AllowedAttributes.All).ToList().ForEach(a => role.Attributes.Remove(a));
                 role = await roleDBService.AddOrUpdateRoleAsync(role);
                 var message = $"Correlation Id: {g.ToString()}\nSaved role.";
