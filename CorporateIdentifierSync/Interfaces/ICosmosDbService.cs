@@ -14,6 +14,7 @@ namespace CorporateIdentifierSync.Interfaces
         Task UpdateDevice(Device device);
 
         Task DeleteDevice(Device device);
+        Task<Device?> GetDevice(Guid id, string partitionKey);
 
         Task<List<Device>> GetDevicesSyncedBefore(DateTime date);
         Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date);

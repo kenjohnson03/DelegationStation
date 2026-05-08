@@ -100,15 +100,13 @@ namespace CorporateIdentifierSync.Services
 
             ImportedDeviceIdentity deviceIdentity;
 
-            // Note:  If entry already exists, it will just return object
+            // Note:  Does not throw error or return non-200 status if fails.  Instead it sets status field in object to false that we will need to check
             var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
             if ((result == null) || (result.Value[0] == null) || (result.Value[0].Status != true))
             {
-                // REST API returns 200OK even if it fails to add the identifier
-                // and instead provides a status field set to true if successful and false if note
-                //
-                // important to note that if the identifier already exist, it will treat it as a failure so we're going to confirm if it's present or not
-                // before throwing an exception
+                // important to note that if the identifier already exists, it will treat it as a failure
+                // so if we get a failure, we check to see if it already exists before throwing an exception
+                // if it already exists, we don't report an error
                 string identifierID = result.Value[0].Id;
                 bool alreadyExists = await CorporateIdentifierExists(identifierID);
 
@@ -149,8 +147,7 @@ namespace CorporateIdentifierSync.Services
             }
             catch (ODataError odataError) when (odataError.ResponseStatusCode == 404)
             {
-                // This is the error returned when it tries to delete an object that's not found
-                // Return true since it's already not present
+                // This is the error returned when it tries to retrieve an object that's not found
                 _logger.DSLogInformation($"Device corporate identifier {identifierId} not found in Graph", fullMethodName);
                 return false;
             }

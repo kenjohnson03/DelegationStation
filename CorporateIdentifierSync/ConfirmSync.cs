@@ -2,6 +2,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
@@ -195,6 +196,9 @@ namespace CorporateIdentifierSync
                     }
                 }
 
+                bool readdSucceeded = !string.IsNullOrEmpty(device.CorporateIdentityID)
+                    && device.Status == DeviceStatus.Synced;
+
                 //
                 //  Update device entry
                 //
@@ -203,9 +207,87 @@ namespace CorporateIdentifierSync
                     await _dbService.UpdateDevice(device);
                     _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber} in Delegation Station.", fullMethodName);
                 }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.DSLogWarning($"Device {device.Id} was deleted during ConfirmSync.", fullMethodName);
+
+                    if (readdSucceeded)
+                    {
+                        // We re-added a Corp ID but the device is gone — roll back
+                        try
+                        {
+                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                        }
+                        devicesReadded--;
+                        devicesFailedReAdd++; // So ReleaseCorpIDs adjusts capacity correctly
+                    }
+
+                    if (corpIDFound)
+                    {
+                        // We only updated LastCorpIdentitySync — no Graph side-effect to roll back
+                        devicesFound--;
+                    }
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    if(corpIDFound)
+                    {
+                        // TODO:  Verify approach
+                        // since the corpID was present, acceptable to skip this device
+                        // either it's been set to be deleted or reconcile sync is making other changes that should
+                        // take precedence
+                        devicesFound--;
+                        _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified by another function.  " +
+                            $"CorpID entry was already detected, so skipping device record update.", fullMethodName);
+                    }
+                    if (readdSucceeded)
+                    {
+                        // We re-added a Corp ID to Graph but another function modified the device concurrently.
+                        // Read fresh state to determine whether rollback is needed.
+                        _logger.DSLogWarning($"Device {device.Id} was modified concurrently after Corp ID re-add. Reading fresh state to determine rollback.", fullMethodName);
+                        try
+                        {
+                            Device freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                            if (freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
+                            {
+                                // Device is heading for deletion or was unsynced — roll back the re-added Corp ID
+                                _logger.DSLogWarning($"Device {device.Id} is now {freshDevice.Status}. Rolling back re-added Corp ID.", fullMethodName);
+                                try
+                                {
+                                    await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                                }
+                                catch (Exception rollbackEx)
+                                {
+                                    _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                                }
+                                devicesReadded--;
+                                devicesFailedReAdd++;
+                            }
+                            else
+                            {
+                                // Device is in an acceptable state (e.g. already Synced by another function).
+                                // Corp ID is valid — no rollback needed, but don't double-count.
+                                _logger.DSLogInformation($"Device {device.Id} is {freshDevice.Status}. Corp ID valid, no rollback needed.", fullMethodName);
+                                devicesReadded--;
+                            }
+                        }
+                        catch (Exception readEx)
+                        {
+                            _logger.DSLogException($"Could not read fresh device {device.Id} to determine rollback. Manual review may be required.", readEx, fullMethodName);
+                            devicesReadded--;
+                        }
+                    }
+                    _logger.DSLogWarning($"Device {device.Id} was modified by another function. Graph add is idempotent — skipping.", fullMethodName);
+                }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Failed to update device record {device.Make} {device.Model} {device.SerialNumber} in Delegation Station. CorporateIdentifier details may be out of sync.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to update device record {device.Make} {device.Model} {device.SerialNumber}. CorporateIdentifier details may be out of sync.", ex, fullMethodName);
                 }
             }
 

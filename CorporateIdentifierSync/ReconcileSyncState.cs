@@ -2,6 +2,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
@@ -139,14 +140,16 @@ namespace CorporateIdentifierSync
 
                 bool deleted = false;
 
-                if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                bool hadCorpID = !string.IsNullOrEmpty(device.CorporateIdentityID);
+                bool graphDeleteSucceeded = false;
+
+                if (hadCorpID)
                 {
                     try
                     {
-                        deleted = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                        if (deleted)
+                        graphDeleteSucceeded = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        if (graphDeleteSucceeded)
                         {
-                            corpIDsRemovedFromGraph++;
                             _logger.DSLogInformation($"Removed Corp ID from Graph for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                         }
                     }
@@ -157,11 +160,10 @@ namespace CorporateIdentifierSync
                 }
                 else
                 {
-                    // No Corp ID in Graph to remove — still update the device status
-                    deleted = true;
+                    graphDeleteSucceeded = true;
                 }
 
-                if (deleted)
+                if (graphDeleteSucceeded)
                 {
                     device.Status = DeviceStatus.NotSyncing;
                     device.CorporateIdentityID = string.Empty;
@@ -172,10 +174,42 @@ namespace CorporateIdentifierSync
                     {
                         await _dbService.UpdateDevice(device);
                         updatedCount++;
+                        if (hadCorpID)
+                        {
+                            corpIDsRemovedFromGraph++;
+                        }
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        // DeviceDeletion already deleted this device — it owns capacity release
+                        _logger.DSLogInformation($"Device {device.Id} was deleted. DeviceDeletion owns capacity release.", fullMethodName);
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                    {
+                        // Corp ID was deleted from Graph but another function updated this device concurrently.
+                        // Must retry with a fresh read to ensure NotSyncing status is written —
+                        // otherwise device remains Synced pointing to a deleted Corp ID.
+                        _logger.DSLogWarning($"Device {device.Id} was modified concurrently after Corp ID removal. Retrying status update.", fullMethodName);
+                        try
+                        {
+                            Device freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                            freshDevice.Status = DeviceStatus.NotSyncing;
+                            freshDevice.CorporateIdentityID = string.Empty;
+                            freshDevice.CorporateIdentity = string.Empty;
+                            freshDevice.LastCorpIdentitySync = DateTime.UtcNow;
+                            await _dbService.UpdateDevice(freshDevice);
+                            updatedCount++;
+                            if (hadCorpID) corpIDsRemovedFromGraph++;
+                        }
+                        catch (Exception retryEx)
+                        {
+                            _logger.DSLogException($"Retry failed for device {device.Id}. Device may be Synced with a deleted Corp ID — manual review required.", retryEx, fullMethodName);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Failed to update device {device.Id} in Delegation Station after Corp ID removal.", ex, fullMethodName);
+                        // Don't count toward ReleaseCorpIDs — can't confirm we own the outcome
+                        _logger.DSLogException($"Failed to update device {device.Id} after Corp ID removal. Not releasing capacity for this device.", ex, fullMethodName);
                     }
                 }
                 else
@@ -340,13 +374,44 @@ namespace CorporateIdentifierSync
                     device.LastCorpIdentitySync = DateTime.MinValue;
                 }
 
+                bool graphAddSucceeded = !string.IsNullOrEmpty(device.CorporateIdentityID);
+
                 try
                 {
                     await _dbService.UpdateDevice(device);
                 }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.DSLogWarning($"Device {device.Id} was deleted during processing.", fullMethodName);
+
+                    if (graphAddSucceeded)
+                    {
+                        // Corp ID was added to Graph but device is gone — roll back
+                        try
+                        {
+                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            _logger.DSLogInformation($"Rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                        }
+                        addedCount--; // Don't count toward CommitCorpIDCount
+                    }
+                    // If Graph add failed, nothing to roll back — device is gone anyway
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    // Device was modified concurrently (likely Blazor set to Deleting).
+                    // Corp ID add is idempotent — no Graph rollback needed.
+                    // DeviceDeletion will clean up the Corp ID when it processes the device.
+                    // Don't count toward capacity since we can't confirm we own the outcome.
+                    _logger.DSLogWarning($"Device {device.Id} was modified concurrently. Skipping write-back.", fullMethodName);
+                    addedCount--;
+                }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Failed to update device {device.Make} {device.Model} {device.SerialNumber} in Delegation Station after Corp ID add.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to update device {device.Make} {device.Model} {device.SerialNumber}.", ex, fullMethodName);
                 }
             }
 

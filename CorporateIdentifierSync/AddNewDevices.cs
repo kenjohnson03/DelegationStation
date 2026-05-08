@@ -2,6 +2,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
@@ -133,6 +134,17 @@ namespace CorporateIdentifierSync
                     // Update the DB entry with the new Corporate Identifier info
                     await _dbService.UpdateDevice(device);
 
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.DSLogException($"Device not found to updated.  Likely deleted after marked to process: {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    // TODO: verify approach
+                    // The cases we might see this are if user marked it for deleting, in which case, no need to update
+                    // for some reason we had two AddNewDevices running in which case, there's no action needed
+                    _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified prior to updating as not synced.  Based on scenarios no action should be necessary.", fullMethodName);
                 }
                 catch (Exception dbEx)
                 {
@@ -281,9 +293,40 @@ namespace CorporateIdentifierSync
                     // Update the DB entry with the new Corporate Identifier info
                     await _dbService.UpdateDevice(device);
                 }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.DSLogWarning($"Device {device.Id} was deleted during processing. Cleaning up Corp ID from Graph.", fullMethodName);
+
+                    // Roll back the Graph side-effect
+                    if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                    {
+                        try
+                        {
+                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", rollbackEx, fullMethodName);
+                        }
+
+                        // Don't count this device toward devicesSynced — it was rolled back
+                        devicesSynced--;
+                    }
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    // TODO:  review approach
+                    // If device was modified in two scenarios
+                    // user moved it to deleting -- no action for us to take, device deletion will cleanup corpid
+                    // two addnewdevices are running and picking it up
+                    // we don't need to clean up the CorpID but we do want to remove the count here
+                    devicesSynced--;
+                    _logger.DSLogWarning($"Device {device.Id} was modified by another function. No action required.", fullMethodName);
+                }
                 catch (Exception dbEx)
                 {
-                    _logger.DSLogException($"Device entry not updated - CorpIDStatus may not be in sync:  {device.Make} {device.Model} {device.SerialNumber}", dbEx, fullMethodName);
+                    _logger.DSLogException($"Device entry not updated - CorpIDStatus may not be in sync: {device.Make} {device.Model} {device.SerialNumber}", dbEx, fullMethodName);
                 }
             }  // closes foreach
 

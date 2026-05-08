@@ -240,11 +240,35 @@ namespace CorporateIdentifierSync.Services
 
             _logger.DSLogInformation("Updating device " + device.Id + ".", fullMethodName);
 
-            ItemResponse<Device> response;
-            response = await _container.UpsertItemAsync(device);
-            _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
+            var options = string.IsNullOrEmpty(device.ETag)
+                ? null
+                : new ItemRequestOptions { IfMatchEtag = device.ETag };
 
-            return;
+            ItemResponse<Device> response = await _container.ReplaceItemAsync<Device>(
+                device, device.Id.ToString(), new PartitionKey(device.PartitionKey), options);
+
+            device.ETag = response.ETag;
+
+            _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
+        }
+
+        public async Task<Device?> GetDevice(Guid id, string partitionKey)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            try
+            {
+                var response = await _container.ReadItemAsync<Device>(
+                    id.ToString(), new PartitionKey(partitionKey));
+                return response.Resource;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.DSLogInformation($"Device {id} not found.", fullMethodName);
+                return null;
+            }
         }
 
         public async Task DeleteDevice(Device device)
@@ -530,5 +554,23 @@ namespace CorporateIdentifierSync.Services
 
         }
 
+        public async Task<Device?> GetDevice(Guid id, string partitionKey)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            try
+            {
+                var response = await _container.ReadItemAsync<Device>(
+                    id.ToString(), new PartitionKey(partitionKey));
+                return response.Resource;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.DSLogInformation($"Device {id} not found.", fullMethodName);
+                return null;
+            }
+        }
     }
 }
