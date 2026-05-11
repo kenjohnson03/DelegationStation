@@ -192,14 +192,22 @@ namespace CorporateIdentifierSync
                         _logger.DSLogWarning($"Device {device.Id} was modified concurrently after Corp ID removal. Retrying status update.", fullMethodName);
                         try
                         {
-                            Device freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
-                            freshDevice.Status = DeviceStatus.NotSyncing;
-                            freshDevice.CorporateIdentityID = string.Empty;
-                            freshDevice.CorporateIdentity = string.Empty;
-                            freshDevice.LastCorpIdentitySync = DateTime.UtcNow;
-                            await _dbService.UpdateDevice(freshDevice);
-                            updatedCount++;
-                            if (hadCorpID) corpIDsRemovedFromGraph++;
+                            Device? freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                            if (freshDevice == null)
+                            {
+                                // Device was deleted between the 412 and this read — DeviceDeletion owns cleanup
+                                _logger.DSLogInformation($"Device {device.Id} no longer exists. DeviceDeletion owns capacity release.", fullMethodName);
+                            }
+                            else
+                            {
+                                freshDevice.Status = DeviceStatus.NotSyncing;
+                                freshDevice.CorporateIdentityID = string.Empty;
+                                freshDevice.CorporateIdentity = string.Empty;
+                                freshDevice.LastCorpIdentitySync = DateTime.UtcNow;
+                                await _dbService.UpdateDevice(freshDevice);
+                                updatedCount++;
+                                if (hadCorpID) corpIDsRemovedFromGraph++;
+                            }
                         }
                         catch (Exception retryEx)
                         {

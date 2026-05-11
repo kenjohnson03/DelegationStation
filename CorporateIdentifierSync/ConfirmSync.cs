@@ -131,27 +131,33 @@ namespace CorporateIdentifierSync
             //
             //  Track the count of devices in various states for logging
             //
-            int devicesFound = 0;
-            int devicesReadded = 0;
-            int devicesFailedReAdd = 0;
+            int countCorpIDsFound = 0;
+            int countCorpIDsReAdded = 0;
+            int countCorpIDsReAddFailed = 0;
 
             foreach (Device device in devicesToCheck)
             {
                 _logger.DSLogInformation($"-----Confirming corporate identifier for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
-                // corpIDFound will be used to track if entry is still present in Intune
+                // Boolean used to keep track of scenarios
                 bool corpIDFound = false;
+                bool corpIDReAdded = false;
+                bool corpIDReAddFailed = false;
 
                 // Check whether the Corp ID still exists in Graph
                 if (!string.IsNullOrEmpty(device.CorporateIdentityID))
                 {
                     corpIDFound = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
                 }
+                else
+                {
+                    _logger.DSLogWarning("Device does not have a CorporateIdentityID stored in DB. Not sure how we got here. Will attempt to re-add.", fullMethodName);
+                }
 
                 if (corpIDFound)
                 {
                     _logger.DSLogInformation("Corporate Identifier confirmed present.", fullMethodName);
-                    devicesFound++;
+                    countCorpIDsFound++;
                     device.LastCorpIdentitySync = DateTime.UtcNow;
                 }
                 else
@@ -181,7 +187,8 @@ namespace CorporateIdentifierSync
                         device.LastCorpIdentitySync = DateTime.UtcNow;
                         device.Status = DeviceStatus.Synced;
                         device.CorpIDFailureCount = 0;
-                        devicesReadded++;
+                        corpIDReAdded = true;
+                        countCorpIDsReAdded++;
                     }
                     catch (Exception ex)
                     {
@@ -192,12 +199,10 @@ namespace CorporateIdentifierSync
                         // Not checking against max since this should only ever be the first failure
                         device.CorpIDFailureCount++;
                         device.Status = DeviceStatus.Added;
-                        devicesFailedReAdd++;
+                        corpIDReAddFailed = true;
+                        countCorpIDsReAddFailed++;
                     }
                 }
-
-                bool readdSucceeded = !string.IsNullOrEmpty(device.CorporateIdentityID)
-                    && device.Status == DeviceStatus.Synced;
 
                 //
                 //  Update device entry
@@ -209,9 +214,20 @@ namespace CorporateIdentifierSync
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    _logger.DSLogWarning($"Device {device.Id} was deleted during ConfirmSync.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Id} {device.Make} {device.Model} {device.SerialNumber} was deleted during ConfirmSync.", fullMethodName);
 
-                    if (readdSucceeded)
+                    if (corpIDFound)
+                    {
+                        // We only updated LastCorpIdentitySync — no CorpID to roll back
+                        countCorpIDsFound--;
+                    }
+                    else if(corpIDReAddFailed)
+                    {
+                        // The CorpID readd failed -- no corpID to roll back
+                        // rolling back count to prevent over-releasing corpIDs (assume taken care of where device was deleted)
+                        countCorpIDsReAddFailed--;
+                    }
+                    else if (corpIDReAdded)
                     {
                         // We re-added a Corp ID but the device is gone — roll back
                         try
@@ -223,39 +239,51 @@ namespace CorporateIdentifierSync
                         {
                             _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
                         }
-                        devicesReadded--;
-                        devicesFailedReAdd++; // So ReleaseCorpIDs adjusts capacity correctly
+                        countCorpIDsReAdded--;
                     }
 
-                    if (corpIDFound)
-                    {
-                        // We only updated LastCorpIdentitySync — no Graph side-effect to roll back
-                        devicesFound--;
-                    }
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
                 {
                     if(corpIDFound)
                     {
-                        // TODO:  Verify approach
-                        // since the corpID was present, acceptable to skip this device
-                        // either it's been set to be deleted or reconcile sync is making other changes that should
-                        // take precedence
-                        devicesFound--;
+                        // We only updated tiemstamp - no action necessary
+                        countCorpIDsFound--;
                         _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified by another function.  " +
                             $"CorpID entry was already detected, so skipping device record update.", fullMethodName);
                     }
-                    if (readdSucceeded)
+                    if(corpIDReAddFailed)
+                    {
+                        // Since we weren't able to add CorpID, no rollback necessary
+                        countCorpIDsReAddFailed--;
+                    }
+                    if (corpIDReAdded)
                     {
                         // We re-added a Corp ID to Graph but another function modified the device concurrently.
                         // Read fresh state to determine whether rollback is needed.
                         _logger.DSLogWarning($"Device {device.Id} was modified concurrently after Corp ID re-add. Reading fresh state to determine rollback.", fullMethodName);
                         try
                         {
-                            Device freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
-                            if (freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
+                            Device? freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                            if (freshDevice == null)
                             {
-                                // Device is heading for deletion or was unsynced — roll back the re-added Corp ID
+                                //
+                                _logger.DSLogWarning($"Device {device.Id} no longer exists. Rolling back re-added Corp ID.", fullMethodName);
+                                try
+                                {
+                                    await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                                }
+                                catch (Exception rollbackEx)
+                                {
+                                    _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                                }
+                                countCorpIDsReAdded--;
+                            }
+                            else if (freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
+                            {
+                                // Device is heading for deletion or is unsyncing
+                                // Since it's safe to delete it "twice", go ahead and roll back
                                 _logger.DSLogWarning($"Device {device.Id} is now {freshDevice.Status}. Rolling back re-added Corp ID.", fullMethodName);
                                 try
                                 {
@@ -266,47 +294,46 @@ namespace CorporateIdentifierSync
                                 {
                                     _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
                                 }
-                                devicesReadded--;
-                                devicesFailedReAdd++;
+                                countCorpIDsReAdded--;
                             }
                             else
                             {
-                                // Device is in an acceptable state (e.g. already Synced by another function).
-                                // Corp ID is valid — no rollback needed, but don't double-count.
+                                // Other scenario could be another instance of this thread is running
+                                // We don't want to rollback in this scenario.
                                 _logger.DSLogInformation($"Device {device.Id} is {freshDevice.Status}. Corp ID valid, no rollback needed.", fullMethodName);
-                                devicesReadded--;
+                                countCorpIDsReAdded--;
                             }
                         }
                         catch (Exception readEx)
                         {
                             _logger.DSLogException($"Could not read fresh device {device.Id} to determine rollback. Manual review may be required.", readEx, fullMethodName);
-                            devicesReadded--;
+                            countCorpIDsReAdded--;
                         }
                     }
-                    _logger.DSLogWarning($"Device {device.Id} was modified by another function. Graph add is idempotent — skipping.", fullMethodName);
                 }
                 catch (Exception ex)
                 {
+                    // If we get a different error, there's no clear path of what to do so just log it
                     _logger.DSLogException($"Failed to update device record {device.Make} {device.Model} {device.SerialNumber}. CorporateIdentifier details may be out of sync.", ex, fullMethodName);
                 }
             }
 
-            _logger.DSLogInformation($"ConfirmSync completed. Processed {devicesFound + devicesReadded + devicesFailedReAdd} devices: {devicesFound} found, {devicesReadded} re-added, " +
-                                     $"{devicesFailedReAdd} failed to re-add.", fullMethodName);
+            _logger.DSLogInformation($"ConfirmSync completed. Processed {countCorpIDsFound + countCorpIDsReAdded + countCorpIDsReAddFailed} devices: {countCorpIDsFound} found, {countCorpIDsReAdded} re-added, " +
+                                     $"{countCorpIDsReAddFailed} failed to re-add.", fullMethodName);
 
             //
             // Update CorpID counter for failed re-adds
             //
-            if (devicesFailedReAdd > 0)
+            if (countCorpIDsReAddFailed > 0)
             {
                 var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
                 try
                 {
-                    await capacityManager.ReleaseCorpIDs(devicesFailedReAdd, CancellationToken.None);
+                    await capacityManager.ReleaseCorpIDs(countCorpIDsReAddFailed, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Failed to release {devicesFailedReAdd} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to release {countCorpIDsReAddFailed} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
                 }
             }
         }

@@ -14,7 +14,7 @@ namespace CorporateIdentifierSync
         private readonly IGraphService _graphService;
         private readonly IGraphBetaService _graphBetaService;
 
-        private bool _IsCorpIDSyncEnabled;
+        //private bool _IsCorpIDSyncEnabled;
         private int _MaxCorpIDsAllowed;
 
         public DeviceDeletion(ILogger<DeviceDeletion> logger, ICosmosDbService dbService, IGraphService graphService, IGraphBetaService graphBetaService)
@@ -34,12 +34,12 @@ namespace CorporateIdentifierSync
             //
             // Get CorpID sync flag
             //
-            _IsCorpIDSyncEnabled = false;
-            bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
-            if (!result)
-            {
-                _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
-            }
+            //_IsCorpIDSyncEnabled = false;
+            //bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
+            //if (!result)
+            //{
+            //    _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
+            //}
 
             //
             // Get maximum allowed Corporate ID entries
@@ -88,51 +88,11 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"-----Deleting device {device.Id}.-----", fullMethodName);
 
 
-                // Commenting out removal of devices from managed devices until we can confirm we won't need it
-                // in the future
-                //// Delete from Managed Devices
-                //bool delManagedDevice = false;
-                //ManagedDevice managedDevice = null;
-                //try
-                //{
-                //    managedDevice = await _graphService.GetManagedDevice(device.Make, device.Model, device.SerialNumber);
-
-                //    if (managedDevice != null && managedDevice.Id != null)
-                //    {
-                //        _logger.DSLogInformation($"Found managed device {managedDevice.Id} in Intune that matches device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
-                //        delManagedDevice = await _graphService.DeleteManagedDevice(managedDevice.Id);
-                //        _logger.DSLogInformation($"Successfully deleted managed device {managedDevice.Id} for {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
-                //    }
-                //    else
-                //    {
-                //        // Setting as deleted since it's not present
-                //        _logger.DSLogInformation($"No managed device to delete for {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
-                //        delManagedDevice = true;
-                //    }
-                //}
-                //catch (Exception ex)
-                //{
-                //    if (managedDevice == null)
-                //    {
-                //        _logger.DSLogException($"Unable to query managed device for {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
-                //    }
-                //    else
-                //    {
-                //        _logger.DSLogException($"Unable to delete managed device: {managedDevice.Id} {device.Make} {device.Model} {device.SerialNumber}", ex, fullMethodName);
-                //    }
-                //    delManagedDevice = false;
-                //}
-
-                ////
-                ////  Only continues with deletions if successfully removed managed device entry
-                ////
-                //if (delManagedDevice)
-                //{
                 bool delCorpID = false;
 
-                if (_IsCorpIDSyncEnabled)
-                {
-                    // Delete from Corporate Identifiers
+                //if (_IsCorpIDSyncEnabled)
+                //{
+                    // If present, delete from Corporate Identifiers
                     if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                     {
                         try
@@ -155,10 +115,10 @@ namespace CorporateIdentifierSync
                         delCorpID = true;
                     }
                 }
-                else
-                {
-                    delCorpID = true;
-                }
+                //else
+                //{
+                //    delCorpID = true;
+                //}
 
                 // Delete from Delegation Station
                 if (delCorpID)
