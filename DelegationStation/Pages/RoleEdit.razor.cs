@@ -69,8 +69,9 @@ namespace DelegationStation.Pages
 
             try
             {
+                role.Name = role.Name.Trim();
                 var existingRoles = await roleDBService.GetRolesAsync();
-                if (existingRoles.Any(r => r.Name.Equals(role.Name, StringComparison.OrdinalIgnoreCase) && r.Id != role.Id))
+                if (existingRoles.Any(r => r.Name.Trim().Equals(role.Name, StringComparison.OrdinalIgnoreCase) && r.Id != role.Id))
                 {
                     userMessage = $"Error: A role with the name \"{role.Name}\" already exists.";
                     return;
