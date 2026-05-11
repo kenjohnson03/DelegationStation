@@ -70,10 +70,18 @@ namespace DelegationStation.Pages
             try
             {
                 role.Name = role.Name.Trim();
+                if (string.IsNullOrWhiteSpace(role.Name))
+                {
+                    var message = $"Correlation Id: {g.ToString()}\nRole is required.";
+                    logger.LogWarning($"{message}\nUser: {userName} {userId}");
+                    userMessage = message;
+                    return;
+                }
+
                 var existingRoles = await roleDBService.GetRolesAsync();
                 if (existingRoles.Any(r => r.Name.Trim().Equals(role.Name, StringComparison.OrdinalIgnoreCase) && r.Id != role.Id))
                 {
-                    userMessage = $"Error: A role with the name \"{role.Name}\" already exists.";
+                    userMessage = $"Correlation Id: {g.ToString()}\nError: A role with the name \"{role.Name}\" already exists.";
                     return;
                 }
 
