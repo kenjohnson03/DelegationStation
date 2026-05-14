@@ -45,8 +45,14 @@
     {
         if (firstRender)
         {
-            await LocalStorage.SetAsync("RecentUpdatesViewedVersion", RecentUpdatesVersion.CurrentVersion);
-            UpdatesNotification.MarkAsViewed();
+            try
+            {
+                await LocalStorage.SetAsync("RecentUpdatesViewedVersion", RecentUpdatesVersion.CurrentVersion);
+                UpdatesNotification.MarkAsViewed();
+            }
+            catch
+            {
+            }
         }
     }
 }
