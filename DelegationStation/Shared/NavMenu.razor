@@ -24,20 +24,25 @@
                 <span class="oi oi-tags" aria-hidden="true"></span> Tags
             </NavLink>
         </div>
+        <AuthorizeView Policy="DelegationStationAdmin">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Roles" Match="NavLinkMatch.Prefix">
+                        <span class="oi oi-shield" aria-hidden="true"></span> Roles
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="RecentUpdates" Match="NavLinkMatch.Prefix">
-                <span class="oi oi-info" aria-hidden="true"></span> Recent Updates
+                <span class="oi oi-info" aria-hidden="true" style="position: relative; display: inline-block;">
+                    @if (showUpdatesBadge)
+                    {
+                        <span class="bg-danger rounded-circle" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px;"></span>
+                    }
+                </span> Recent Updates
             </NavLink>
-        </div>
-<AuthorizeView Policy="DelegationStationAdmin">
-    <Authorized>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="Roles" Match="NavLinkMatch.Prefix">
-                <span class="oi oi-shield" aria-hidden="true"></span> Roles
-            </NavLink>
-        </div>
-        </Authorized>
-        </AuthorizeView>
+        </div> 
     </nav>
 </div>
 
