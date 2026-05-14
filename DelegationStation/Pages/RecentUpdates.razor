@@ -1,10 +1,14 @@
 @page "/RecentUpdates"
+@using DelegationStation.Services
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage LocalStorage
+@inject RecentUpdatesNotificationService UpdatesNotification
 
 <PageTitle>Recent Updates</PageTitle>
 
 <h3>Recent Updates</h3>
 
-<div class="container">
+<div class="container-fluid px-0">
     <div class="card mb-3">
         <div class="card-body">
             <h5 class="card-title">v2.1 - Bulk Device Actions</h5>
@@ -35,3 +39,14 @@
         </div>
     </div>
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LocalStorage.SetAsync("RecentUpdatesViewedVersion", RecentUpdatesVersion.CurrentVersion);
+            UpdatesNotification.MarkAsViewed();
+        }
+    }
+}
