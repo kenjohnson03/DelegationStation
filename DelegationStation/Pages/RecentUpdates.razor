@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @inject ProtectedLocalStorage LocalStorage
 @inject RecentUpdatesNotificationService UpdatesNotification
+@inject ILogger<RoleEdit> logger
 
 <PageTitle>Recent Updates</PageTitle>
 
@@ -50,8 +51,11 @@
                 await LocalStorage.SetAsync("RecentUpdatesViewedVersion", RecentUpdatesVersion.CurrentVersion);
                 UpdatesNotification.MarkAsViewed();
             }
-            catch
+            catch (Exception e)
             {
+                var erMessage = $"Error encountered while updating recent updates view status.";
+                logger.LogError(e, $"{erMessage}");
+                Console.WriteLine(erMessage);
             }
         }
     }
