@@ -1,3 +1,4 @@
+using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
@@ -138,8 +139,6 @@ namespace CorporateIdentifierSync
             {
                 _logger.DSLogInformation($"-----Removing Corp ID for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
-                bool deleted = false;
-
                 bool hadCorpID = !string.IsNullOrEmpty(device.CorporateIdentityID);
                 bool graphDeleteSucceeded = false;
 
@@ -147,10 +146,15 @@ namespace CorporateIdentifierSync
                 {
                     try
                     {
-                        graphDeleteSucceeded = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        DeleteCorpIdResult graphDeleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        graphDeleteSucceeded = graphDeleteResult == DeleteCorpIdResult.Success || graphDeleteResult == DeleteCorpIdResult.NotFound;
                         if (graphDeleteSucceeded)
                         {
                             _logger.DSLogInformation($"Removed Corp ID from Graph for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                        }
+                        else
+                        {
+                            _logger.DSLogError($"Error removing Corp ID from Graph for device {device.Id}.", fullMethodName);
                         }
                     }
                     catch (Exception ex)
@@ -395,14 +399,15 @@ namespace CorporateIdentifierSync
                     if (graphAddSucceeded)
                     {
                         // Corp ID was added to Graph but device is gone — roll back
-                        try
+                        var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        if (rollbackResult == DeleteCorpIdResult.Error)
                         {
-                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                            _logger.DSLogInformation($"Rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                            _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", fullMethodName);
                         }
-                        catch (Exception rollbackEx)
+                        else
                         {
-                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                            // Success or NotFound — Corp ID is confirmed gone from Graph
+                            _logger.DSLogInformation($"Rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
                         }
                         addedCount--; // Don't count toward CommitCorpIDCount
                     }

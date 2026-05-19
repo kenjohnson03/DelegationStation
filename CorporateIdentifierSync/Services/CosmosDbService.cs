@@ -554,23 +554,5 @@ namespace CorporateIdentifierSync.Services
 
         }
 
-        public async Task<Device?> GetDevice(Guid id, string partitionKey)
-        {
-            string methodName = ExtensionHelper.GetMethodName() ?? "";
-            string className = GetType().Name;
-            string fullMethodName = className + "." + methodName;
-
-            try
-            {
-                var response = await _container.ReadItemAsync<Device>(
-                    id.ToString(), new PartitionKey(partitionKey));
-                return response.Resource;
-            }
-            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _logger.DSLogInformation($"Device {id} not found.", fullMethodName);
-                return null;
-            }
-        }
     }
 }
