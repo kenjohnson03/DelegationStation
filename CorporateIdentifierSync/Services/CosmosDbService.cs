@@ -530,6 +530,8 @@ namespace CorporateIdentifierSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
+            counter.ModifiedDT = DateTime.UtcNow;
+
             _logger.DSLogInformation($"Upserting CorpIDCounter: {counter}.", fullMethodName);
 
             try
