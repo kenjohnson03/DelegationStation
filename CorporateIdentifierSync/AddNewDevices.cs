@@ -367,45 +367,11 @@ namespace CorporateIdentifierSync
                             devicesSynced--;
                         }
                     }
-                    else if (currentDevice.Status == DeviceStatus.Failed)
+                    else if (currentDevice.Status == DeviceStatus.Failed || currentDevice.Status == DeviceStatus.Added)
                     {
-                        // Device was marked as Failed by another process, but we successfully added a Corp ID —
-                        // update the current device entry with the Corp ID info so it isn't orphaned in Graph
-                        _logger.DSLogWarning($"Device {device.Id} is marked as Failed by another process. Attempting to update current entry with Corp ID {device.CorporateIdentityID}.", fullMethodName);
-                        currentDevice.CorporateIdentityID = device.CorporateIdentityID;
-                        currentDevice.CorporateIdentity = device.CorporateIdentity;
-                        currentDevice.Status = DeviceStatus.Synced;
-                        currentDevice.LastCorpIdentitySync = device.LastCorpIdentitySync;
-                        currentDevice.CorpIDFailureCount = 0;
-                        try
-                        {
-                            await _dbService.UpdateDevice(currentDevice);
-                            _logger.DSLogInformation($"Successfully updated Failed device {device.Id} with Corp ID {device.CorporateIdentityID}.", fullMethodName);
-                        }
-                        catch (Exception updateEx)
-                        {
-                            _logger.DSLogException($"Failed to update Failed device {device.Id} with Corp ID {device.CorporateIdentityID}. Attempting to roll back Corp ID from Graph.", updateEx, fullMethodName);
-
-                            if (!string.IsNullOrEmpty(device.CorporateIdentityID))
-                            {
-                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                                if (rollbackResult == DeleteCorpIdResult.Error)
-                                {
-                                    _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", fullMethodName);
-                                }
-                                else
-                                {
-                                    _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
-                                    devicesSynced--;
-                                }
-                            }
-                        }
-                    }
-                    else if (currentDevice.Status == DeviceStatus.Added)
-                    {
-                        // Device is still in Added state.  Possibly another thread tried to add it but it failed?
                         // We successfully added a Corp ID, so attempt to update the current entry to claim it.
-                        _logger.DSLogWarning($"Device {device.Id} is still in Added state after PreconditionFailed. Attempting to update current entry with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        // Covers: device marked Failed by another process, or still in Added state (another thread tried but failed).
+                        _logger.DSLogWarning($"Device {device.Id} is in '{currentDevice.Status}' state after PreconditionFailed. Attempting to update current entry with Corp ID {device.CorporateIdentityID}.", fullMethodName);
                         currentDevice.CorporateIdentityID = device.CorporateIdentityID;
                         currentDevice.CorporateIdentity = device.CorporateIdentity;
                         currentDevice.Status = DeviceStatus.Synced;
@@ -414,12 +380,11 @@ namespace CorporateIdentifierSync
                         try
                         {
                             await _dbService.UpdateDevice(currentDevice);
-                            _logger.DSLogInformation($"Successfully updated Added device {device.Id} with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                            _logger.DSLogInformation($"Successfully updated {currentDevice.Status} device {device.Id} with Corp ID {device.CorporateIdentityID}.", fullMethodName);
                         }
                         catch (Exception updateEx)
                         {
-                            // DB wasn't updated.  Leave CorpID and leave count - if we reprocess it should be okay.
-                            _logger.DSLogException($"Failed to update Added device {device.Id} with Corp ID {device.CorporateIdentityID}. Attempting to roll back Corp ID from Graph.", updateEx, fullMethodName);
+                            _logger.DSLogException($"Failed to update device {device.Id} with Corp ID {device.CorporateIdentityID}. Attempting to roll back Corp ID from Graph.", updateEx, fullMethodName);
                             if (!string.IsNullOrEmpty(device.CorporateIdentityID))
                             {
                                 var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
