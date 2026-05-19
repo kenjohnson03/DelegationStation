@@ -1,4 +1,5 @@
-﻿using CorporateIdentifierSync.Interfaces;
+﻿using CorporateIdentifierSync.Enums;
+using CorporateIdentifierSync.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;
@@ -158,7 +159,7 @@ namespace CorporateIdentifierSync.Services
             }
         }
 
-        public async Task<bool> DeleteCorporateIdentifier(string ID)
+        public async Task<DeleteCorpIdResult> DeleteCorporateIdentifier(string ID)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
@@ -170,20 +171,21 @@ namespace CorporateIdentifierSync.Services
             {
                 await _graphClient.DeviceManagement.ImportedDeviceIdentities[ID].DeleteAsync();
                 _logger.DSLogInformation($"Identifier Deleted: {ID}", fullMethodName);
-                return true;
+                return DeleteCorpIdResult.Success;
             }
             catch (ODataError odataError) when (odataError.Error.Code.Equals("BadRequest"))
             {
                 // This is the error returned when it tries to delete an object that's not found
                 _logger.DSLogInformation($"Device corporate identifier {ID} not found in Graph.", fullMethodName);
-                return true;
+                return DeleteCorpIdResult.NotFound;
             }
             catch (Exception ex)
             {
                 _logger.DSLogError($"Unable to delete device identifier {ID} from Graph: " + ex, fullMethodName);
-                return false;
+                return DeleteCorpIdResult.Error;
             }
         }
+
         public async Task<int> GetCorporateDeviceIdentifierCountAsync()
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";

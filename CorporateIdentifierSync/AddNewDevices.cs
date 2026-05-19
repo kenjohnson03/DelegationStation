@@ -1,3 +1,4 @@
+using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
@@ -141,9 +142,9 @@ namespace CorporateIdentifierSync
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
                 {
-                    // TODO: verify approach
-                    // The cases we might see this are if user marked it for deleting, in which case, no need to update
-                    // for some reason we had two AddNewDevices running in which case, there's no action needed
+                    // Another process has modified the device.
+                    // Possibilities:  Another instance of AddNewDevices or user moved device to deleting
+                    // Since we are not syncing the device to CorpIDs, we can just go with what the other process has done
                     _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified prior to updating as not synced.  Based on scenarios no action should be necessary.", fullMethodName);
                 }
                 catch (Exception dbEx)
@@ -171,7 +172,7 @@ namespace CorporateIdentifierSync
             }
 
             // If we're out of CorpIds, it's time to exit
-            // IMPORTANT:  Any devices not processed because we're out of CorpIDs won't get counted as retries.  Do we like this?
+            // If we are out of corpIDs, any new devices needing syncing will stay in Added state until some are made available
             if (availableCorpIDs <= 0)
             {
                 _logger.DSLogWarning("No available Corporate ID slots. Function is exiting.", fullMethodName);
@@ -193,7 +194,7 @@ namespace CorporateIdentifierSync
                 return;
             }
 
-            if (reservedSlots == 0)
+            if (reservedSlots <= 0)
             {
                 _logger.DSLogWarning("No available Corporate ID slots at reservation time.  Function is exiting.", fullMethodName);
                 return;
@@ -232,7 +233,8 @@ namespace CorporateIdentifierSync
             foreach (Device device in devicesToMigrate)
             {
 
-                // Set OS if not set
+                // Set OS as Unknown if not set
+                // For backwards compatibility Unknown is handled like Windows
                 if (device.OS == null)
                 {
                     device.OS = DeviceOS.Unknown;
@@ -300,29 +302,144 @@ namespace CorporateIdentifierSync
                     // Roll back the Graph side-effect
                     if (!string.IsNullOrEmpty(device.CorporateIdentityID))
                     {
-                        try
+                        var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        if (rollbackResult == DeleteCorpIdResult.Error)
                         {
-                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", fullMethodName);
+                        }
+                        else
+                        {
                             _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                            devicesSynced--;
                         }
-                        catch (Exception rollbackEx)
-                        {
-                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", rollbackEx, fullMethodName);
-                        }
-
-                        // Don't count this device toward devicesSynced — it was rolled back
-                        devicesSynced--;
                     }
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
                 {
-                    // TODO:  review approach
-                    // If device was modified in two scenarios
-                    // user moved it to deleting -- no action for us to take, device deletion will cleanup corpid
-                    // two addnewdevices are running and picking it up
-                    // we don't need to clean up the CorpID but we do want to remove the count here
-                    devicesSynced--;
-                    _logger.DSLogWarning($"Device {device.Id} was modified by another function. No action required.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Id} was modified by another process. Fetching current state to determine action.", fullMethodName);
+
+                    // Get the current device object to determine how to handle this
+                    Device? currentDevice = null;
+                    bool fetchFailed = false;
+                    try
+                    {
+                        currentDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                    }
+                    catch (Exception fetchEx)
+                    {
+                        fetchFailed = true;
+                        _logger.DSLogException($"Unable to fetch current state of device {device.Id} after PreconditionFailed.", fetchEx, fullMethodName);
+                    }
+
+                    if (fetchFailed)
+                    {
+                        // Can't determine device state due to fetch error — leave Corp ID in Graph and keep
+                        // count. The device will be reprocessed on the next run.
+                        _logger.DSLogWarning($"Cannot determine state of device {device.Id} after PreconditionFailed due to fetch error. Corp ID {device.CorporateIdentityID} left in Graph. Will retry on next run.", fullMethodName);
+                    }
+                    else if (currentDevice == null || currentDevice.Status == DeviceStatus.Deleting)
+                    {
+                        // Device is being deleted — clean up the Corp ID we just added
+                        _logger.DSLogWarning($"Device {device.Id} is marked for deletion. Attempting to roll back Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                        {
+                            var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                            if (rollbackResult == DeleteCorpIdResult.Error)
+                            {
+                                _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", fullMethodName);
+                            }
+                            else
+                            {
+                                _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                                devicesSynced--;
+                            }
+                        }
+                    }
+                    else if (currentDevice.Status == DeviceStatus.Synced)
+                    {
+                        // Another AddNewDevices instance already synced this device — don't double-count.
+                        // Since duplicate Corp IDs aren't allowed in Graph, our successful add returned the same
+                        // existing entry, so the Corp ID is already tracked. Only decrement if we actually
+                        // incremented (i.e., our Graph call succeeded and set CorporateIdentityID).
+                        _logger.DSLogWarning($"Device {device.Id} was already synced by another process. Removing from count but leaving Corp ID.", fullMethodName);
+                        if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                        {
+                            devicesSynced--;
+                        }
+                    }
+                    else if (currentDevice.Status == DeviceStatus.Failed)
+                    {
+                        // Device was marked as Failed by another process, but we successfully added a Corp ID —
+                        // update the current device entry with the Corp ID info so it isn't orphaned in Graph
+                        _logger.DSLogWarning($"Device {device.Id} is marked as Failed by another process. Attempting to update current entry with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        currentDevice.CorporateIdentityID = device.CorporateIdentityID;
+                        currentDevice.CorporateIdentity = device.CorporateIdentity;
+                        currentDevice.Status = DeviceStatus.Synced;
+                        currentDevice.LastCorpIdentitySync = device.LastCorpIdentitySync;
+                        currentDevice.CorpIDFailureCount = 0;
+                        try
+                        {
+                            await _dbService.UpdateDevice(currentDevice);
+                            _logger.DSLogInformation($"Successfully updated Failed device {device.Id} with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        }
+                        catch (Exception updateEx)
+                        {
+                            _logger.DSLogException($"Failed to update Failed device {device.Id} with Corp ID {device.CorporateIdentityID}. Attempting to roll back Corp ID from Graph.", updateEx, fullMethodName);
+
+                            if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                            {
+                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                if (rollbackResult == DeleteCorpIdResult.Error)
+                                {
+                                    _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", fullMethodName);
+                                }
+                                else
+                                {
+                                    _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                                    devicesSynced--;
+                                }
+                            }
+                        }
+                    }
+                    else if (currentDevice.Status == DeviceStatus.Added)
+                    {
+                        // Device is still in Added state.  Possibly another thread tried to add it but it failed?
+                        // We successfully added a Corp ID, so attempt to update the current entry to claim it.
+                        _logger.DSLogWarning($"Device {device.Id} is still in Added state after PreconditionFailed. Attempting to update current entry with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        currentDevice.CorporateIdentityID = device.CorporateIdentityID;
+                        currentDevice.CorporateIdentity = device.CorporateIdentity;
+                        currentDevice.Status = DeviceStatus.Synced;
+                        currentDevice.LastCorpIdentitySync = device.LastCorpIdentitySync;
+                        currentDevice.CorpIDFailureCount = 0;
+                        try
+                        {
+                            await _dbService.UpdateDevice(currentDevice);
+                            _logger.DSLogInformation($"Successfully updated Added device {device.Id} with Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                        }
+                        catch (Exception updateEx)
+                        {
+                            // DB wasn't updated.  Leave CorpID and leave count - if we reprocess it should be okay.
+                            _logger.DSLogException($"Failed to update Added device {device.Id} with Corp ID {device.CorporateIdentityID}. Attempting to roll back Corp ID from Graph.", updateEx, fullMethodName);
+                            if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                            {
+                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                if (rollbackResult == DeleteCorpIdResult.Error)
+                                {
+                                    _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID} from Graph. Manual cleanup may be required.", fullMethodName);
+                                }
+                                else
+                                {
+                                    _logger.DSLogInformation($"Successfully rolled back Corp ID {device.CorporateIdentityID} from Graph.", fullMethodName);
+                                    devicesSynced--;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Unexpected state — log and remove from count as a safe default
+                        _logger.DSLogWarning($"Device {device.Id} is in unexpected state '{currentDevice?.Status.ToString() ?? "unknown"}' after PreconditionFailed. Keeping in count as a precaution.", fullMethodName);
+                    }
                 }
                 catch (Exception dbEx)
                 {

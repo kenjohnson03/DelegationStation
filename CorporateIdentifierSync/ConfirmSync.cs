@@ -1,3 +1,4 @@
+using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
@@ -221,38 +222,38 @@ namespace CorporateIdentifierSync
                         // We only updated LastCorpIdentitySync — no CorpID to roll back
                         countCorpIDsFound--;
                     }
-                    else if(corpIDReAddFailed)
+                    else if (corpIDReAddFailed)
                     {
-                        // The CorpID readd failed -- no corpID to roll back
-                        // rolling back count to prevent over-releasing corpIDs (assume taken care of where device was deleted)
+                        // The CorpID re-add failed — no CorpID to roll back
+                        // Rolling back count to prevent over-releasing CorpIDs (assume taken care of where device was deleted)
                         countCorpIDsReAddFailed--;
                     }
                     else if (corpIDReAdded)
                     {
                         // We re-added a Corp ID but the device is gone — roll back
-                        try
+                        var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        if (rollbackResult == DeleteCorpIdResult.Error)
                         {
-                            await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                            _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                            _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", fullMethodName);
                         }
-                        catch (Exception rollbackEx)
+                        else
                         {
-                            _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                            // Success or NotFound — Corp ID is confirmed gone from Graph
+                            _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
                         }
                         countCorpIDsReAdded--;
                     }
-
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
                 {
-                    if(corpIDFound)
+                    if (corpIDFound)
                     {
-                        // We only updated tiemstamp - no action necessary
+                        // We only updated timestamp — no action necessary
                         countCorpIDsFound--;
                         _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified by another function.  " +
                             $"CorpID entry was already detected, so skipping device record update.", fullMethodName);
                     }
-                    if(corpIDReAddFailed)
+                    if (corpIDReAddFailed)
                     {
                         // Since we weren't able to add CorpID, no rollback necessary
                         countCorpIDsReAddFailed--;
@@ -267,41 +268,41 @@ namespace CorporateIdentifierSync
                             Device? freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
                             if (freshDevice == null)
                             {
-                                //
                                 _logger.DSLogWarning($"Device {device.Id} no longer exists. Rolling back re-added Corp ID.", fullMethodName);
-                                try
+                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                if (rollbackResult == DeleteCorpIdResult.Error)
                                 {
-                                    await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                                    _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", fullMethodName);
                                 }
-                                catch (Exception rollbackEx)
+                                else
                                 {
-                                    _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                                    // Success or NotFound — Corp ID is confirmed gone from Graph
+                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
                                 }
                                 countCorpIDsReAdded--;
                             }
                             else if (freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
                             {
-                                // Device is heading for deletion or is unsyncing
-                                // Since it's safe to delete it "twice", go ahead and roll back
+                                // Device is heading for deletion or is unsyncing — roll back
                                 _logger.DSLogWarning($"Device {device.Id} is now {freshDevice.Status}. Rolling back re-added Corp ID.", fullMethodName);
-                                try
+                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                if (rollbackResult == DeleteCorpIdResult.Error)
                                 {
-                                    await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                                    _logger.DSLogError($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", fullMethodName);
                                 }
-                                catch (Exception rollbackEx)
+                                else
                                 {
-                                    _logger.DSLogException($"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup required.", rollbackEx, fullMethodName);
+                                    // Success or NotFound — Corp ID is confirmed gone from Graph
+                                    _logger.DSLogInformation($"Rolled back re-added Corp ID {device.CorporateIdentityID}.", fullMethodName);
                                 }
                                 countCorpIDsReAdded--;
                             }
                             else
                             {
-                                // Other scenario could be another instance of this thread is running
-                                // We don't want to rollback in this scenario.
+                                // Another instance of this function is likely running concurrently —
+                                // the Corp ID is valid and the device record will be updated by the other instance.
+                                // Do NOT decrement: the Corp ID is still active and tracked in the counter.
                                 _logger.DSLogInformation($"Device {device.Id} is {freshDevice.Status}. Corp ID valid, no rollback needed.", fullMethodName);
-                                countCorpIDsReAdded--;
                             }
                         }
                         catch (Exception readEx)

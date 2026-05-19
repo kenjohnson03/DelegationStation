@@ -1,3 +1,4 @@
+using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,6 @@ namespace CorporateIdentifierSync
         private readonly IGraphService _graphService;
         private readonly IGraphBetaService _graphBetaService;
 
-        //private bool _IsCorpIDSyncEnabled;
         private int _MaxCorpIDsAllowed;
 
         public DeviceDeletion(ILogger<DeviceDeletion> logger, ICosmosDbService dbService, IGraphService graphService, IGraphBetaService graphBetaService)
@@ -31,15 +31,6 @@ namespace CorporateIdentifierSync
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            //
-            // Get CorpID sync flag
-            //
-            //_IsCorpIDSyncEnabled = false;
-            //bool result = bool.TryParse(Environment.GetEnvironmentVariable("EnableCorpIDSync"), out _IsCorpIDSyncEnabled);
-            //if (!result)
-            //{
-            //    _logger.DSLogError("EnableCorpIDSync not set or not a valid boolean. Defaulting to disabled.", fullMethodName);
-            //}
 
             //
             // Get maximum allowed Corporate ID entries
@@ -70,7 +61,6 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation("Next timer schedule at: " + myTimer.ScheduleStatus.Next, fullMethodName);
             }
 
-
             GetEnvironmentVariables();
 
             //
@@ -79,46 +69,44 @@ namespace CorporateIdentifierSync
             List<Device> devicesToDelete = await _dbService.GetDevicesMarkedForDeletion();
             _logger.DSLogInformation($"Found {devicesToDelete.Count} devices to delete.", fullMethodName);
 
-
-            // For each set blank Corporate Identifier values
-            int deviceCount = 0;
+            int deletedDeviceCount = 0;
             int corpIDsDeletedCount = 0;
             foreach (Device device in devicesToDelete)
             {
                 _logger.DSLogInformation($"-----Deleting device {device.Id}.-----", fullMethodName);
 
-
                 bool delCorpID = false;
 
-                //if (_IsCorpIDSyncEnabled)
-                //{
-                    // If present, delete from Corporate Identifiers
-                    if (!String.IsNullOrEmpty(device.CorporateIdentityID))
+                // If present, delete from Corporate Identifiers
+                if (!String.IsNullOrEmpty(device.CorporateIdentityID))
+                {
+                    DeleteCorpIdResult deleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                    switch (deleteResult)
                     {
-                        try
-                        {
-                            delCorpID = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                            if (delCorpID)
-                            {
-                                corpIDsDeletedCount++;
-                                _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.DSLogException($"Could not delete CorpID for: {device.Make} {device.Model} {device.SerialNumber} (ID: {device.CorporateIdentityID}", ex, fullMethodName);
-                        }
-                    }
-                    else
-                    {
-                        _logger.DSLogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
-                        delCorpID = true;
+                        case DeleteCorpIdResult.Success:
+                            delCorpID = true;
+                            corpIDsDeletedCount++;
+                            _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                            break;
+
+                        case DeleteCorpIdResult.NotFound:
+                            // Already removed from Graph — safe to proceed with Cosmos deletion, but don't
+                            // increment corpIDsDeletedCount since there is nothing to release from the counter.
+                            delCorpID = true;
+                            _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Id}.", fullMethodName);
+                            break;
+
+                        case DeleteCorpIdResult.Error:
+                            delCorpID = false;
+                            _logger.DSLogError($"Could not delete CorpID for: {device.Make} {device.Model} {device.SerialNumber} (ID: {device.CorporateIdentityID})", fullMethodName);
+                            break;
                     }
                 }
-                //else
-                //{
-                //    delCorpID = true;
-                //}
+                else
+                {
+                    _logger.DSLogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
+                    delCorpID = true;
+                }
 
                 // Delete from Delegation Station
                 if (delCorpID)
@@ -126,7 +114,7 @@ namespace CorporateIdentifierSync
                     try
                     {
                         await _dbService.DeleteDevice(device);
-                        deviceCount++;
+                        deletedDeviceCount++;
                         _logger.DSLogInformation($"Successfully deleted device from Delegation Station: {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                     }
                     catch (Exception ex)
@@ -138,22 +126,9 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Id}.  Not deleting from Delegation Station", fullMethodName);
                 }
-                //}
-                //else
-                //{
-                //    if (managedDevice != null && managedDevice.Id != null)
-                //    {
-                //        _logger.DSLogError($"Deletion from Intune failed for device {device.Id} (managedDevice ID: {managedDevice.Id}).  Not deleting from Delegation Station", fullMethodName);
-                //    }
-                //    else
-                //    {
-                //        _logger.DSLogError($"Deletion from Intune failed for device {device.Id} Not deleting from Delegation Station", fullMethodName);
-                //    }
-
-                //}
             }
 
-            _logger.DSLogInformation($"Successfully deleted {deviceCount} devices from Delegation Station.", fullMethodName);
+            _logger.DSLogInformation($"Successfully deleted {deletedDeviceCount} devices from Delegation Station.", fullMethodName);
 
             if (corpIDsDeletedCount > 0)
             {

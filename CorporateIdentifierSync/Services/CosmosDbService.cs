@@ -505,28 +505,23 @@ namespace CorporateIdentifierSync.Services
 
             _logger.DSLogInformation("Getting CorpIDCounter from Cosmos DB.", fullMethodName);
 
-            try
+            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey = \"CorpIDCounter\"");
+            var queryIterator = _container.GetItemQueryIterator<CorpIDCounter>(query);
+            while (queryIterator.HasMoreResults)
             {
-                QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey = \"CorpIDCounter\"");
-                var queryIterator = _container.GetItemQueryIterator<CorpIDCounter>(query);
-                while (queryIterator.HasMoreResults)
+                var response = await queryIterator.ReadNextAsync();
+                var counter = response.FirstOrDefault();
+                if (counter != null)
                 {
-                    var response = await queryIterator.ReadNextAsync();
-                    var counter = response.FirstOrDefault();
-                    if (counter != null)
-                    {
-                        _logger.DSLogInformation($"CorpIDCounter found: {counter}.", fullMethodName);
-                        return counter;
-                    }
+                    _logger.DSLogInformation($"CorpIDCounter found: {counter}.", fullMethodName);
+                    return counter;
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Failed to get CorpIDCounter from Cosmos DB.", ex, fullMethodName);
-            }
 
-            _logger.DSLogWarning("CorpIDCounter not found in Cosmos DB, returning default.", fullMethodName);
-            return new CorpIDCounter();
+            // Counter document does not exist — throw rather than returning a default zero counter,
+            // which would incorrectly imply full capacity is available.
+            _logger.DSLogError("CorpIDCounter not found in Cosmos DB. Cannot safely continue without a valid counter.", fullMethodName);
+            throw new InvalidOperationException("CorpIDCounter document was not found in Cosmos DB.");
         }
 
         public async Task<bool> TrySetCorpIDCounter(CorpIDCounter counter, string etag)
@@ -534,6 +529,8 @@ namespace CorporateIdentifierSync.Services
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
+
+            counter.ModifiedDT = DateTime.UtcNow;
 
             _logger.DSLogInformation($"Upserting CorpIDCounter: {counter}.", fullMethodName);
 
@@ -554,23 +551,5 @@ namespace CorporateIdentifierSync.Services
 
         }
 
-        public async Task<Device?> GetDevice(Guid id, string partitionKey)
-        {
-            string methodName = ExtensionHelper.GetMethodName() ?? "";
-            string className = GetType().Name;
-            string fullMethodName = className + "." + methodName;
-
-            try
-            {
-                var response = await _container.ReadItemAsync<Device>(
-                    id.ToString(), new PartitionKey(partitionKey));
-                return response.Resource;
-            }
-            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _logger.DSLogInformation($"Device {id} not found.", fullMethodName);
-                return null;
-            }
-        }
     }
 }
