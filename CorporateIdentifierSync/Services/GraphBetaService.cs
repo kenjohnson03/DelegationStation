@@ -10,6 +10,7 @@ using DelegationStationShared.Extensions;
 using Microsoft.Graph.Beta.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList;
 using Microsoft.Graph.Beta.Models;
 using Microsoft.Graph.Beta.Models.ODataErrors;
+using System.Diagnostics.Eventing.Reader;
 
 
 namespace CorporateIdentifierSync.Services
@@ -98,18 +99,31 @@ namespace CorporateIdentifierSync.Services
             requestBody.OverwriteImportedDeviceIdentities = false;
             requestBody.ImportedDeviceIdentities = addList;
 
+            // TODO:  Do we want to alter this to return a status enum of Success, AlreadyExists, Error?
 
             ImportedDeviceIdentity deviceIdentity;
 
             // Note:  Does not throw error or return non-200 status if fails.  Instead it sets status field in object to false that we will need to check
             var result = await _graphClient.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList.PostAsImportDeviceIdentityListPostResponseAsync(requestBody);
-            if ((result == null) || (result.Value[0] == null) || (result.Value[0].Status != true))
+
+            // If the request failed, throw an exception
+            if ((result == null) || (result?.Value == null) || (result.Value.Count == 0) || (result.Value[0] == null))
             {
-                // important to note that if the identifier already exists, it will treat it as a failure
-                // so if we get a failure, we check to see if it already exists before throwing an exception
+                string message = $"Graph returned null or empty result attempting to add CorpID: {identifier}";
+                throw new Exception(message);
+            }
+            else if (result.Value[0].Status != true)
+            {
+                // important to note that if the identifier already exists, the rest endpoint treats it as a failure
+                // we don't want to handle it that way so we'll check to see if the CorpID exists and only treat it as a failure if it doesn't
                 // if it already exists, we don't report an error
                 string identifierID = result.Value[0].Id;
-                bool alreadyExists = await CorporateIdentifierExists(identifierID);
+
+                bool alreadyExists = false;
+                if (!string.IsNullOrEmpty(identifierID))
+                {
+                    alreadyExists = await CorporateIdentifierExists(identifierID);
+                }
 
                 if (!alreadyExists)
                 {

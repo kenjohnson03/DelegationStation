@@ -24,7 +24,7 @@ env:
   AZURE_SYNC_FUNCTION_PACKAGE_PATH: .\CorporateIdentifierSync\published
   AZURE_SYNC_FUNCTION_PKG_NAME: sync-function
 
-  AZURE_WEBJOB_PACKAGE_PATH: .\ResetSyncedDevices\pbulished
+  AZURE_WEBJOB_PACKAGE_PATH: .\ResetSyncedDevices\published
   AZURE_WEBJOB_PKG_NAME: reset-corpid-webjob
 
 jobs:

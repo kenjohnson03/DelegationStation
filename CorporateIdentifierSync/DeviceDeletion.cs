@@ -90,7 +90,7 @@ namespace CorporateIdentifierSync
                             break;
 
                         case DeleteCorpIdResult.NotFound:
-                            // Already removed from Graph — safe to proceed with Cosmos deletion, but don't
+                            // Already removed from Graph so safe to proceed with Cosmos deletion, but don't
                             // increment corpIDsDeletedCount since there is nothing to release from the counter.
                             delCorpID = true;
                             _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Id}.", fullMethodName);

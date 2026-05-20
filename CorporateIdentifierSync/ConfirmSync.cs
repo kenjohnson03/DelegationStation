@@ -195,7 +195,7 @@ namespace CorporateIdentifierSync
                     {
                         _logger.DSLogException($"Error re-adding corporate identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
                         // Reset to Added so AddNewDevices will retry
-                        device.CorporateIdentityID = null;
+                        device.CorporateIdentityID = string.Empty;
 
                         // Not checking against max since this should only ever be the first failure
                         device.CorpIDFailureCount++;

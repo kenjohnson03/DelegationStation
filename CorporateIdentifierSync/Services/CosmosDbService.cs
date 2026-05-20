@@ -312,7 +312,7 @@ namespace CorporateIdentifierSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            // Only return devices that are in Synced or NotSyncing status
+            // Only return devices that are in Synced status
             QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.Type = \"Device\" AND c.Status = @status AND c.LastCorpIdentitySync <= @date");
             query.WithParameter("@status", DeviceStatus.Synced);
             query.WithParameter("@date", date);

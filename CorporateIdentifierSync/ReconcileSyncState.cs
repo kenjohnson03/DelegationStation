@@ -197,7 +197,7 @@ namespace CorporateIdentifierSync
                         try
                         {
                             Device? freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
-                            if (freshDevice == null | freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
+                            if (freshDevice == null || freshDevice.Status == DeviceStatus.Deleting || freshDevice.Status == DeviceStatus.NotSyncing)
                             {
                                 // Device was deleted between the 412 and this read — DeviceDeletion owns cleanup
                                 _logger.DSLogInformation($"Device {device.Id} was modified and is now in state {freshDevice.Status.ToString()}.  No action necessary as CorpID is already removed.", fullMethodName);
@@ -392,7 +392,7 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogException($"Error adding Corp ID for device {device.Id}: ", ex, fullMethodName);
                     // Reset to Added so AddNewDevices will retry
-                    device.CorporateIdentityID = null;
+                    device.CorporateIdentityID = string.Empty;
                     device.Status = DeviceStatus.Added;
 
                     //not checking against max here since this should only ever be the first failure
