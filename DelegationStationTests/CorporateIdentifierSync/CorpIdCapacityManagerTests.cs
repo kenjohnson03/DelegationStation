@@ -13,7 +13,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
     /// </summary>
     internal class FakeCosmosDbService : ICosmosDbService
     {
-        public CorpIDCounter Counter { get; set; } = new CorpIDCounter();
+        public CorpIDCounter Counter { get; set; } = new CorpIDCounter(0);
 
         public Task<CorpIDCounter> GetCorpIDCounter() => Task.FromResult(Counter);
 
@@ -39,6 +39,8 @@ namespace DelegationStationTests.CorporateIdentifierSync
         public Task<List<string>> GetNonSyncingDeviceTags() => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevices(int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevices(int batchSize) => throw new NotImplementedException();
+
+        public Task<Device?> GetDevice(Guid id, string partitionKey) => throw new NotImplementedException();
     }
 
     [TestClass]
@@ -67,7 +69,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task GetAvailableCorpIDCount_DeductsCorpIDCountAndReserve()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 300, CorpIDReserve = 100 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 300, CorpIDReserve = 100 } };
             var manager = CreateManager(db);
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
@@ -78,7 +80,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task GetAvailableCorpIDCount_WhenAtCap_ReturnsZero()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = TotalCap } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
             var manager = CreateManager(db);
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
@@ -105,7 +107,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReserveCorpIDs_WhenAtCap_ReturnsZeroAndDoesNotModifyCounter()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = TotalCap } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
             var manager = CreateManager(db);
 
             int reserved = await manager.ReserveCorpIDs(10, CancellationToken.None);
@@ -118,7 +120,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         public async Task ReserveCorpIDs_WhenPartialCapacity_ReservesOnlyAvailableSlots()
         {
             // 20 slots available
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 980 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 980 } };
             var manager = CreateManager(db);
 
             int reserved = await manager.ReserveCorpIDs(50, CancellationToken.None);
@@ -130,7 +132,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReserveCorpIDs_PersistsReserveToDatabase()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 500 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 500 } };
             var manager = CreateManager(db);
 
             await manager.ReserveCorpIDs(25, CancellationToken.None);
@@ -145,7 +147,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task CommitCorpIDCount_DecrementsReserveAndIncrementsCount()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 50 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 50 } };
             var manager = CreateManager(db);
 
             await manager.CommitCorpIDCount(50, 40, CancellationToken.None);
@@ -157,7 +159,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task CommitCorpIDCount_ReturnsRemainingAvailable()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 100 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 100 } };
             var manager = CreateManager(db);
 
             int available = await manager.CommitCorpIDCount(100, 80, CancellationToken.None);
@@ -169,7 +171,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         public async Task CommitCorpIDCount_ReserveDoesNotGoBelowZero_OnDrift()
         {
             // reserved > counter.CorpIDReserve (drift scenario)
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 10 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 10 } };
             var manager = CreateManager(db);
 
             await manager.CommitCorpIDCount(50, 10, CancellationToken.None);
@@ -181,7 +183,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         public async Task CommitCorpIDCount_UnusedReservedSlotsAreReleased()
         {
             // 100 reserved, only 60 successfully added — 40 failures released
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDReserve = 100 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 100 } };
             var manager = CreateManager(db);
 
             await manager.CommitCorpIDCount(100, 60, CancellationToken.None);
@@ -197,7 +199,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReleaseCorpIDs_DecrementsCorpIDCountByReleaseAmount()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 100 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100 } };
             var manager = CreateManager(db);
 
             int available = await manager.ReleaseCorpIDs(30, CancellationToken.None);
@@ -209,7 +211,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReleaseCorpIDs_DoesNotGoBelowZero_OnDrift()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 10 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 10 } };
             var manager = CreateManager(db);
 
             int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
@@ -221,7 +223,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReleaseCorpIDs_ReturnsUpdatedAvailable()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 200 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 200 } };
             var manager = CreateManager(db);
 
             int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
@@ -233,7 +235,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         [TestMethod]
         public async Task ReleaseCorpIDs_DoesNotAffectCorpIDReserve()
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter { CorpIDCount = 100, CorpIDReserve = 25 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100, CorpIDReserve = 25 } };
             var manager = CreateManager(db);
 
             int available = await manager.ReleaseCorpIDs(40, CancellationToken.None);
