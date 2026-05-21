@@ -66,8 +66,24 @@ namespace CorporateIdentifierSync
             //
             // Get All devices marked for deletion
             //
-            List<Device> devicesToDelete = await _dbService.GetDevicesMarkedForDeletion();
+            List<Device> devicesToDelete;
+            try
+            {
+                devicesToDelete = await _dbService.GetDevicesMarkedForDeletion();
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to retrieve devices marked for deletion. Exiting function.", ex, fullMethodName);
+                return;
+            }
+
             _logger.DSLogInformation($"Found {devicesToDelete.Count} devices to delete.", fullMethodName);
+
+            if (devicesToDelete.Count == 0)
+            {
+                _logger.DSLogInformation("No devices marked for deletion. Exiting function.", fullMethodName);
+                return;
+            }
 
             int deletedDeviceCount = 0;
             int corpIDsDeletedCount = 0;
