@@ -74,7 +74,7 @@ namespace CorporateIdentifierSync
         }
 
         [Function("ConfirmSync")]
-        public async Task Run([TimerTrigger("%NewConfirmSyncTriggerTime%")] TimerInfo myTimer)
+        public async Task Run([TimerTrigger("%ConfirmSyncTriggerTime%")] TimerInfo myTimer)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
