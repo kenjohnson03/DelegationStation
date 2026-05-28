@@ -39,9 +39,51 @@
             </p>
         </div>
     </div>
+
+    <h3 class="mt-5">FAQ - Troubleshooting Tips</h3>
+
+    <div class="accordion">
+        @foreach (var (faq, index) in faqItems.Select((f, i) => (f, i)))
+        {
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(expandedIndex == index ? "" : "collapsed")" type="button" @onclick="() => ToggleFaq(index)" aria-expanded="@(expandedIndex == index)">
+                        <strong>@faq.Question</strong>
+                    </button>
+                </h2>
+                @if (expandedIndex == index)
+                {
+                    <div class="accordion-collapse collapse show">
+                        <div class="accordion-body">
+                            @faq.Answer
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
 </div>
 
 @code {
+    private int? expandedIndex;
+
+    private readonly List<(string Question, string Answer)> faqItems =
+    [
+        ("I can't see my Device Tag.",
+         "Make sure you are logged in with the correct account and PIM'd in successfully. If you are trying to view the PAW tag, you must be logged in with an ADM account. If that's not it, you may need to verify you are still in the correct group to view that tag."),
+        ("I tried to enter a device and the tool returns that it already exists, but I can't find the device when I search for it.",
+         "This usually indicates that someone has entered that device under a Device Tag that you don't have access to."),
+        ("My device isn't processing correctly on enrollment.",
+         "In order for Delegation Station to successfully process your device on enrollment, the Make/Model/Serial Number in the tool must match what Intune reads in from the BIOS settings of the device."),
+        ("My device is in the failed state. What should I do?",
+         "This indicates the device was unable to successfully sync to Corporate Identifiers after several retries and DS will no longer retry. One reason this can happen is that there is some issue with the Make, Model, Serial Number that prevents it from being added. The other is that DS attempted to sync it to Corporate Identifiers and we hit the tenant limit unexpectedly. In both cases, we recommend deleting it, checking the details and re-entering it again.")
+    ];
+
+    private void ToggleFaq(int index)
+    {
+        expandedIndex = expandedIndex == index ? null : index;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
