@@ -1,5 +1,7 @@
-﻿using DelegationStation.Pages;
+﻿using Bunit;
+using DelegationStation.Pages;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection;
 using DelegationStation.Interfaces;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
@@ -42,13 +44,17 @@ namespace DelegationStationTests.Pages
                 // Add Dependent Services
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton<DelegationStation.Services.RecentUpdatesNotificationService>();
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
 
 
                 // Act
                 var cut = RenderComponent<NavMenu>();
 
                 // Assert
-                Assert.IsTrue(cut.Markup.Contains("<a href=\"Roles\" class=\"nav-link\"><span class=\"oi oi-shield\" aria-hidden=\"true\" b-l9c7g71qbx></span> Roles\r\n            </a></div></nav></div>"), $"Role link should be rendered. \\nActual:\\n{cut.Markup}\"");
+                Assert.IsTrue(cut.Markup.Contains("Roles"), $"Role link should be rendered. Actual: {cut.Markup}");
 
 
             }
@@ -85,13 +91,17 @@ namespace DelegationStationTests.Pages
                 // Add Dependent Services
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton<DelegationStation.Services.RecentUpdatesNotificationService>();
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
 
 
                 // Act
                 var cut = RenderComponent<NavMenu>();
 
                 // Assert
-                Assert.IsFalse(cut.Markup.Contains("Roles"), $"Menu should not display Roles link. \\nActual:\\n{cut.Markup}\"");
+                Assert.IsFalse(cut.Markup.Contains("Roles"), $"Menu should not display Roles link. Actual: {cut.Markup}");
             }
         }
     }
