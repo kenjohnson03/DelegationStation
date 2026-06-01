@@ -31,7 +31,7 @@ namespace DelegationStation.Shared
                     var result = await LocalStorage.GetAsync<string>("RecentUpdatesViewedVersion");
                     showUpdatesBadge = !result.Success || result.Value != RecentUpdatesVersion.CurrentVersion;
                 }
-                catch
+                catch (Exception)
                 {
                     showUpdatesBadge = true;
                 }

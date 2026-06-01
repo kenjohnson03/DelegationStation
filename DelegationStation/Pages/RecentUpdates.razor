@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @inject ProtectedLocalStorage LocalStorage
 @inject RecentUpdatesNotificationService UpdatesNotification
-@inject ILogger<RoleEdit> logger
+@inject ILogger<RecentUpdates> logger
 
 <PageTitle>Recent Updates</PageTitle>
 
@@ -95,9 +95,9 @@
             }
             catch (Exception e)
             {
-                var erMessage = $"Error encountered while updating recent updates view status.";
-                logger.LogError(e, $"{erMessage}");
-                Console.WriteLine(erMessage);
+                const string errorMessage = "Error encountered while updating recent updates view status.";
+                logger.LogError(e, errorMessage);
+                Console.WriteLine(errorMessage);
             }
         }
     }
