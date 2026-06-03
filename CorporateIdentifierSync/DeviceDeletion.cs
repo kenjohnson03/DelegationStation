@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using DelegationStationShared.Extensions;
 using Device = DelegationStationShared.Models.Device;
 using DelegationStationShared;
+using Microsoft.Azure.Cosmos;
 
 namespace CorporateIdentifierSync
 {
@@ -12,17 +13,21 @@ namespace CorporateIdentifierSync
     {
         private readonly ILogger<DeviceDeletion> _logger;
         private readonly ICosmosDbService _dbService;
-        private readonly IGraphService _graphService;
         private readonly IGraphBetaService _graphBetaService;
+        private readonly IFunctionSingletonLock _singletonLock;
 
         private int _MaxCorpIDsAllowed;
 
-        public DeviceDeletion(ILogger<DeviceDeletion> logger, ICosmosDbService dbService, IGraphService graphService, IGraphBetaService graphBetaService)
+        public DeviceDeletion(
+            ILogger<DeviceDeletion> logger,
+            ICosmosDbService dbService,
+            IGraphBetaService graphBetaService,
+            IFunctionSingletonLock singletonLock)
         {
             _logger = logger;
             _dbService = dbService;
-            _graphService = graphService;
             _graphBetaService = graphBetaService;
+            _singletonLock = singletonLock;
         }
 
         public void GetEnvironmentVariables()
@@ -54,6 +59,13 @@ namespace CorporateIdentifierSync
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
+
+            await using var handle = await _singletonLock.TryAcquireAsync(nameof(DeviceDeletion));
+            if (handle is null)
+            {
+                _logger.DSLogWarning("Another instance of DeviceDeletion is already running. Exiting.", fullMethodName);
+                return;
+            }
 
             _logger.DSLogInformation("C# Timer trigger function executed at: " + DateTime.Now, fullMethodName);
             if (myTimer.ScheduleStatus is not null)
@@ -108,6 +120,7 @@ namespace CorporateIdentifierSync
                         case DeleteCorpIdResult.NotFound:
                             // Already removed from Graph so safe to proceed with Cosmos deletion, but don't
                             // increment corpIDsDeletedCount since there is nothing to release from the counter.
+                            // This may result in count > reality, but this is the preferred error scenario.
                             delCorpID = true;
                             _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Id}.", fullMethodName);
                             break;
@@ -132,6 +145,12 @@ namespace CorporateIdentifierSync
                         await _dbService.DeleteDevice(device);
                         deletedDeviceCount++;
                         _logger.DSLogInformation($"Successfully deleted device from Delegation Station: {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        // Already gone — treat as success.
+                        deletedDeviceCount++;
+                        _logger.DSLogInformation($"Device {device.Id} already deleted from Cosmos.", fullMethodName);
                     }
                     catch (Exception ex)
                     {
