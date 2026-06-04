@@ -158,8 +158,7 @@ namespace CorporateIdentifierSync
 
                 if (hadCorpID)
                 {
-                    //DeleteCorpIdResult graphDeleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                    f DeleteCorpIdResult graphDeleteResult = DeleteCorpIdResult.Error;
+                    DeleteCorpIdResult graphDeleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
                     corpIDAbsent = graphDeleteResult == DeleteCorpIdResult.Success || graphDeleteResult == DeleteCorpIdResult.NotFound;
                     deletedCorpID = graphDeleteResult == DeleteCorpIdResult.Success;
                     if (corpIDAbsent)
@@ -515,9 +514,13 @@ namespace CorporateIdentifierSync
                     catch (Exception readEx)
                     {
                         _logger.DSLogException(
-                            $"Failed to re-read device {device.Id} after 412. Corp ID {device.CorporateIdentityID} " +
-                            $"may be orphaned — ConfirmSync will reconcile on next run.",
+                            $"Failed to re-read device {device.Id} after 412. Rolling back Corp ID {device.CorporateIdentityID}.",
                             readEx, fullMethodName);
+
+                        if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, "rollback after failed re-read on 412", fullMethodName))
+                        {
+                            addedCount--;
+                        }
                         continue;
                     }
 
@@ -535,31 +538,38 @@ namespace CorporateIdentifierSync
                             addedCount--;
                         }
                     }
-                    else if (freshDevice.Status == DeviceStatus.NotSyncing)
+                    else
                     {
-                        // User UI re-saved the device while leaving it NotSyncing.
-                        // Respect the user's intent and roll back the Corp ID we just added.
-                        _logger.DSLogWarning(
-                            $"Device {device.Id} is still NotSyncing after 412 (likely user edit). " +
-                            $"Rolling back Corp ID {device.CorporateIdentityID}.",
+                        // Defensive fallback: no known code path reaches here given current UI constraints
+                        // (user can only mark Deleting). Roll back the Corp ID to be safe — if the device
+                        // still needs syncing, ReconcileSyncState will pick it up again on the next run.
+                        _logger.DSLogError(
+                            $"Device {device.Id} in unexpected state '{freshDevice.Status}' after 412. " +
+                            $"Rolling back Corp ID {device.CorporateIdentityID} as a precaution.",
                             fullMethodName);
 
-                        if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, "NotSyncing device", fullMethodName))
+                        if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, "unexpected state after 412", fullMethodName))
                         {
                             addedCount--;
                         }
                     }
-                    else
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException(
+                        $"Unexpected error updating device {device.Id} after Corp ID add.",
+                        ex, fullMethodName);
+
+                    if (graphAddSucceeded)
                     {
-                        // Singleton + scope rules mean NotSyncing -> Synced/Added/Failed shouldn't happen
-                        // via any automated path. If we land here it's an unexpected user-driven transition.
-                        // Leave the Corp ID in Graph; ConfirmSync will reconcile on its next run.
-                        // The reserved slot is decremented so CommitCorpIDCount releases it.
-                        _logger.DSLogWarning(
-                            $"Device {device.Id} unexpectedly in state '{freshDevice.Status}' after 412. " +
-                            $"Leaving Corp ID {device.CorporateIdentityID} in Graph; ConfirmSync will reconcile.",
+                        _logger.DSLogInformation(
+                            $"Rolling back Corp ID {device.CorporateIdentityID} due to unexpected update failure.",
                             fullMethodName);
-                        addedCount--;
+
+                        if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, "rollback after unexpected update failure", fullMethodName))
+                        {
+                            addedCount--;
+                        }
                     }
                 }
             }
