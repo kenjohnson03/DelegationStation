@@ -10,7 +10,6 @@ using DelegationStationShared.Extensions;
 using Microsoft.Graph.Beta.DeviceManagement.ImportedDeviceIdentities.ImportDeviceIdentityList;
 using Microsoft.Graph.Beta.Models;
 using Microsoft.Graph.Beta.Models.ODataErrors;
-using System.Diagnostics.Eventing.Reader;
 
 
 namespace CorporateIdentifierSync.Services
@@ -127,7 +126,7 @@ namespace CorporateIdentifierSync.Services
 
                 if (!alreadyExists)
                 {
-                    string message = $"Graph returned non-true status attempting to add identifer: {identifier}";
+                    string message = $"Graph returned non-true status attempting to add identifier: {identifier}";
                     _logger.DSLogError(message, fullMethodName);
                     throw new Exception(message);
                 }
