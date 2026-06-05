@@ -54,7 +54,7 @@ namespace DelegationStationTests.Pages
                 var cut = RenderComponent<NavMenu>();
 
                 // Assert
-                Assert.IsTrue(cut.Markup.Contains("Roles"), $"Role link should be rendered. Actual: {cut.Markup}");
+Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be rendered. Actual: {cut.Markup}");
 
 
             }
@@ -101,7 +101,7 @@ namespace DelegationStationTests.Pages
                 var cut = RenderComponent<NavMenu>();
 
                 // Assert
-                Assert.IsFalse(cut.Markup.Contains("Roles"), $"Menu should not display Roles link. Actual: {cut.Markup}");
+Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not display Roles link. Actual: {cut.Markup}");
             }
         }
     }
