@@ -90,14 +90,14 @@
         {
             try
             {
-                await LocalStorage.SetAsync("RecentUpdatesViewedVersion", RecentUpdatesVersion.CurrentVersion);
+                const string recentUpdatesViewedVersionKey = "RecentUpdatesViewedVersion";
+                await LocalStorage.SetAsync(recentUpdatesViewedVersionKey, RecentUpdatesVersion.CurrentVersion);
                 UpdatesNotification.MarkAsViewed();
-            }
             catch (Exception e)
             {
                 const string errorMessage = "Error encountered while updating recent updates view status.";
                 logger.LogError(e, errorMessage);
-                Console.WriteLine(errorMessage);
+                // Error already logged via ILogger.
             }
         }
     }
