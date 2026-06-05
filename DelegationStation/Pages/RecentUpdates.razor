@@ -93,6 +93,7 @@
                 const string recentUpdatesViewedVersionKey = "RecentUpdatesViewedVersion";
                 await LocalStorage.SetAsync(recentUpdatesViewedVersionKey, RecentUpdatesVersion.CurrentVersion);
                 UpdatesNotification.MarkAsViewed();
+            }
             catch (Exception e)
             {
                 const string errorMessage = "Error encountered while updating recent updates view status.";
