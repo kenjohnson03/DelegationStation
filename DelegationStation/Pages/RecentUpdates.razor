@@ -101,11 +101,14 @@
                 await LocalStorage.SetAsync(RecentUpdatesVersion.RecentUpdatesViewedVersionKey, RecentUpdatesVersion.CurrentVersion);
                 UpdatesNotification.MarkAsViewed();
             }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop calls cannot be issued", StringComparison.OrdinalIgnoreCase))
+            {
+                // Blazor Server prerendering (ServerPrerendered) doesn't allow JS interop; this will run again once interactive.
+            }
             catch (Exception e)
             {
                 const string errorMessage = "Error encountered while updating recent updates view status.";
                 logger.LogError(e, errorMessage);
-                // Error already logged via ILogger.
             }
         }
     }

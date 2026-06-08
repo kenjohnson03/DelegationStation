@@ -33,13 +33,18 @@ namespace DelegationStation.Shared
                 {
                     var result = await LocalStorage.GetAsync<string>(RecentUpdatesVersion.RecentUpdatesViewedVersionKey);
                     showUpdatesBadge = !result.Success || result.Value != RecentUpdatesVersion.CurrentVersion;
+                    StateHasChanged();
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop calls cannot be issued", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Blazor Server prerendering (ServerPrerendered) doesn't allow JS interop; this will run again once interactive.
                 }
                 catch (Exception ex)
                 {
                     Logger.LogWarning(ex, "Failed to read recent updates view status from protected local storage.");
                     showUpdatesBadge = true;
+                    StateHasChanged();
                 }
-                StateHasChanged();
             }
         }
 
