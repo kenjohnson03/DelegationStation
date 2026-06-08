@@ -47,13 +47,21 @@
         {
             <div class="accordion-item">
                 <h2 class="accordion-header">
-                    <button class="accordion-button @(expandedIndex == index ? "" : "collapsed")" type="button" @onclick="() => ToggleFaq(index)" aria-expanded="@(expandedIndex == index)">
+                    <button class="accordion-button @(expandedIndex == index ? "" : "collapsed")"
+                            type="button"
+                            @onclick="() => ToggleFaq(index)"
+                            aria-expanded="@(expandedIndex == index)"
+                            aria-controls="@($"faq-body-{index}")"
+                            id="@($"faq-header-{index}")">
                         <strong>@faq.Question</strong>
                     </button>
                 </h2>
                 @if (expandedIndex == index)
                 {
-                    <div class="accordion-collapse collapse show">
+                    <div class="accordion-collapse collapse show"
+                         id="@($"faq-body-{index}")"
+                         role="region"
+                         aria-labelledby="@($"faq-header-{index}")">
                         <div class="accordion-body">
                             @faq.Answer
                         </div>
