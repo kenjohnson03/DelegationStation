@@ -90,8 +90,7 @@
         {
             try
             {
-                const string recentUpdatesViewedVersionKey = "RecentUpdatesViewedVersion";
-                await LocalStorage.SetAsync(recentUpdatesViewedVersionKey, RecentUpdatesVersion.CurrentVersion);
+                await LocalStorage.SetAsync(RecentUpdatesVersion.RecentUpdatesViewedVersionKey, RecentUpdatesVersion.CurrentVersion);
                 UpdatesNotification.MarkAsViewed();
             }
             catch (Exception e)

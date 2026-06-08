@@ -28,8 +28,7 @@ namespace DelegationStation.Shared
             {
                 try
                 {
-                    const string recentUpdatesViewedVersionKey = "RecentUpdatesViewedVersion";
-                    var result = await LocalStorage.GetAsync<string>(recentUpdatesViewedVersionKey);
+                    var result = await LocalStorage.GetAsync<string>(RecentUpdatesVersion.RecentUpdatesViewedVersionKey);
                     showUpdatesBadge = !result.Success || result.Value != RecentUpdatesVersion.CurrentVersion;
                 }
                 catch (Exception)
