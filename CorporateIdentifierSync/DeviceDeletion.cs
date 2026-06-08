@@ -101,7 +101,7 @@ namespace CorporateIdentifierSync
             int corpIDsDeletedCount = 0;
             foreach (Device device in devicesToDelete)
             {
-                _logger.DSLogInformation($"-----Deleting device {device.Id}.-----", fullMethodName);
+                _logger.DSLogInformation($"-----Deleting device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
                 bool delCorpID = false;
 
@@ -122,7 +122,7 @@ namespace CorporateIdentifierSync
                             // increment corpIDsDeletedCount since there is nothing to release from the counter.
                             // This may result in count > reality, but this is the preferred error scenario.
                             delCorpID = true;
-                            _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Id}.", fullMethodName);
+                            _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                             break;
 
                         case DeleteCorpIdResult.Error:
@@ -150,16 +150,16 @@ namespace CorporateIdentifierSync
                     {
                         // Already gone — treat as success.
                         deletedDeviceCount++;
-                        _logger.DSLogInformation($"Device {device.Id} already deleted from Cosmos.", fullMethodName);
+                        _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} already deleted from Cosmos.", fullMethodName);
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Deletion from Delegation Station failed for device {device.Id}.", ex, fullMethodName);
+                        _logger.DSLogException($"Deletion from Delegation Station failed for device {device.Make} {device.Model} {device.SerialNumber}.", ex, fullMethodName);
                     }
                 }
                 else
                 {
-                    _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Id}.  Not deleting from Delegation Station", fullMethodName);
+                    _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Make} {device.Model} {device.SerialNumber}.  Not deleting from Delegation Station", fullMethodName);
                 }
             }
 

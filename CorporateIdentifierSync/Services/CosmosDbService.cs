@@ -238,7 +238,7 @@ namespace CorporateIdentifierSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            _logger.DSLogInformation("Updating device " + device.Id + ".", fullMethodName);
+            _logger.DSLogInformation($"Updating device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
 
             var options = string.IsNullOrEmpty(device.ETag)
                 ? null
@@ -249,7 +249,7 @@ namespace CorporateIdentifierSync.Services
 
             device.ETag = response.ETag;
 
-            _logger.DSLogInformation("Updated device " + device.Id + ".", fullMethodName);
+            _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
         }
 
         public async Task<Device?> GetDevice(Guid id, string partitionKey)

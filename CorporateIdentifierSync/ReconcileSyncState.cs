@@ -169,12 +169,12 @@ namespace CorporateIdentifierSync
                         }
                         else
                         {
-                            _logger.DSLogWarning($"Corp ID {device.CorporateIdentityID} for device {device.Id} not found when deletion attempted.", fullMethodName);
+                            _logger.DSLogWarning($"Corp ID {device.CorporateIdentityID} for device {device.Make} {device.Model} {device.SerialNumber} not found when deletion attempted.", fullMethodName);
                         }
                     }
                     else
                     {
-                        _logger.DSLogError($"Error removing Corp ID from Graph for device {device.Id}.", fullMethodName);
+                        _logger.DSLogError($"Error removing Corp ID from Graph for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
                     }
                 }
                 else
@@ -203,7 +203,7 @@ namespace CorporateIdentifierSync
                         // Device row is gone (DeviceDeletion or another writer removed it).
                         // We already removed the Corp ID from Graph in this run, so WE own the
                         // capacity release — DeviceDeletion will see NotFound from Graph and skip it.
-                        _logger.DSLogInformation($"Device {device.Id} row not found on update; Corp ID already removed from Graph by this run. Releasing capacity.", fullMethodName);
+                        _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} row not found on update; Corp ID already removed from Graph by this run. Releasing capacity.", fullMethodName);
                         if (deletedCorpID)
                         {
                             corpIDsRemoved++;
@@ -214,7 +214,7 @@ namespace CorporateIdentifierSync
                         // Corp ID was already deleted from Graph but another writer modified this device concurrently.
                         // Legitimate concurrent writers: ConfirmSync (re-adding a missing Corp ID) or user UI
                         // (flipping the tag, marking for deletion, or editing fields).
-                        _logger.DSLogWarning($"Device {device.Id} was modified concurrently after Corp ID removal. Reconciling.", fullMethodName);
+                        _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently after Corp ID removal. Reconciling.", fullMethodName);
 
                         Device? freshDevice = null;
                         bool freshReadFailed = false;
@@ -226,7 +226,7 @@ namespace CorporateIdentifierSync
                         {
                             freshReadFailed = true;
                             _logger.DSLogException(
-                                $"Failed to re-read device {device.Id} after 412. Corp ID was removed from Graph; " +
+                                $"Failed to re-read device {device.Make} {device.Model} {device.SerialNumber} after 412. Corp ID was removed from Graph; " +
                                 $"ConfirmSync will re-add on next run if device is still Synced.",
                                 retryEx, fullMethodName);
                         }
@@ -243,7 +243,7 @@ namespace CorporateIdentifierSync
                             // But WE removed the Corp ID from Graph this run, so WE must release its capacity slot;
                             // no other writer is tracking that.
                             _logger.DSLogInformation(
-                                $"Device {device.Id} is in state {freshDevice?.Status.ToString() ?? "deleted"}; " +
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} is in state {freshDevice?.Status.ToString() ?? "deleted"}; " +
                                 $"no row update needed. Releasing Corp ID capacity since Graph delete was performed here.",
                                 fullMethodName);
                             if (deletedCorpID)
@@ -266,7 +266,7 @@ namespace CorporateIdentifierSync
                             {
                                 tagCheckFailed = true;
                                 _logger.DSLogException(
-                                    $"Failed to re-check tag sync state for device {device.Id} after 412. " +
+                                    $"Failed to re-check tag sync state for device {device.Make} {device.Model} {device.SerialNumber} after 412. " +
                                     $"Skipping unsync to avoid overriding potential user intent. " +
                                     $"ConfirmSync will reconcile Corp ID on next run.",
                                     tagEx, fullMethodName);
@@ -285,7 +285,7 @@ namespace CorporateIdentifierSync
                                 // User re-enabled sync on this tag. Honor that intent; leave Corp ID reconciliation
                                 // to ConfirmSync (which will re-add the same Id since the hash is deterministic).
                                 _logger.DSLogWarning(
-                                    $"Device {device.Id} tag was re-enabled for sync after Corp ID removal. " +
+                                    $"Device {device.Make} {device.Model} {device.SerialNumber} tag was re-enabled for sync after Corp ID removal. " +
                                     $"Aborting unsync; ConfirmSync will reconcile Corp ID on next run.",
                                     fullMethodName);
                             }
@@ -306,7 +306,7 @@ namespace CorporateIdentifierSync
                                 catch (Exception retryEx)
                                 {
                                     _logger.DSLogException(
-                                        $"Retry update failed for device {device.Id} after 412. " +
+                                        $"Retry update failed for device {device.Make} {device.Model} {device.SerialNumber} after 412. " +
                                         $"Corp ID is removed from Graph but device row still shows Synced — " +
                                         $"ConfirmSync will reconcile on next run.",
                                         retryEx, fullMethodName);
@@ -317,13 +317,13 @@ namespace CorporateIdentifierSync
                     catch (Exception ex)
                     {
                         // Don't count toward ReleaseCorpIDs — can't confirm we own the outcome
-                        _logger.DSLogException($"Failed to update device {device.Id} after Corp ID removal. Not releasing capacity for this device.", ex, fullMethodName);
+                        _logger.DSLogException($"Failed to update device {device.Make} {device.Model} {device.SerialNumber} after Corp ID removal. Not releasing capacity for this device.", ex, fullMethodName);
                     }
                 }
                 else
                 {
                     failureCount++;
-                    _logger.DSLogError($"Corp ID removal from Graph failed for device {device.Id}. Device status not changed.", fullMethodName);
+                    _logger.DSLogError($"Corp ID removal from Graph failed for device {device.Make} {device.Model} {device.SerialNumber}. Device status not changed.", fullMethodName);
                 }
             }
 
@@ -463,7 +463,7 @@ namespace CorporateIdentifierSync
                 }
                 catch (Exception ex)
                 {
-                    _logger.DSLogException($"Error adding Corp ID for device {device.Id}: ", ex, fullMethodName);
+                    _logger.DSLogException($"Error adding Corp ID for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
                     // Reset to Added so AddNewDevices will retry
                     device.CorporateIdentityID = string.Empty;
                     device.Status = DeviceStatus.Added;
@@ -481,7 +481,7 @@ namespace CorporateIdentifierSync
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    _logger.DSLogWarning($"Device {device.Id} was deleted during processing.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was deleted during processing.", fullMethodName);
 
                     if (graphAddSucceeded)
                     {
@@ -498,7 +498,7 @@ namespace CorporateIdentifierSync
                     // No other automated function writes to NotSyncing rows (AddNewDevices handles Added,
                     // ConfirmSync handles Synced). Legitimate concurrent writers here are DeviceDeletion
                     // (after a user marks Deleting) or direct user UI edits.
-                    _logger.DSLogWarning($"Device {device.Id} was modified concurrently during Corp ID add.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently during Corp ID add.", fullMethodName);
 
                     if (!graphAddSucceeded)
                     {
@@ -514,7 +514,7 @@ namespace CorporateIdentifierSync
                     catch (Exception readEx)
                     {
                         _logger.DSLogException(
-                            $"Failed to re-read device {device.Id} after 412. Rolling back Corp ID {device.CorporateIdentityID}.",
+                            $"Failed to re-read device {device.Make} {device.Model} {device.SerialNumber} after 412. Rolling back Corp ID {device.CorporateIdentityID}.",
                             readEx, fullMethodName);
 
                         if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, "rollback after failed re-read on 412", fullMethodName))
@@ -530,7 +530,7 @@ namespace CorporateIdentifierSync
                         // Roll back the Corp ID we just added.
                         string state = freshDevice is null ? "deleted" : "Deleting";
                         _logger.DSLogInformation(
-                            $"Device {device.Id} is {state}. Rolling back Corp ID {device.CorporateIdentityID}.",
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} is {state}. Rolling back Corp ID {device.CorporateIdentityID}.",
                             fullMethodName);
 
                         if (await TryDeleteCorpIdAsync(device.CorporateIdentityID, $"rollback for {state} device", fullMethodName))
@@ -544,7 +544,7 @@ namespace CorporateIdentifierSync
                         // (user can only mark Deleting). Roll back the Corp ID to be safe — if the device
                         // still needs syncing, ReconcileSyncState will pick it up again on the next run.
                         _logger.DSLogError(
-                            $"Device {device.Id} in unexpected state '{freshDevice.Status}' after 412. " +
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} in unexpected state '{freshDevice.Status}' after 412. " +
                             $"Rolling back Corp ID {device.CorporateIdentityID} as a precaution.",
                             fullMethodName);
 
@@ -557,7 +557,7 @@ namespace CorporateIdentifierSync
                 catch (Exception ex)
                 {
                     _logger.DSLogException(
-                        $"Unexpected error updating device {device.Id} after Corp ID add.",
+                        $"Unexpected error updating device {device.Make} {device.Model} {device.SerialNumber} after Corp ID add.",
                         ex, fullMethodName);
 
                     if (graphAddSucceeded)

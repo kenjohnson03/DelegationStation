@@ -240,7 +240,7 @@ namespace CorporateIdentifierSync
                 {
                     // Device was deleted between our read and write (DeviceDeletion or user UI).
                     _logger.DSLogWarning(
-                        $"Device {device.Id} {device.Make} {device.Model} {device.SerialNumber} was deleted during ConfirmSync.",
+                        $"Device {device.Make} {device.Model} {device.SerialNumber} was deleted during ConfirmSync.",
                         fullMethodName);
 
                     if (corpIDFound)
@@ -281,7 +281,7 @@ namespace CorporateIdentifierSync
                     else if (corpIDReAdded)
                     {
                         _logger.DSLogWarning(
-                            $"Device {device.Id} was modified concurrently after Corp ID re-add. " +
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently after Corp ID re-add. " +
                             $"Reading fresh state to determine rollback.",
                             fullMethodName);
 
@@ -293,7 +293,7 @@ namespace CorporateIdentifierSync
                         catch (Exception readEx)
                         {
                             _logger.DSLogException(
-                                $"Could not read fresh device {device.Id} to determine rollback. " +
+                                $"Could not read fresh device {device.Make} {device.Model} {device.SerialNumber} to determine rollback. " +
                                 $"Leaving Corp ID {device.CorporateIdentityID} in Graph; ReconcileSyncState will reconcile.",
                                 readEx, fullMethodName);
                             // Don't decrement — Corp ID is still in Graph and tracked.
@@ -305,7 +305,7 @@ namespace CorporateIdentifierSync
                             freshDevice.Status == DeviceStatus.NotSyncing)
                         {
                             _logger.DSLogWarning(
-                                $"Device {device.Id} is {(freshDevice?.Status.ToString() ?? "deleted")}. " +
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} is {(freshDevice?.Status.ToString() ?? "deleted")}. " +
                                 $"Rolling back re-added Corp ID.",
                                 fullMethodName);
                             await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
@@ -317,7 +317,7 @@ namespace CorporateIdentifierSync
                             // a row into a state that leaves our Corp ID valid here. This is unexpected.
                             // Leave the Corp ID in Graph; ReconcileSyncState/the next ConfirmSync run will reconcile.
                             _logger.DSLogWarning(
-                                $"Device {device.Id} in unexpected state '{freshDevice.Status}' after PreconditionFailed. " +
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} in unexpected state '{freshDevice.Status}' after PreconditionFailed. " +
                                 $"Leaving Corp ID {device.CorporateIdentityID} in Graph for downstream reconciliation.",
                                 fullMethodName);
                         }
@@ -350,7 +350,7 @@ namespace CorporateIdentifierSync
                         // Leave countCorpIDsReAdded as-is: the orphan still consumes a slot in Graph,
                         // and ReconcileSyncState / the next ConfirmSync run will reconcile.
                         _logger.DSLogWarning(
-                            $"Device {device.Id} re-added Corp ID {device.CorporateIdentityID} but DB update failed. " +
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} re-added Corp ID {device.CorporateIdentityID} but DB update failed. " +
                             $"Corp ID left in Graph for downstream reconciliation.",
                             fullMethodName);
                     }

@@ -308,7 +308,7 @@ namespace CorporateIdentifierSync
                 }
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    _logger.DSLogWarning($"Device {device.Id} was deleted during processing. Cleaning up Corp ID from Graph.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was deleted during processing. Cleaning up Corp ID from Graph.", fullMethodName);
 
                     // Roll back the Graph side-effect
                     if (!string.IsNullOrEmpty(device.CorporateIdentityID))
@@ -330,7 +330,7 @@ namespace CorporateIdentifierSync
                     // Singleton lock guarantees no other AddNewDevices instance ran concurrently.
                     // The only realistic concurrent modifier is a user marking the device for deletion
                     // via the UI between our read and our write.
-                    _logger.DSLogWarning($"Device {device.Id} was modified concurrently. Checking current state.", fullMethodName);
+                    _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently. Checking current state.", fullMethodName);
 
                     Device? currentDevice = null;
                     try
@@ -340,7 +340,7 @@ namespace CorporateIdentifierSync
                     catch (Exception fetchEx)
                     {
                         _logger.DSLogException(
-                            $"Unable to fetch current state of device {device.Id} after PreconditionFailed. " +
+                            $"Unable to fetch current state of device {device.Make} {device.Model} {device.SerialNumber} after PreconditionFailed. " +
                             $"Corp ID {device.CorporateIdentityID} left in Graph; will reconcile on next run.",
                             fetchEx, fullMethodName);
                         // Don't decrement devicesSynced — Corp ID is still in Graph and counted.
@@ -351,7 +351,7 @@ namespace CorporateIdentifierSync
                     {
                         // User marked the device for deletion mid-run. Roll back the Corp ID we just added.
                         _logger.DSLogWarning(
-                            $"Device {device.Id} is gone or marked for deletion. Rolling back Corp ID {device.CorporateIdentityID}.",
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} is gone or marked for deletion. Rolling back Corp ID {device.CorporateIdentityID}.",
                             fullMethodName);
 
                         if (!string.IsNullOrEmpty(device.CorporateIdentityID))
@@ -376,7 +376,7 @@ namespace CorporateIdentifierSync
                         // If we hit this, something unexpected happened — log and leave Corp ID in Graph;
                         // ConfirmSync/ReconcileSyncState will reconcile on the next pass.
                         _logger.DSLogWarning(
-                            $"Device {device.Id} unexpectedly in state '{currentDevice.Status}' after PreconditionFailed. " +
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} unexpectedly in state '{currentDevice.Status}' after PreconditionFailed. " +
                             $"Leaving Corp ID {device.CorporateIdentityID} in Graph for downstream reconciliation.",
                             fullMethodName);
                     }
