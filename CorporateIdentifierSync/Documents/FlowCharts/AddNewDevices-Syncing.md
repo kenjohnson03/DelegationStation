@@ -3,7 +3,7 @@
 flowchart TD
 	START([Start]) --> CAPG[Obtained Reservations for CorpIDs]
 	CAPG --> INIT["devicesSynced=0<br/>totalDevices=devicesToMigrate.Count"]
-	INIT --> LOOP
+	INIT --> ACI
 
 	subgraph LOOP ["For Each Device"]
         direction TB
@@ -13,7 +13,7 @@ flowchart TD
 	    ACI -->|Success| ACIS["devicesSynced++<br/>deviceCount++<br/><br/>Set CorpID fields<br/>Status = Synced<br/>LastCorpIdentitySync = Now<br/>CorpIDFailureCount = 0"]
 	    ACI -->|Exception| MRC{"Did we reach max retries?"}
 	    MRC -->|Yes| SFA["Status = Failed (No more retries)"]
-	    MRC -->|No| LRY["Status remains as Added.<br/>Will retry on next run."]
+	    MRC -->|No| LRY["Status remains as Added.<br/>CorpIDFailureCount++<br/>Will retry on next run."]
 	    ACIS --> UD
 	    SFA --> UD
 	    LRY --> UD
@@ -23,44 +23,32 @@ flowchart TD
 	    UDEX --> Z
 	    
 	    UD -->|NotFound| UDNFC{"Has<br/>CorporateIdentityID?"}
-	    UDNFC -->|No| UDNFC2["No CorpID in DB to rollback.<br/>devicesSynced--"]
+	    UDNFC -->|No| UDNFC2["No CorpID to rollback.<br/>Log warning."]
 		UDNFC2 --> Z
 	    UDNFC -->|Yes| UDNFD[DeleteCorporateIdentifier]
 	    UDNFD -->|Success| UDNFS["devicesSynced--"]
 		UDNFS --> Z
-	    UDNFD -->|Exception| UDNFEX["Could not rollback CorpID.<br/>Leave count as is."]
+	    UDNFD -->|Error| UDNFEX["Could not rollback CorpID.<br/>Manual cleanup may be required."]
 	    UDNFEX --> Z
 	    
-	    UD -->|PreconditionFailed| PFF["Get updated device object"]
-	    PFF -->|Exception| PFEX["Error getting updated device<br/>May require cleanup if device was deleted."]
+	    UD -->|PreconditionFailed| PFF["Get current device state"]
+	    PFF -->|Exception| PFEX["Leave Corp ID in Graph.<br/>Will reconcile on next run."]
 	    PFEX --> Z
 	    PFF --> PFS
 	    
-	    PFS{currentDevice<br/>Status?}
+	    PFS{"currentDevice<br/>null or Deleting?"}
 	    
-	    PFS -->|Synced| PFSY["Device already Synced.<br/>Roll back count.</br>devicesSynced--"]
-	    PFSY --> Z
-
-	    PFS -->|Other State???| PFUNK["Device is in another state, no rollback action taken."]
-	    PFUNK --> Z[End of Loop]
-
-	    PFS -->|"Deleted or Deleting"| PFDC{"Has<br/>CorporateIdentityID?"}
+	    PFS -->|Yes| PFDC{"Has<br/>CorporateIdentityID?"}
 	    PFDC -->|Yes| PFDCR[DeleteCorporateIdentifier]
-	    PFDCR -->|Success| PFDCS["Rollback count<br/>devicesSynced--"]
+	    PFDCR -->|Success| PFDCS["devicesSynced--"]
 	    PFDCS --> Z
-	    PFDCR -->|Exception| PFDCE["Unable to rollback CorpID.<br/>Leave count."]
+	    PFDCR -->|Error| PFDCE["Could not rollback CorpID.<br/>Manual cleanup may be required."]
 	    PFDCE --> Z
-	    PFDC -->|No| PFDCN["No CorpID in DB to rollback."]
+	    PFDC -->|No| PFDCN["No CorpID to rollback."]
 		PFDCN --> Z
-	
-	    
-	    PFS -->|"Failed or Added"| PFFU{"Attempt update to newer device object."}
-	    PFFU -->|Success| Z
-	    PFFU -->|Exception| PFFUDR[DeleteCorporateIdentifier]
-	    PFFUDR -->|"Success"| PFFUDS2["Rollback count:<br/>devicesSynced--"]
-	    PFFUDS2 --> Z
-	    PFFUDR -->|Exception| PFFUDRE["Device update will get retried on next run."]
-	    PFFUDRE --> Z
+
+	    PFS -->|No| PFUNK["Unexpected state.<br/>Leave Corp ID in Graph<br/>for downstream reconciliation."]
+	    PFUNK --> Z[End of Loop]
 	
 
 	end

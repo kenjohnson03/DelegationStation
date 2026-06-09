@@ -19,29 +19,28 @@ subgraph LOOP["For each Synced device in disabled tags"]
     E -- No --> K["Set device:<br/>Status = NotSyncing<br/>CorporateIdentityID = ''<br/>CorporateIdentity = ''<br/>LastCorpIdentitySync = UtcNow"]
     K --> M["Update device in DB"]
     M --> N{"Successful?"}
-    N -- Yes --> AA["corpIDsRemoved++"]
+    N -- Yes --> AA["If deletedCorpID:<br/>corpIDsRemoved++"]
     AA --> END["End Loop"]
-    N -- "404 Not Found" --> O["Device already deleted, no additional actions needed."]
-    O --> END
-    N -- "412 Precondition Failed" --> P["Get refreshed device details."]
-    N -- "Unknown Exception" --> X["Leave CorpID removed,<br/>don't release capacity."]
+    N -- "NotFound" --> NF["Device already gone.<br/>If deletedCorpID:<br/>corpIDsRemoved++"]
+    NF --> END
+    N -- "PreconditionFailed" --> P["Get fresh device state"]
+    N -- "Other Exception" --> X["Don't release capacity.<br/>Will retry next run."]
     X --> END
-    P --> R{"Successful?"}
-    R -- Yes --> RR{"Fresh device status?"}
-    RR -- "Deleted, Deleting<br/>or Not Synced" --> RD["Device in non-syncing state,<br/>no action needed"]
+    P -- Exception --> PFAIL["Defer to next run.<br/>ConfirmSync will reconcile."]
+    PFAIL --> END
+    P --> RR{"Fresh device status?"}
+    RR -- "null, Deleting,<br/>or NotSyncing" --> RD["Already in target state.<br/>If deletedCorpID:<br/>corpIDsRemoved++"]
     RD --> END
-    RR -- Synced, Added<br/>or Failed --> RRR{"Is CorpID present?"}
-    RRR -- Yes --> RDR{"Delete CorpID"}
-    RDR -- Failed --> YYY["Failed to delete, leave as-is.  Will get retried next run."]
-    YYY --> END
-    RRR -- No --> T["Update fresh device:<br/>Status = NotSyncing<br/>CorporateIdentityID = ''"]
-    RDR -- Success --> T
-    S --> END
-    R -- No --> S["Device already deleted, no additional actions needed."]
-    T -- "Success" --> V["corpIDsRemoved++"]
-    T -- "Exception" --> W["Update failed.  No action taken, will get retried next run."]
-    V --> END
-    W --> END
+    RR -- "Synced, Added,<br/>or Failed" --> TAG["Re-check if tag<br/>still disabled"]
+    TAG -- "Tag check failed" --> TAGFAIL["Defer to next run."]
+    TAGFAIL --> END
+    TAG -- "Tag re-enabled" --> TAGRE["Abort unsync.<br/>ConfirmSync will<br/>re-add Corp ID."]
+    TAGRE --> END
+    TAG -- "Tag still disabled" --> TAGUPD["Update fresh device:<br/>Status = NotSyncing<br/>Clear CorpID fields"]
+    TAGUPD -- Success --> TAGOK["If deletedCorpID:<br/>corpIDsRemoved++"]
+    TAGOK --> END
+    TAGUPD -- Exception --> TAGERR["Update failed.<br/>ConfirmSync will reconcile."]
+    TAGERR --> END
 end
 
 END --> ZA{"corpIDsRemoved<br/>> 0?"}

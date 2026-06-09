@@ -19,27 +19,37 @@ flowchart TD
         S --> X[UpdateDevice]
         V --> X
         W --> X
-        X -- Success --> Y[Done processing<br/>this device.]
+        X -- Success --> END[Done processing<br/>this device.]
 
-        X -- CosmosException<br/>NotFound --> NF1{Did we need to<br/>re-add CorpID and<br/>did it succeed?}
-        NF1 -- corpIDFound --> NF2[No rollback needed.<br/>Device will get<br/>retried next run.]
-        NF1 -- corpIDReAddFailed --> NF3[Rollback count<br/>to prevent over-releasing.<br/>countCorpIDsReAddFailed--]
-        NF1 -- corpIDReAdded --> NF4[Rollback CorpID entry.]
-        NF4 -- Success --> NF5[<br/>countCorpIDsReAdded--]
-        NF4 -- Exception --> NF6[DRIFT:  Manual cleanup required<br/>countCorpIDsReAdded--]
+        X -- NotFound --> NF1{What action<br/>was taken?}
+        NF1 -- corpIDFound --> NF2[Only timestamp lost.<br/>countCorpIDsFound--]
+        NF1 -- corpIDReAddFailed --> NF3[Counter adjustment only.<br/>countCorpIDsReAddFailed--]
+        NF1 -- corpIDReAdded --> NF4[Rollback re-added Corp ID.<br/>countCorpIDsReAdded--]
+        NF2 --> END
+        NF3 --> END
+        NF4 --> END
 
-        X -- CosmosException<br/>PreconditionFailed --> PF1{Did we need to<br/>re-add CorpID and<br/>did it succeed?}
-        PF1 -- corpIDFound --> PF2[Since no changes required<br/>No rollback needed]
-        PF1 -- corpIDReAddFailed --> PF3[Rollback count<br/>to prevent over-releasing.--countCorpIDsReAddFailedRollback ]
+        X -- PreconditionFailed --> PF1{What action<br/>was taken?}
+        PF1 -- corpIDFound --> PF2[Only timestamp lost.<br/>countCorpIDsFound--]
+        PF1 -- corpIDReAddFailed --> PF3[Counter adjustment only.<br/>countCorpIDsReAddFailed--]
         PF1 -- corpIDReAdded --> PF4[Read fresh device state]
-        PF4 -- freshDevice == null OR<br/> Status == Deleting OR<br/>NotSyncing --> PF6[Delete Corp ID from Graph<br/>countCorpIDsReAdded--]
-        PF4 -- Other status --> PF7[Corp ID valid<br/>No rollback required.<br/>countCorpIDsReAdded--]
-        PF4 -- Exception --> PF8[Couldn't read fresh device info.<br/>Manual cleanup may be required.]
+        PF4 -- "null, Deleting,<br/>or NotSyncing" --> PF6[Rollback re-added Corp ID.<br/>countCorpIDsReAdded--]
+        PF4 -- Other status --> PF7[Unexpected state.<br/>Leave Corp ID in Graph<br/>for downstream reconciliation.]
+        PF4 -- Exception --> PF8[Leave Corp ID in Graph.<br/>ReconcileSyncState will reconcile.]
+        PF6 --> END
+        PF7 --> END
+        PF8 --> END
 
-        X -- Other Exception --> OE[Device details out of sync.<br/>Doesn't impact count.<br/>Will get retried on next run.]
+        X -- Other Exception --> OE1{What action<br/>was taken?}
+        OE1 -- corpIDReAddFailed --> OE2[Counter adjustment only.<br/>countCorpIDsReAddFailed--]
+        OE1 -- corpIDFound --> OE3[Only timestamp lost.<br/>countCorpIDsFound--]
+        OE1 -- corpIDReAdded --> OE4[Leave Corp ID in Graph<br/>for downstream reconciliation.]
+        OE2 --> END
+        OE3 --> END
+        OE4 --> END
     end
 
-    LOOP --> AA{countCorpIDsReAddFailed > 0?}
+    END --> AA{countCorpIDsReAddFailed > 0?}
     AA -- No --> AB([End])
     AA -- Yes --> AC["ReleaseCorpIDs(countCorpIDsReAddFailed)"]
     AC -- Success --> AB

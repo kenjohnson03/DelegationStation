@@ -15,35 +15,27 @@ flowchart TD
         SetAdded --> Update
         Update --> UpdResult{Result}
         UpdResult -- Success --> END
-        UpdResult -- 404 NotFound --> Rollback{CorpID added?}
+        UpdResult -- NotFound --> Rollback{CorpID added?}
         Rollback -- Yes --> DoRollback["Rollback CorpID from Graph; addedCount--"]
         Rollback -- No --> END
         DoRollback --> END
 
-        UpdResult -- 412 PreconditionFailed --> PF_GraphAdded{CorpID added?}
-        PF_GraphAdded -- No --> PF_NoOp["No rollback needed"]
+        UpdResult -- PreconditionFailed --> PF_GraphAdded{CorpID added?}
+        PF_GraphAdded -- No --> PF_NoOp["Nothing to reconcile."]
         PF_NoOp --> END
-        PF_GraphAdded -- Yes --> PF_Read[Get updated device from DB]
-        PF_Read --> PF_ReadResult{Updated Device State?}
-        PF_ReadResult -- Deleted or Deleting --> PF_RollbackDel["Rollback CorpID<br/>addedCount--)"]
-        PF_RollbackDel --> END
-        PF_ReadResult -- Synced --> PF_Synced["Another writer won;<br/>addedCount--"]
-        PF_Synced --> END
-        PF_ReadResult -- NotSyncing --> PF_RollbackNS["Rollback CorpID from Graph<br/>addedCount--"]
-        PF_RollbackNS --> END
-        PF_ReadResult -- Added or Failed --> PF_Exists{CorpID still in Graph?}
-        PF_Exists -- No --> PF_Gone["addedCount--<br/>leave fresh device untouched"]
-        PF_ReadResult -- Exception --> PF_ReadFail["Log; no rollback"]
+        PF_GraphAdded -- Yes --> PF_Read[Get current device from DB]
+        PF_Read -- Exception --> PF_ReadFail["Rollback CorpID from Graph.<br/>addedCount--"]
         PF_ReadFail --> END
-        PF_Gone --> END
-        PF_Exists -- Yes --> PF_Apply["Apply CorpID fields to fresh device<br/>Status = Synced<br/>Update DB"]
-        PF_Apply --> PF_ApplyResult{Update result}
-        PF_ApplyResult -- Success --> END
-        PF_ApplyResult -- Exception --> PF_ApplyFail["Log; no rollbacks"]
-        PF_ApplyFail --> END
+        PF_Read --> PF_ReadResult{"Device state?"}
+        PF_ReadResult -- "null or Deleting" --> PF_RollbackDel["Rollback CorpID from Graph.<br/>addedCount--"]
+        PF_RollbackDel --> END
+        PF_ReadResult -- Other --> PF_RollbackOther["Unexpected state.<br/>Rollback CorpID as precaution.<br/>addedCount--"]
+        PF_RollbackOther --> END
 
-        UpdResult -- Other Exception --> X["Don't rollback CorpID or count.</br>Update will get retried next run."]
-        X --> END
+        UpdResult -- Other Exception --> X_Check{CorpID added?}
+        X_Check -- Yes --> X_Rollback["Rollback CorpID from Graph.<br/>addedCount--"]
+        X_Rollback --> END
+        X_Check -- No --> END
     end
 
     END --> Commit["Commit addedCount CorpIDs<br/>to Capacity Manager"]
