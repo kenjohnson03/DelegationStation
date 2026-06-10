@@ -2,10 +2,11 @@ using CorporateIdentifierSync;
 using CorporateIdentifierSync.Interfaces;
 using CorporateIdentifierSync.Models;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
 
-namespace DelegationStationTests.CorporateIdentifierSync
+namespace CorporateIdentifierSync.Tests
 {
     /// <summary>
     /// Fake ICosmosDbService that stores a single CorpIDCounter in memory.
@@ -17,7 +18,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
         public Task<CorpIDCounter> GetCorpIDCounter() => Task.FromResult(Counter);
 
-        public Task<bool> TrySetCorpIDCounter(CorpIDCounter counter,string ETag)
+        public Task<bool> TrySetCorpIDCounter(CorpIDCounter counter, string ETag)
         {
             Counter = counter;
             return Task.FromResult(true);
@@ -25,7 +26,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
         public Task<List<Device>> GetAddedDevices(int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
-        public Task<List<Device>> GetAddedDevicesToSync(List<string> tagIDs, int batchsize) =>  throw new NotImplementedException();
+        public Task<List<Device>> GetAddedDevicesToSync(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
         public Task<List<Device>> GetDevicesMarkedForDeletion() => throw new NotImplementedException();
         public Task UpdateDevice(Device device) => throw new NotImplementedException();
         public Task DeleteDevice(Device device) => throw new NotImplementedException();
@@ -33,17 +34,14 @@ namespace DelegationStationTests.CorporateIdentifierSync
         public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagIDs, int batchsize) => throw new NotImplementedException();
-
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
         public Task<List<string>> GetSyncingDeviceTags() => throw new NotImplementedException();
         public Task<List<string>> GetNonSyncingDeviceTags() => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevices(int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevices(int batchSize) => throw new NotImplementedException();
-
         public Task<Device?> GetDevice(Guid id, string partitionKey) => throw new NotImplementedException();
     }
 
-    [TestClass]
     public class CorpIdCapacityManagerTests
     {
         private const int TotalCap = 1000;
@@ -55,7 +53,7 @@ namespace DelegationStationTests.CorporateIdentifierSync
         // GetAvailableCorpIDCount
         // -------------------------------------------------------------------------
 
-        [TestMethod]
+        [Fact]
         public async Task GetAvailableCorpIDCount_WhenCounterIsEmpty_ReturnsTotalCap()
         {
             var db = new FakeCosmosDbService();
@@ -63,10 +61,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
 
-            Assert.AreEqual(TotalCap, available);
+            Assert.Equal(TotalCap, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetAvailableCorpIDCount_DeductsCorpIDCountAndReserve()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 300, CorpIDReserve = 100 } };
@@ -74,10 +72,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
 
-            Assert.AreEqual(600, available);
+            Assert.Equal(600, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetAvailableCorpIDCount_WhenAtCap_ReturnsZero()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
@@ -85,14 +83,14 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
 
-            Assert.AreEqual(0, available);
+            Assert.Equal(0, available);
         }
 
         // -------------------------------------------------------------------------
         // ReserveCorpIDs
         // -------------------------------------------------------------------------
 
-        [TestMethod]
+        [Fact]
         public async Task ReserveCorpIDs_WhenSufficientCapacity_ReservesRequestedCount()
         {
             var db = new FakeCosmosDbService();
@@ -100,11 +98,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int reserved = await manager.ReserveCorpIDs(50, CancellationToken.None);
 
-            Assert.AreEqual(50, reserved);
-            Assert.AreEqual(50, db.Counter.CorpIDReserve);
+            Assert.Equal(50, reserved);
+            Assert.Equal(50, db.Counter.CorpIDReserve);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReserveCorpIDs_WhenAtCap_ReturnsZeroAndDoesNotModifyCounter()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
@@ -112,11 +110,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int reserved = await manager.ReserveCorpIDs(10, CancellationToken.None);
 
-            Assert.AreEqual(0, reserved);
-            Assert.AreEqual(0, db.Counter.CorpIDReserve);
+            Assert.Equal(0, reserved);
+            Assert.Equal(0, db.Counter.CorpIDReserve);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReserveCorpIDs_WhenPartialCapacity_ReservesOnlyAvailableSlots()
         {
             // 20 slots available
@@ -125,11 +123,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int reserved = await manager.ReserveCorpIDs(50, CancellationToken.None);
 
-            Assert.AreEqual(20, reserved);
-            Assert.AreEqual(20, db.Counter.CorpIDReserve);
+            Assert.Equal(20, reserved);
+            Assert.Equal(20, db.Counter.CorpIDReserve);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReserveCorpIDs_PersistsReserveToDatabase()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 500 } };
@@ -137,14 +135,14 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             await manager.ReserveCorpIDs(25, CancellationToken.None);
 
-            Assert.AreEqual(525, db.Counter.CorpIDReserve);
+            Assert.Equal(525, db.Counter.CorpIDReserve);
         }
 
         // -------------------------------------------------------------------------
         // CommitCorpIDCount
         // -------------------------------------------------------------------------
 
-        [TestMethod]
+        [Fact]
         public async Task CommitCorpIDCount_DecrementsReserveAndIncrementsCount()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 50 } };
@@ -152,11 +150,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             await manager.CommitCorpIDCount(50, 40, CancellationToken.None);
 
-            Assert.AreEqual(0, db.Counter.CorpIDReserve);
-            Assert.AreEqual(40, db.Counter.CorpIDCount);
+            Assert.Equal(0, db.Counter.CorpIDReserve);
+            Assert.Equal(40, db.Counter.CorpIDCount);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task CommitCorpIDCount_ReturnsRemainingAvailable()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 100 } };
@@ -164,10 +162,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.CommitCorpIDCount(100, 80, CancellationToken.None);
 
-            Assert.AreEqual(TotalCap - 80, available);
+            Assert.Equal(TotalCap - 80, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task CommitCorpIDCount_ReserveDoesNotGoBelowZero_OnDrift()
         {
             // reserved > counter.CorpIDReserve (drift scenario)
@@ -176,10 +174,10 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             await manager.CommitCorpIDCount(50, 10, CancellationToken.None);
 
-            Assert.AreEqual(0, db.Counter.CorpIDReserve);
+            Assert.Equal(0, db.Counter.CorpIDReserve);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task CommitCorpIDCount_UnusedReservedSlotsAreReleased()
         {
             // 100 reserved, only 60 successfully added — 40 failures released
@@ -188,15 +186,15 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             await manager.CommitCorpIDCount(100, 60, CancellationToken.None);
 
-            Assert.AreEqual(0, db.Counter.CorpIDReserve);
-            Assert.AreEqual(60, db.Counter.CorpIDCount);
+            Assert.Equal(0, db.Counter.CorpIDReserve);
+            Assert.Equal(60, db.Counter.CorpIDCount);
         }
 
         // -------------------------------------------------------------------------
         // ReleaseCorpIDs
         // -------------------------------------------------------------------------
 
-        [TestMethod]
+        [Fact]
         public async Task ReleaseCorpIDs_DecrementsCorpIDCountByReleaseAmount()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100 } };
@@ -204,11 +202,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.ReleaseCorpIDs(30, CancellationToken.None);
 
-            Assert.AreEqual(70, db.Counter.CorpIDCount);
-            Assert.AreEqual(TotalCap - 70, available);
+            Assert.Equal(70, db.Counter.CorpIDCount);
+            Assert.Equal(TotalCap - 70, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReleaseCorpIDs_DoesNotGoBelowZero_OnDrift()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 10 } };
@@ -216,11 +214,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
 
-            Assert.AreEqual(0, db.Counter.CorpIDCount);
-            Assert.AreEqual(1000, available);
+            Assert.Equal(0, db.Counter.CorpIDCount);
+            Assert.Equal(1000, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReleaseCorpIDs_ReturnsUpdatedAvailable()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 200 } };
@@ -228,11 +226,11 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
 
-            Assert.AreEqual(150, db.Counter.CorpIDCount);
-            Assert.AreEqual(TotalCap - 150, available);
+            Assert.Equal(150, db.Counter.CorpIDCount);
+            Assert.Equal(TotalCap - 150, available);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task ReleaseCorpIDs_DoesNotAffectCorpIDReserve()
         {
             var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100, CorpIDReserve = 25 } };
@@ -240,8 +238,8 @@ namespace DelegationStationTests.CorporateIdentifierSync
 
             int available = await manager.ReleaseCorpIDs(40, CancellationToken.None);
 
-            Assert.AreEqual(25, db.Counter.CorpIDReserve);
-            Assert.AreEqual(TotalCap - 60 - 25, available);
+            Assert.Equal(25, db.Counter.CorpIDReserve);
+            Assert.Equal(TotalCap - 60 - 25, available);
         }
     }
 }
