@@ -36,4 +36,7 @@
   <ItemGroup>
     <Using Include="System.Threading.ExecutionContext" Alias="ExecutionContext" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CorporateIdentifierSync.Tests" />
+  </ItemGroup>
 </Project>
