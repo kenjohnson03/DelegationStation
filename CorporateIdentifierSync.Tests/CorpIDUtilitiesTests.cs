@@ -2,7 +2,7 @@
 using DelegationStationShared.Enums;
 using Microsoft.Graph.Beta.Models;
 
-namespace CorporateIdentifierSync.Tests;
+namespace CorporateIdentifierSync.Tests.CorpIDUtilitiesTests;
 
 public class CorpIDUtilitiesTests
 {

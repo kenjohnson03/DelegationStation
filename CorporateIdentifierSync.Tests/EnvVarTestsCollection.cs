@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace CorporateIdentifierSync.Tests
+namespace CorporateIdentifierSync.Tests.TestCollections
 {
     /// <summary>
     /// Serializes all test classes that read or write process-level environment

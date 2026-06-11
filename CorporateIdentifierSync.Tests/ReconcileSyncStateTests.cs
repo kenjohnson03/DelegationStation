@@ -8,7 +8,7 @@ using Xunit;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
 
-namespace CorporateIdentifierSync.Tests
+namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
 {
     [Collection("EnvVarTests")]
     public class ReconcileSyncStateTests

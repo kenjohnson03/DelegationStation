@@ -2,7 +2,7 @@ using CorporateIdentifierSync.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace CorporateIdentifierSync.Tests
+namespace CorporateIdentifierSync.Tests.BlobLeaseSingletonLockTests
 {
     [Collection("EnvVarTests")]
     public class BlobLeaseSingletonLockTests

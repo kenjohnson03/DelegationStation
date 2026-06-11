@@ -6,7 +6,7 @@ using Xunit;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
 
-namespace CorporateIdentifierSync.Tests
+namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
 {
     /// <summary>
     /// Fake ICosmosDbService that stores a single CorpIDCounter in memory.

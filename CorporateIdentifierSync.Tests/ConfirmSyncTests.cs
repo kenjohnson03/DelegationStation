@@ -12,7 +12,7 @@ using Microsoft.Graph.Beta.Models;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
 
-namespace CorporateIdentifierSync.Tests;
+namespace CorporateIdentifierSync.Tests.ConfirmSyncTests;
 
 [Collection("EnvVarTests")]
 public class ConfirmSyncTests
