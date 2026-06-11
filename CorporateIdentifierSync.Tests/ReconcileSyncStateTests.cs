@@ -196,6 +196,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // Constructor tests
         // -----------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that the constructor creates a valid ReconcileSyncState instance when all dependencies are provided.
+        /// </summary>
         [Fact]
         public void Constructor_WithValidDependencies_CreatesInstance()
         {
@@ -209,6 +212,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
             Assert.NotNull(sut);
         }
 
+        /// <summary>
+        /// Verifies that the constructor calls CreateLogger on the provided logger factory.
+        /// </summary>
         [Fact]
         public void Constructor_CallsCreateLoggerOnLoggerFactory()
         {
@@ -223,6 +229,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // GetEnvironmentVariables – EnableCorpIDSync
         // -----------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when the EnableCorpIDSync environment variable is not set.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_EnableCorpIDSyncNotSet_LogsError()
         {
@@ -241,6 +250,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when EnableCorpIDSync is set to an invalid boolean string.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_EnableCorpIDSyncInvalid_LogsError()
         {
@@ -259,6 +271,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables does not log a sync-flag error when EnableCorpIDSync is set to true.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_EnableCorpIDSyncTrue_NoSyncFlagError()
         {
@@ -277,6 +292,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables does not log a sync-flag error when EnableCorpIDSync is set to false.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_EnableCorpIDSyncFalse_NoSyncFlagError()
         {
@@ -299,6 +317,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // GetEnvironmentVariables – ReconcileSyncBatchSize
         // -----------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is not set.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_BatchSizeNotSet_LogsWarning()
         {
@@ -317,6 +338,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to a non-numeric string.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_BatchSizeInvalidString_LogsWarning()
         {
@@ -335,6 +359,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to zero.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_BatchSizeZero_LogsWarning()
         {
@@ -353,6 +380,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to a negative value.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_BatchSizeNegative_LogsWarning()
         {
@@ -371,6 +401,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs the batch size at information level when ReconcileSyncBatchSize is valid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_BatchSizeValid_LogsInformation()
         {
@@ -393,6 +426,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // GetEnvironmentVariables – MAX_CORPIDS_ALLOWED
         // -----------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is not set.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_MaxCorpIDsNotSet_LogsError()
         {
@@ -411,6 +447,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to an invalid string.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_MaxCorpIDsInvalidString_LogsError()
         {
@@ -429,6 +468,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to zero.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_MaxCorpIDsZero_LogsError()
         {
@@ -447,6 +489,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to a negative value.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_MaxCorpIDsNegative_LogsError()
         {
@@ -465,6 +510,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs the max corp IDs at information level when MAX_CORPIDS_ALLOWED is valid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_MaxCorpIDsValid_LogsInformation()
         {
@@ -487,6 +535,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // Run tests
         // -----------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that Run logs a warning and does not proceed when the singleton lock cannot be acquired.
+        /// </summary>
         [Fact]
         public async Task Run_WhenLockNotAcquired_LogsWarningAndDoesNotProceed()
         {
@@ -511,6 +562,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Message.Contains("C# Timer trigger function executed at"));
         }
 
+        /// <summary>
+        /// Verifies that Run does not log the next schedule when the timer has no schedule status.
+        /// </summary>
         [Fact]
         public async Task Run_WhenScheduleStatusIsNull_DoesNotLogNextSchedule()
         {
@@ -530,6 +584,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Message.Contains("Next timer schedule at"));
         }
 
+        /// <summary>
+        /// Verifies that Run logs the next scheduled time when the timer has a schedule status.
+        /// </summary>
         [Fact]
         public async Task Run_WhenScheduleStatusIsNotNull_LogsNextSchedule()
         {
@@ -549,6 +606,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Information && l.Message.Contains("Next timer schedule at"));
         }
 
+        /// <summary>
+        /// Verifies that Run logs an informational message and does not call the database when sync is not enabled.
+        /// </summary>
         [Fact]
         public async Task Run_WhenSyncNotEnabled_LogsInfoAndDoesNotCallDb()
         {
@@ -574,6 +634,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Message.Contains("ReconcileSyncState completed"));
         }
 
+        /// <summary>
+        /// Verifies that Run completes a full execution including both the non-syncing and syncing device sections when sync is enabled.
+        /// </summary>
         [Fact]
         public async Task Run_WhenSyncEnabled_CompletesFullRunWithBothSections()
         {
@@ -608,6 +671,9 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Information && l.Message.Contains("ReconcileSyncState completed"));
         }
 
+        /// <summary>
+        /// Verifies that Run logs the execution start message when sync is enabled.
+        /// </summary>
         [Fact]
         public async Task Run_WhenSyncEnabled_LogsExecutionStart()
         {

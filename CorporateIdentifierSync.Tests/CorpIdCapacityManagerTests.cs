@@ -53,6 +53,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // GetAvailableCorpIDCount
         // -------------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that GetAvailableCorpIDCount returns the total configured cap when the counter is empty.
+        /// </summary>
         [Fact]
         public async Task GetAvailableCorpIDCount_WhenCounterIsEmpty_ReturnsTotalCap()
         {
@@ -64,6 +67,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(TotalCap, available);
         }
 
+        /// <summary>
+        /// Verifies that GetAvailableCorpIDCount correctly deducts both the CorpID count and the reserve from the total cap.
+        /// </summary>
         [Fact]
         public async Task GetAvailableCorpIDCount_DeductsCorpIDCountAndReserve()
         {
@@ -75,6 +81,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(600, available);
         }
 
+        /// <summary>
+        /// Verifies that GetAvailableCorpIDCount returns zero when the CorpID count equals the total cap.
+        /// </summary>
         [Fact]
         public async Task GetAvailableCorpIDCount_WhenAtCap_ReturnsZero()
         {
@@ -90,6 +99,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // ReserveCorpIDs
         // -------------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that ReserveCorpIDs reserves the full requested count when sufficient capacity is available.
+        /// </summary>
         [Fact]
         public async Task ReserveCorpIDs_WhenSufficientCapacity_ReservesRequestedCount()
         {
@@ -102,6 +114,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(50, db.Counter.CorpIDReserve);
         }
 
+        /// <summary>
+        /// Verifies that ReserveCorpIDs returns zero and leaves the counter unchanged when at full capacity.
+        /// </summary>
         [Fact]
         public async Task ReserveCorpIDs_WhenAtCap_ReturnsZeroAndDoesNotModifyCounter()
         {
@@ -114,6 +129,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(0, db.Counter.CorpIDReserve);
         }
 
+        /// <summary>
+        /// Verifies that ReserveCorpIDs reserves only the remaining available slots when partial capacity remains.
+        /// </summary>
         [Fact]
         public async Task ReserveCorpIDs_WhenPartialCapacity_ReservesOnlyAvailableSlots()
         {
@@ -127,6 +145,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(20, db.Counter.CorpIDReserve);
         }
 
+        /// <summary>
+        /// Verifies that ReserveCorpIDs persists the updated reserve value to the database.
+        /// </summary>
         [Fact]
         public async Task ReserveCorpIDs_PersistsReserveToDatabase()
         {
@@ -142,6 +163,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // CommitCorpIDCount
         // -------------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that CommitCorpIDCount decrements the reserve and increments the CorpID count by the committed amount.
+        /// </summary>
         [Fact]
         public async Task CommitCorpIDCount_DecrementsReserveAndIncrementsCount()
         {
@@ -154,6 +178,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(40, db.Counter.CorpIDCount);
         }
 
+        /// <summary>
+        /// Verifies that CommitCorpIDCount returns the correct remaining available slot count.
+        /// </summary>
         [Fact]
         public async Task CommitCorpIDCount_ReturnsRemainingAvailable()
         {
@@ -165,6 +192,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(TotalCap - 80, available);
         }
 
+        /// <summary>
+        /// Verifies that CommitCorpIDCount prevents the reserve from going below zero in a drift scenario.
+        /// </summary>
         [Fact]
         public async Task CommitCorpIDCount_ReserveDoesNotGoBelowZero_OnDrift()
         {
@@ -177,6 +207,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(0, db.Counter.CorpIDReserve);
         }
 
+        /// <summary>
+        /// Verifies that CommitCorpIDCount releases unused reserved slots when fewer devices were synced than reserved.
+        /// </summary>
         [Fact]
         public async Task CommitCorpIDCount_UnusedReservedSlotsAreReleased()
         {
@@ -194,6 +227,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // ReleaseCorpIDs
         // -------------------------------------------------------------------------
 
+        /// <summary>
+        /// Verifies that ReleaseCorpIDs decrements the CorpID count by the specified release amount.
+        /// </summary>
         [Fact]
         public async Task ReleaseCorpIDs_DecrementsCorpIDCountByReleaseAmount()
         {
@@ -206,6 +242,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(TotalCap - 70, available);
         }
 
+        /// <summary>
+        /// Verifies that ReleaseCorpIDs prevents the CorpID count from going below zero in a drift scenario.
+        /// </summary>
         [Fact]
         public async Task ReleaseCorpIDs_DoesNotGoBelowZero_OnDrift()
         {
@@ -218,6 +257,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(1000, available);
         }
 
+        /// <summary>
+        /// Verifies that ReleaseCorpIDs returns the updated available count after decrementing the CorpID count.
+        /// </summary>
         [Fact]
         public async Task ReleaseCorpIDs_ReturnsUpdatedAvailable()
         {
@@ -230,6 +272,9 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
             Assert.Equal(TotalCap - 150, available);
         }
 
+        /// <summary>
+        /// Verifies that ReleaseCorpIDs does not modify the CorpID reserve.
+        /// </summary>
         [Fact]
         public async Task ReleaseCorpIDs_DoesNotAffectCorpIDReserve()
         {

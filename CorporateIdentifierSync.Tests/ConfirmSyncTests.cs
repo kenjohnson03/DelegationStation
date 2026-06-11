@@ -233,6 +233,10 @@ public class ConfirmSyncTests
     // Constructor
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that the <see cref="ConfirmSync"/> constructor does not throw
+    /// when all dependencies are provided as valid stubs.
+    /// </summary>
     [Fact]
     public void Constructor_WithValidDependencies_DoesNotThrow()
     {
@@ -240,6 +244,10 @@ public class ConfirmSyncTests
         _ = CreateSut();
     }
 
+    /// <summary>
+    /// Verifies that when the singleton lock cannot be acquired (returns <see langword="null"/>),
+    /// <see cref="ConfirmSync.Run"/> exits early without making any database calls.
+    /// </summary>
     [Fact]
     public async Task Constructor_StoresSingletonLock_WhenLockReturnsNull_ExitsEarlyWithoutDbCalls()
     {
@@ -263,6 +271,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that the injected <see cref="ICosmosDbService"/> is stored and used during
+    /// <see cref="ConfirmSync.Run"/> by confirming that <c>GetSyncingDeviceTags</c> is called
+    /// on the injected instance.
+    /// </summary>
     [Fact]
     public async Task Constructor_StoresDbService_UsedDuringRun()
     {
@@ -289,6 +302,10 @@ public class ConfirmSyncTests
     // GetEnvironmentVariables
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
+    /// the <c>EnableCorpIDSync</c> environment variable is not set.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnableCorpIDSyncNotSet_LogsError()
     {
@@ -309,6 +326,10 @@ public class ConfirmSyncTests
         Assert.Contains(errors, m => m.Contains("EnableCorpIDSync not set or not a valid boolean"));
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
+    /// the <c>EnableCorpIDSync</c> environment variable is set to a non-boolean string.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnableCorpIDSyncInvalidString_LogsError()
     {
@@ -336,6 +357,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> does not log an error
+    /// for <c>EnableCorpIDSync</c> when the variable is set to <c>true</c>.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnableCorpIDSyncIsTrue_NoSyncFlagError()
     {
@@ -363,6 +388,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
+    /// the <c>SyncIntervalHours</c> environment variable is not set.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenSyncIntervalHoursNotSet_LogsError()
     {
@@ -383,6 +412,10 @@ public class ConfirmSyncTests
         Assert.Contains(errors, m => m.Contains("SyncIntervalHours is not set or not a valid integer"));
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
+    /// the <c>SyncIntervalHours</c> environment variable is set to a non-integer string.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenSyncIntervalHoursInvalid_LogsError()
     {
@@ -410,6 +443,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an informational
+    /// message containing the configured value when <c>SyncIntervalHours</c> is a valid integer.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenSyncIntervalHoursValid_LogsInfo()
     {
@@ -437,6 +474,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> falls back to the default
+    /// of 10,000 and logs an error when <c>MAX_CORPIDS_ALLOWED</c> is not set.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenMaxCorpIDsNotSet_UsesDefaultAndLogsError()
     {
@@ -457,6 +498,10 @@ public class ConfirmSyncTests
         Assert.Contains(errors, m => m.Contains("MAX_CORPIDS_ALLOWED is not set or invalid") && m.Contains("10000"));
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> falls back to the default
+    /// of 10,000 and logs an error when <c>MAX_CORPIDS_ALLOWED</c> is set to an invalid string.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenMaxCorpIDsInvalid_UsesDefaultAndLogsError()
     {
@@ -484,6 +529,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> falls back to the default
+    /// of 10,000 and logs an error when <c>MAX_CORPIDS_ALLOWED</c> is set to zero.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenMaxCorpIDsIsZero_UsesDefaultAndLogsError()
     {
@@ -511,6 +560,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an informational
+    /// message containing the configured value when <c>MAX_CORPIDS_ALLOWED</c> is set to a
+    /// valid positive integer.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenMaxCorpIDsValid_LogsInfo()
     {
@@ -542,6 +596,10 @@ public class ConfirmSyncTests
     // Run – singleton lock
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> exits immediately without making any database
+    /// calls when the singleton lock cannot be acquired.
+    /// </summary>
     [Fact]
     public async Task Run_WhenLockNotAcquired_ReturnsEarlyWithoutDbCalls()
     {
@@ -562,6 +620,10 @@ public class ConfirmSyncTests
     // Run – timer schedule status
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> logs the next scheduled run time when
+    /// <see cref="TimerInfo.ScheduleStatus"/> is populated.
+    /// </summary>
     [Fact]
     public async Task Run_WithScheduleStatus_LogsNextSchedule()
     {
@@ -598,6 +660,10 @@ public class ConfirmSyncTests
     // Run – sync disabled
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> exits early without querying the database
+    /// when <c>EnableCorpIDSync</c> is set to <c>false</c>.
+    /// </summary>
     [Fact]
     public async Task Run_WhenSyncDisabled_ReturnsEarlyWithoutDbCalls()
     {
@@ -624,6 +690,10 @@ public class ConfirmSyncTests
     // Run – sync interval validation
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> logs an error and exits early without querying
+    /// the database when <c>SyncIntervalHours</c> is configured with a negative value.
+    /// </summary>
     [Fact]
     public async Task Run_WhenSyncIntervalHoursNegative_LogsErrorAndReturnsEarly()
     {
@@ -653,6 +723,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> treats a <c>SyncIntervalHours</c> value of zero
+    /// as valid and continues processing by querying sync-enabled device tags.
+    /// </summary>
     [Fact]
     public async Task Run_WhenSyncIntervalHoursIsZero_ContinuesProcessing()
     {
@@ -679,6 +753,10 @@ public class ConfirmSyncTests
     // Run – no sync-enabled tags
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that <see cref="ConfirmSync.Run"/> exits early without querying any devices
+    /// when no device tags with sync enabled are found.
+    /// </summary>
     [Fact]
     public async Task Run_WhenNoTagsWithSyncEnabled_ReturnsEarlyWithoutQueryingDevices()
     {
@@ -712,6 +790,10 @@ public class ConfirmSyncTests
     // Run – device filtering
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that devices whose tags do not appear in the sync-enabled tag list are filtered
+    /// out and do not trigger a call to <see cref="ICosmosDbService.UpdateDevice"/>.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeviceNotInSyncEnabledTag_IsFiltered()
     {
@@ -737,6 +819,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that devices with no associated tags are filtered out and do not trigger a call
+    /// to <see cref="ICosmosDbService.UpdateDevice"/>.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeviceHasNoTags_IsFiltered()
     {
@@ -771,6 +857,11 @@ public class ConfirmSyncTests
     // Run – corpIDFound path
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when a device's corporate identifier is confirmed to exist in Microsoft Graph,
+    /// <c>LastCorpIdentitySync</c> is updated to the current time and
+    /// <see cref="ICosmosDbService.UpdateDevice"/> is called.
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDExists_UpdatesLastSyncTimeAndCallsUpdateDevice()
     {
@@ -797,6 +888,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="IGraphBetaService.CorporateIdentifierExists"/> throws an
+    /// exception, the affected device is skipped and
+    /// <see cref="ICosmosDbService.UpdateDevice"/> is not called.
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDExistsCheckThrows_SkipsDeviceAndDoesNotCallUpdateDevice()
     {
@@ -828,6 +924,10 @@ public class ConfirmSyncTests
     // Run – device with no CorporateIdentityID
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when a device has an empty <c>CorporateIdentityID</c>, a warning is logged
+    /// and <see cref="IGraphBetaService.AddCorporateIdentifier"/> is called to re-add the identifier.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeviceHasEmptyCorporateIdentityID_LogsWarningAndAttemptsReAdd()
     {
@@ -863,6 +963,11 @@ public class ConfirmSyncTests
     // Run – corpID re-add identifier format
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that a Windows device whose corporate identifier is not found in Graph is
+    /// re-added using <see cref="ImportedDeviceIdentityType.ManufacturerModelSerial"/> format
+    /// (<c>"Make","Model",Serial</c>).
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDNotFound_WindowsDevice_UsesManufacturerModelSerialFormat()
     {
@@ -891,6 +996,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that a device with an unknown OS whose corporate identifier is not found in Graph
+    /// is re-added using <see cref="ImportedDeviceIdentityType.ManufacturerModelSerial"/> format.
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDNotFound_UnknownOsDevice_UsesManufacturerModelSerialFormat()
     {
@@ -916,6 +1025,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that a macOS device whose corporate identifier is not found in Graph is re-added
+    /// using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDNotFound_MacOsDevice_UsesSerialNumberOnlyFormat()
     {
@@ -941,6 +1054,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that an iOS device whose corporate identifier is not found in Graph is re-added
+    /// using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDNotFound_iOsDevice_UsesSerialNumberOnlyFormat()
     {
@@ -966,6 +1083,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that an Android device whose corporate identifier is not found in Graph is
+    /// re-added using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDNotFound_AndroidDevice_UsesSerialNumberOnlyFormat()
     {
@@ -995,6 +1116,11 @@ public class ConfirmSyncTests
     // Run – re-add success/failure
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when a corporate identifier re-add succeeds, the device's
+    /// <c>CorporateIdentityID</c>, <c>CorporateIdentity</c>, <c>Status</c>, and
+    /// <c>CorpIDFailureCount</c> are all updated to reflect the successful sync.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReAddSucceeds_UpdatesDeviceFieldsCorrectly()
     {
@@ -1029,6 +1155,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when a corporate identifier re-add fails, the device status is reset to
+    /// <see cref="DeviceStatus.Added"/> and <c>CorpIDFailureCount</c> is incremented.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReAddFails_ResetsDeviceStatusToAdded()
     {
@@ -1063,6 +1193,11 @@ public class ConfirmSyncTests
     // Run – UpdateDevice NotFound exception
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws a
+    /// <see cref="CosmosException"/> with <see cref="HttpStatusCode.NotFound"/> in the
+    /// corp-ID-found path, no Graph rollback is performed.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsNotFound_CorpIDFound_NoRollback()
     {
@@ -1088,6 +1223,12 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws a
+    /// <see cref="CosmosException"/> with <see cref="HttpStatusCode.NotFound"/> after a successful
+    /// corp ID re-add, the newly created corp ID is rolled back via
+    /// <see cref="IGraphBetaService.DeleteCorporateIdentifier"/>.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsNotFound_CorpIDReAdded_TriggersRollback()
     {
@@ -1116,6 +1257,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when both the corp ID re-add and the subsequent
+    /// <see cref="ICosmosDbService.UpdateDevice"/> fail (NotFound), no Graph rollback is attempted
+    /// because there is no newly created corp ID to roll back.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsNotFound_CorpIDReAddFailed_NoRollback()
     {
@@ -1148,6 +1294,11 @@ public class ConfirmSyncTests
     // Run – UpdateDevice PreconditionFailed exception
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws a
+    /// <see cref="CosmosException"/> with <see cref="HttpStatusCode.PreconditionFailed"/> in the
+    /// corp-ID-found path, a warning indicating concurrent modification is logged.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDFound_LogsWarning()
     {
@@ -1179,6 +1330,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
+    /// is <see langword="null"/> (deleted concurrently), the newly created corp ID is rolled back.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_FreshDeviceNull_RollsBack()
     {
@@ -1208,6 +1364,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
+    /// has <see cref="DeviceStatus.Deleting"/> status, the newly created corp ID is rolled back.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_FreshDeviceDeleting_RollsBack()
     {
@@ -1237,6 +1398,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
+    /// has <see cref="DeviceStatus.NotSyncing"/> status, the newly created corp ID is rolled back.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_FreshDeviceNotSyncing_RollsBack()
     {
@@ -1266,6 +1432,12 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
+    /// is in an unexpected state (<see cref="DeviceStatus.Synced"/>), no rollback is performed
+    /// and a warning is logged.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_UnexpectedState_NoRollback()
     {
@@ -1302,6 +1474,12 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and a subsequent
+    /// <see cref="ICosmosDbService.GetDevice"/> call also throws, the exception is swallowed
+    /// and processing continues to the next device.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_GetDeviceThrows_ContinuesToNextDevice()
     {
@@ -1351,6 +1529,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
+    /// <see cref="HttpStatusCode.PreconditionFailed"/> and the prior corp ID re-add had also
+    /// failed, no Graph rollback is attempted.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAddFailed_NoRollback()
     {
@@ -1383,6 +1566,10 @@ public class ConfirmSyncTests
     // Run – UpdateDevice generic exception
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws a non-Cosmos
+    /// exception in the corp-ID-found path, the failure is logged as an error.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsGenericException_CorpIDFound_LogsException()
     {
@@ -1414,6 +1601,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws a non-Cosmos
+    /// exception after a successful re-add, a warning is logged indicating the re-added corp ID
+    /// is now an orphan in Graph.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsGenericException_CorpIDReAdded_LogsWarning()
     {
@@ -1448,6 +1640,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when both the corp ID re-add and the subsequent
+    /// <see cref="ICosmosDbService.UpdateDevice"/> throw non-Cosmos exceptions, the DB update
+    /// failure is logged as an error.
+    /// </summary>
     [Fact]
     public async Task Run_UpdateDevice_ThrowsGenericException_CorpIDReAddFailed_LogsException()
     {
@@ -1486,6 +1683,10 @@ public class ConfirmSyncTests
     // Run – capacity release for failed re-adds
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>
+    /// Verifies that when one or more corp ID re-adds fail during a run, the capacity manager
+    /// releases the corresponding number of Corp ID slots by decrementing the Cosmos DB counter.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReAddFailedCountPositive_ReleasesCorpIDsViaCapacityManager()
     {
@@ -1515,6 +1716,10 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when no corp ID re-adds failed during a run, the Corp ID counter is not
+    /// decremented and the capacity release path is not triggered.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReAddFailedCountZero_DoesNotCallReleaseCorpIDs()
     {
@@ -1548,6 +1753,11 @@ public class ConfirmSyncTests
         }
     }
 
+    /// <summary>
+    /// Verifies that when the capacity manager's release operation throws an exception, the error
+    /// is logged and the exception is not rethrown — <see cref="ConfirmSync.Run"/> completes
+    /// without propagating the failure.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReleaseCorpIDsThrows_LogsExceptionAndDoesNotRethrow()
     {

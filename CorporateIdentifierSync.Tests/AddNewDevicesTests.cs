@@ -254,6 +254,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Constructor
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that the constructor creates a valid AddNewDevices instance when all dependencies are provided.
+        /// </summary>
         [Fact]
         public void Constructor_WithValidDependencies_DoesNotThrow()
         {
@@ -261,6 +264,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             _ = CreateSut();
         }
 
+        /// <summary>
+        /// Verifies that the constructor stores its dependencies and uses them during a Run invocation.
+        /// </summary>
         [Fact]
         public async Task Constructor_StoresDependencies_UsedInRun()
         {
@@ -288,6 +294,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // GetEnvironmentVariables
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error for each missing environment variable when none are set.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenNoneSet_LogsErrorForEachVar()
         {
@@ -311,6 +320,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             Assert.Contains(errors, m => m.Contains("MAX_CORPID_RETRIES is not set or invalid"));
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an informational message for each variable when all are set to valid values.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenAllValid_LogsInfoForEachVar()
         {
@@ -346,6 +358,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default batch size and logs an error when AddDeviceBatchSize is invalid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenBatchSizeInvalid_UsesDefaultAndLogsError()
         {
@@ -373,6 +388,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default batch size and logs an error when AddDeviceBatchSize is zero.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenBatchSizeIsZero_UsesDefaultAndLogsError()
         {
@@ -400,6 +418,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default batch size and logs an error when AddDeviceBatchSize is negative.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenBatchSizeIsNegative_UsesDefaultAndLogsError()
         {
@@ -427,6 +448,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default max and logs an error when MAX_CORPIDS_ALLOWED is invalid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenMaxCorpIdsInvalid_UsesDefaultAndLogsError()
         {
@@ -454,6 +478,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default max and logs an error when MAX_CORPIDS_ALLOWED is zero.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenMaxCorpIdsIsZero_UsesDefaultAndLogsError()
         {
@@ -481,6 +508,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default retry count and logs an error when MAX_CORPID_RETRIES is invalid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenMaxRetriesInvalid_UsesDefaultAndLogsError()
         {
@@ -508,6 +538,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables uses the default retry count and logs an error when MAX_CORPID_RETRIES is zero.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenMaxRetriesIsZero_UsesDefaultAndLogsError()
         {
@@ -535,6 +568,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an error when EnableCorpIDSync is set to an invalid boolean string.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenEnableCorpIDSyncInvalid_LogsError()
         {
@@ -562,6 +598,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an informational message containing the batch size when AddDeviceBatchSize is valid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenValidBatchSize_LogsInfoMessage()
         {
@@ -589,6 +628,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an informational message containing the max corp ID count when MAX_CORPIDS_ALLOWED is valid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenValidMaxCorpIds_LogsInfoMessage()
         {
@@ -616,6 +658,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that GetEnvironmentVariables logs an informational message containing the retry count when MAX_CORPID_RETRIES is valid.
+        /// </summary>
         [Fact]
         public void GetEnvironmentVariables_WhenValidMaxRetries_LogsInfoMessage()
         {
@@ -647,6 +692,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – singleton lock
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run exits early without making any database calls when the singleton lock cannot be acquired.
+        /// </summary>
         [Fact]
         public async Task Run_WhenLockNotAcquired_ReturnsEarlyWithoutDbCalls()
         {
@@ -668,6 +716,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – sync disabled
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run exits early without making any database calls when sync is disabled.
+        /// </summary>
         [Fact]
         public async Task Run_WhenSyncDisabled_ReturnsEarlyWithoutDbCalls()
         {
@@ -695,6 +746,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – capacity manager failures / early exits
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run exits early without processing devices when GetAvailableCorpIDCount throws an exception.
+        /// </summary>
         [Fact]
         public async Task Run_WhenGetAvailableCorpIDCountThrows_ReturnsEarly()
         {
@@ -719,6 +773,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run exits early without processing any devices when no CorpID slots are available.
+        /// </summary>
         [Fact]
         public async Task Run_WhenNoCorpIDsAvailable_ReturnsEarlyWithoutProcessingDevices()
         {
@@ -742,6 +799,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run exits early without processing devices when ReserveCorpIDs throws an exception.
+        /// </summary>
         [Fact]
         public async Task Run_WhenReserveCorpIDsThrows_ReturnsEarly()
         {
@@ -765,6 +825,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run exits early without processing devices when the reservation returns zero available slots.
+        /// </summary>
         [Fact]
         public async Task Run_WhenReservationReturnsZero_ReturnsEarlyWithoutProcessingDevices()
         {
@@ -801,6 +864,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – GetAddedDevicesToSync failure
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run commits the capacity manager and returns when GetAddedDevicesToSync throws an exception.
+        /// </summary>
         [Fact]
         public async Task Run_WhenGetDevicesToSyncThrows_CommitsAndReturns()
         {
@@ -825,6 +891,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run does not propagate an exception when both GetAddedDevicesToSync and the commit both throw.
+        /// </summary>
         [Fact]
         public async Task Run_WhenGetDevicesToSyncThrowsAndCommitThrows_DoesNotPropagateException()
         {
@@ -861,6 +930,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – device OS / identifier format
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run uses the ManufacturerModelSerial identifier format for Windows devices.
+        /// </summary>
         [Fact]
         public async Task Run_WindowsDevice_UsesManufacturerModelSerialIdentifierFormat()
         {
@@ -886,6 +958,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run uses the ManufacturerModelSerial identifier format for devices with an unknown OS.
+        /// </summary>
         [Fact]
         public async Task Run_UnknownOsDevice_UsesManufacturerModelSerialIdentifierFormat()
         {
@@ -911,6 +986,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run treats a null OS as unknown and uses the ManufacturerModelSerial identifier format.
+        /// </summary>
         [Fact]
         public async Task Run_NullOsDevice_TreatedAsUnknownAndUsesManufacturerModelSerialFormat()
         {
@@ -937,6 +1015,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run uses the SerialNumber-only identifier format for macOS devices.
+        /// </summary>
         [Fact]
         public async Task Run_MacOsDevice_UsesSerialNumberOnlyFormat()
         {
@@ -962,6 +1043,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run uses the SerialNumber-only identifier format for iOS devices.
+        /// </summary>
         [Fact]
         public async Task Run_IosDevice_UsesSerialNumberOnlyFormat()
         {
@@ -987,6 +1071,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run uses the SerialNumber-only identifier format for Android devices.
+        /// </summary>
         [Fact]
         public async Task Run_AndroidDevice_UsesSerialNumberOnlyFormat()
         {
@@ -1016,6 +1103,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – successful device sync
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run sets the device status to Synced and stores the corporate identity information after a successful sync.
+        /// </summary>
         [Fact]
         public async Task Run_DeviceAddedSuccessfully_SetsStatusToSyncedAndStoresCorporateIdInfo()
         {
@@ -1052,6 +1142,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – Corp ID add failure / retry logic
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run does not mark a device as Failed when the Graph add fails but the failure count is still below the max retry threshold.
+        /// </summary>
         [Fact]
         public async Task Run_GraphAddFails_BelowMaxRetries_DoesNotMarkDeviceAsFailed()
         {
@@ -1078,6 +1171,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run marks a device as Failed when the Graph add fails and the failure count exceeds the max retry threshold.
+        /// </summary>
         [Fact]
         public async Task Run_GraphAddFails_AboveMaxRetries_MarksDeviceAsFailed()
         {
@@ -1108,6 +1204,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – UpdateDevice exceptions (syncing loop)
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run rolls back the corp ID from Graph when UpdateDevice throws a Cosmos NotFound exception.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsNotFound_RollsBackCorpId()
         {
@@ -1139,6 +1238,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an error when the corp ID rollback deletion fails after a Cosmos NotFound exception on UpdateDevice.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsNotFound_RollbackDeleteFails_LogsError()
         {
@@ -1177,6 +1279,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run skips the corp ID rollback when the device has no CorporateIdentityID stored after a Cosmos NotFound exception.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsNotFound_NoCorporateIdentityId_SkipsRollback()
         {
@@ -1204,6 +1309,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run rolls back the corp ID when UpdateDevice throws a Cosmos PreconditionFailed exception and the refreshed device is null.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsPreconditionFailed_CurrentDeviceNull_RollsBackCorpId()
         {
@@ -1236,6 +1344,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run rolls back the corp ID when UpdateDevice throws a Cosmos PreconditionFailed exception and the refreshed device is in a Deleting state.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsPreconditionFailed_CurrentDeviceDeleting_RollsBackCorpId()
         {
@@ -1268,6 +1379,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs a warning and does not roll back when UpdateDevice throws a Cosmos PreconditionFailed exception and the refreshed device is in an unexpected state.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsPreconditionFailed_UnexpectedState_LogsWarning()
         {
@@ -1309,6 +1423,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run continues to the next device when UpdateDevice throws PreconditionFailed and the subsequent GetDevice call also throws.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsPreconditionFailed_FetchThrows_ContinuesToNextDevice()
         {
@@ -1354,6 +1471,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an exception and continues processing when UpdateDevice throws a generic exception.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsGenericException_LogsExceptionAndContinues()
         {
@@ -1389,6 +1509,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – non-syncing devices loop
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run sets the device status to NotSyncing for non-syncing devices.
+        /// </summary>
         [Fact]
         public async Task Run_NonSyncingDevice_SetsStatusToNotSyncing()
         {
@@ -1412,6 +1535,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an error when UpdateDevice throws a Cosmos NotFound exception for a non-syncing device.
+        /// </summary>
         [Fact]
         public async Task Run_NonSyncingDevice_UpdateThrowsNotFound_LogsException()
         {
@@ -1453,6 +1579,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs a warning when UpdateDevice throws a Cosmos PreconditionFailed exception for a non-syncing device.
+        /// </summary>
         [Fact]
         public async Task Run_NonSyncingDevice_UpdateThrowsPreconditionFailed_LogsWarning()
         {
@@ -1494,6 +1623,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an error when UpdateDevice throws a generic exception for a non-syncing device.
+        /// </summary>
         [Fact]
         public async Task Run_NonSyncingDevice_UpdateThrowsGenericException_LogsException()
         {
@@ -1538,6 +1670,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – CommitCorpIDCount at end
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run commits the CorpID count after a successful device sync.
+        /// </summary>
         [Fact]
         public async Task Run_AfterSuccessfulSync_CommitsCorpIDCount()
         {
@@ -1561,6 +1696,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an exception and does not rethrow when CommitCorpIDCount fails.
+        /// </summary>
         [Fact]
         public async Task Run_CommitCorpIDCountThrows_LogsExceptionAndDoesNotRethrow()
         {
@@ -1604,6 +1742,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs an informational message about available slots when slots remain after a sync.
+        /// </summary>
         [Fact]
         public async Task Run_WhenNowAvailablePositive_LogsInfoAboutAvailableSlots()
         {
@@ -1633,6 +1774,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run logs a warning about available slots when no slots remain after a sync.
+        /// </summary>
         [Fact]
         public async Task Run_WhenNowAvailableZero_LogsWarningAboutAvailableSlots()
         {
@@ -1667,6 +1811,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         // Run – UpdateDevice rollback with PreconditionFailed (corp-id rollback success)
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Verifies that Run decrements the sync count after a successful corp ID rollback when UpdateDevice throws PreconditionFailed for a Deleting device.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsPreconditionFailed_DeletingDevice_RollbackSucceeds_DecrementsSyncCount()
         {
@@ -1699,6 +1846,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run decrements the sync count after a successful corp ID rollback when UpdateDevice throws a Cosmos NotFound exception.
+        /// </summary>
         [Fact]
         public async Task Run_UpdateDeviceThrowsNotFound_RollbackSucceeds_DecrementsSyncCount()
         {
@@ -1730,6 +1880,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Verifies that Run passes the configured batch size through to the GetAddedDevicesNotSyncing database call.
+        /// </summary>
         [Fact]
         public async Task Run_GetEnvironmentVariables_ValidBatchSize_IsPassedToGetAddedDevicesNotSyncing()
         {

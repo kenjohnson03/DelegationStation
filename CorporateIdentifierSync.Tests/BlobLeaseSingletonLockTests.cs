@@ -14,6 +14,9 @@ namespace CorporateIdentifierSync.Tests.BlobLeaseSingletonLockTests
             Environment.SetEnvironmentVariable("AzureWebJobsStorage__accountName", null);
         }
 
+        /// <summary>
+        /// Verifies that the constructor throws an InvalidOperationException when no Azure storage environment variables are configured.
+        /// </summary>
         [Fact]
         public void Constructor_WhenNoStorageConfigured_ThrowsInvalidOperationException()
         {
@@ -32,6 +35,9 @@ namespace CorporateIdentifierSync.Tests.BlobLeaseSingletonLockTests
             }
         }
 
+        /// <summary>
+        /// Verifies that the constructor does not throw when a connection string is provided via the AzureWebJobsStorage environment variable.
+        /// </summary>
         [Fact]
         public void Constructor_WhenConnectionStringConfigured_DoesNotThrow()
         {
@@ -50,6 +56,9 @@ namespace CorporateIdentifierSync.Tests.BlobLeaseSingletonLockTests
             }
         }
 
+        /// <summary>
+        /// Verifies that the constructor does not throw when a blob service URI is provided via AzureWebJobsStorage__blobServiceUri.
+        /// </summary>
         [Fact]
         public void Constructor_WhenBlobServiceUriConfigured_DoesNotThrow()
         {
@@ -67,6 +76,9 @@ namespace CorporateIdentifierSync.Tests.BlobLeaseSingletonLockTests
             }
         }
 
+        /// <summary>
+        /// Verifies that the constructor does not throw when a storage account name is provided via AzureWebJobsStorage__accountName.
+        /// </summary>
         [Fact]
         public void Constructor_WhenAccountNameConfigured_DoesNotThrow()
         {

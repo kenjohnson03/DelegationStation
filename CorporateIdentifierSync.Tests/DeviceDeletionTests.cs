@@ -49,6 +49,9 @@ public class DeviceDeletionTests
     // Constructor tests
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that the constructor creates a valid DeviceDeletion instance when all dependencies are provided.
+    /// </summary>
     [Fact]
     public void Constructor_WithValidDependencies_CreatesInstance()
     {
@@ -67,6 +70,9 @@ public class DeviceDeletionTests
     // GetEnvironmentVariables tests
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is not set.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnvVarNotSet_DoesNotThrow()
     {
@@ -78,6 +84,9 @@ public class DeviceDeletionTests
         sut.GetEnvironmentVariables();
     }
 
+    /// <summary>
+    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a non-numeric string.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnvVarIsInvalidString_DoesNotThrow()
     {
@@ -96,6 +105,9 @@ public class DeviceDeletionTests
         }
     }
 
+    /// <summary>
+    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to zero.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnvVarIsZero_DoesNotThrow()
     {
@@ -114,6 +126,9 @@ public class DeviceDeletionTests
         }
     }
 
+    /// <summary>
+    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a negative value.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnvVarIsNegative_DoesNotThrow()
     {
@@ -132,6 +147,9 @@ public class DeviceDeletionTests
         }
     }
 
+    /// <summary>
+    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a valid positive number.
+    /// </summary>
     [Fact]
     public void GetEnvironmentVariables_WhenEnvVarIsValidPositiveNumber_DoesNotThrow()
     {
@@ -154,6 +172,9 @@ public class DeviceDeletionTests
     // Run – singleton lock tests
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run exits early without querying the database when the singleton lock cannot be acquired.
+    /// </summary>
     [Fact]
     public async Task Run_WhenSingletonLockNotAcquired_ExitsWithoutQueryingDatabase()
     {
@@ -173,6 +194,9 @@ public class DeviceDeletionTests
     // Run – ScheduleStatus branch
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run completes successfully when the timer has no schedule status.
+    /// </summary>
     [Fact]
     public async Task Run_WhenScheduleStatusIsNull_CompletesSuccessfully()
     {
@@ -188,6 +212,9 @@ public class DeviceDeletionTests
         Assert.Equal(1, dbService.GetDevicesCallCount);
     }
 
+    /// <summary>
+    /// Verifies that Run completes successfully when the timer has a schedule status.
+    /// </summary>
     [Fact]
     public async Task Run_WhenScheduleStatusIsNotNull_CompletesSuccessfully()
     {
@@ -207,6 +234,9 @@ public class DeviceDeletionTests
     // Run – database retrieval failure
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run exits without deleting any devices when GetDevicesMarkedForDeletion throws an exception.
+    /// </summary>
     [Fact]
     public async Task Run_WhenGetDevicesMarkedForDeletionThrows_ExitsWithoutDeletingDevices()
     {
@@ -227,6 +257,9 @@ public class DeviceDeletionTests
     // Run – empty device list
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run exits without performing any deletions when no devices are marked for deletion.
+    /// </summary>
     [Fact]
     public async Task Run_WhenNoDevicesMarkedForDeletion_ExitsWithoutDeletingAnything()
     {
@@ -246,6 +279,9 @@ public class DeviceDeletionTests
     // Run – Corporate Identity branching
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run deletes the device from the database when it has no CorporateIdentityID.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeviceHasNoCorporateIdentityID_DeletesDeviceFromDatabase()
     {
@@ -262,6 +298,9 @@ public class DeviceDeletionTests
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
     }
 
+    /// <summary>
+    /// Verifies that Run deletes the device from the database when the corporate identifier deletion succeeds.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeleteCorporateIdentifierReturnsSuccess_DeletesDeviceFromDatabase()
     {
@@ -279,6 +318,9 @@ public class DeviceDeletionTests
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
     }
 
+    /// <summary>
+    /// Verifies that Run still deletes the device from the database even when the Graph API returns NotFound for the corporate identifier.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeleteCorporateIdentifierReturnsNotFound_StillDeletesDeviceFromDatabase()
     {
@@ -296,6 +338,9 @@ public class DeviceDeletionTests
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
     }
 
+    /// <summary>
+    /// Verifies that Run does not delete the device from the database when the corporate identifier deletion returns an error.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeleteCorporateIdentifierReturnsError_DoesNotDeleteDeviceFromDatabase()
     {
@@ -317,6 +362,9 @@ public class DeviceDeletionTests
     // Run – Cosmos deletion exception handling
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run treats a Cosmos NotFound exception during device deletion as a success and continues processing.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeleteDeviceThrowsCosmosNotFound_TreatsAsSuccessAndContinues()
     {
@@ -337,6 +385,9 @@ public class DeviceDeletionTests
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
     }
 
+    /// <summary>
+    /// Verifies that Run logs a generic exception thrown during device deletion and continues processing subsequent devices.
+    /// </summary>
     [Fact]
     public async Task Run_WhenDeleteDeviceThrowsGenericException_LogsAndContinues()
     {
@@ -361,6 +412,9 @@ public class DeviceDeletionTests
     // Run – multiple devices
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run processes all devices when multiple devices are marked for deletion.
+    /// </summary>
     [Fact]
     public async Task Run_WithMultipleDevices_ProcessesAllDevices()
     {
@@ -386,6 +440,9 @@ public class DeviceDeletionTests
     // Run – CorpID capacity release
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run releases capacity in the CorpID counter after successfully deleting corporate identifiers.
+    /// </summary>
     [Fact]
     public async Task Run_WhenCorpIDsAreDeleted_ReleasesCapacityInCounter()
     {
@@ -412,6 +469,9 @@ public class DeviceDeletionTests
         Assert.Equal(4, dbService.Counter.CorpIDCount);
     }
 
+    /// <summary>
+    /// Verifies that Run does not propagate an exception when releasing CorpID capacity fails.
+    /// </summary>
     [Fact]
     public async Task Run_WhenReleaseCorpIDsThrows_DoesNotPropagateException()
     {
@@ -434,6 +494,9 @@ public class DeviceDeletionTests
         await sut.Run(timer);
     }
 
+    /// <summary>
+    /// Verifies that Run does not attempt to release capacity when no corporate identifiers were successfully deleted.
+    /// </summary>
     [Fact]
     public async Task Run_WhenNoCorpIDsWereDeleted_DoesNotAttemptCapacityRelease()
     {
@@ -459,6 +522,9 @@ public class DeviceDeletionTests
     // Run – env var integration through Run
     // ====================================================================
 
+    /// <summary>
+    /// Verifies that Run uses a custom capacity cap from the MAX_CORPIDS_ALLOWED environment variable during capacity release.
+    /// </summary>
     [Fact]
     public async Task Run_WhenMaxCorpIDsAllowedEnvVarIsSet_UsesCustomCapInCapacityRelease()
     {
