@@ -44,55 +44,36 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
 
     public class CorpIdCapacityManagerTests
     {
-        private const int TotalCap = 1000;
+        private const int MaxCorpIDs = 1000;
 
         private static CorpIdCapacityManager CreateManager(FakeCosmosDbService db)
-            => new CorpIdCapacityManager(db, NullLogger.Instance, TotalCap);
+            => new CorpIdCapacityManager(db, NullLogger.Instance, MaxCorpIDs);
 
         // -------------------------------------------------------------------------
         // GetAvailableCorpIDCount
         // -------------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that GetAvailableCorpIDCount returns the total configured cap when the counter is empty.
+        /// Verifies that GetAvailableCorpIDCount returns the correct available count
+        /// based on the current CorpIDCount and CorpIDReserve values.
         /// </summary>
-        [Fact]
-        public async Task GetAvailableCorpIDCount_WhenCounterIsEmpty_ReturnsTotalCap()
+        [Theory]
+        //          CorpIDCount, CorpIDReserve, ExpectedAvailable
+        [InlineData(0,          0,   MaxCorpIDs)] // empty counter — full cap available
+        [InlineData(300,      100,          600)] // deducts both count and reserve
+        [InlineData(MaxCorpIDs, 0,            0)] // at cap — nothing available
+        public async Task GetAvailableCorpIDCount_ReturnsExpectedAvailable(
+            int corpIDCount, int corpIDReserve, int expected)
         {
-            var db = new FakeCosmosDbService();
+            var db = new FakeCosmosDbService
+            {
+                Counter = new CorpIDCounter(0) { CorpIDCount = corpIDCount, CorpIDReserve = corpIDReserve }
+            };
             var manager = CreateManager(db);
 
             int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
 
-            Assert.Equal(TotalCap, available);
-        }
-
-        /// <summary>
-        /// Verifies that GetAvailableCorpIDCount correctly deducts both the CorpID count and the reserve from the total cap.
-        /// </summary>
-        [Fact]
-        public async Task GetAvailableCorpIDCount_DeductsCorpIDCountAndReserve()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 300, CorpIDReserve = 100 } };
-            var manager = CreateManager(db);
-
-            int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
-
-            Assert.Equal(600, available);
-        }
-
-        /// <summary>
-        /// Verifies that GetAvailableCorpIDCount returns zero when the CorpID count equals the total cap.
-        /// </summary>
-        [Fact]
-        public async Task GetAvailableCorpIDCount_WhenAtCap_ReturnsZero()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
-            var manager = CreateManager(db);
-
-            int available = await manager.GetAvailableCorpIDCount(CancellationToken.None);
-
-            Assert.Equal(0, available);
+            Assert.Equal(expected, available);
         }
 
         // -------------------------------------------------------------------------
@@ -100,63 +81,30 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // -------------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that ReserveCorpIDs reserves the full requested count when sufficient capacity is available.
+        /// Verifies that ReserveCorpIDs reserves the correct number of slots and persists
+        /// the updated reserve — handling full capacity, partial capacity, no capacity,
+        /// and additive accumulation to an existing reserve.
         /// </summary>
-        [Fact]
-        public async Task ReserveCorpIDs_WhenSufficientCapacity_ReservesRequestedCount()
+        [Theory]
+        //                startCount  startReserve  requested  expectedReserved  expectedFinalReserve
+        [InlineData(           0,         0,           50,            50,               50)] // sufficient capacity
+        [InlineData(MaxCorpIDs,           0,           10,             0,                0)] // at cap — nothing reserved
+        [InlineData(         980,         0,           50,            20,               20)] // partial capacity — clamped to available
+        [InlineData(           0,       500,           25,            25,              525)] // additive: persists to existing reserve
+        public async Task ReserveCorpIDs_ReservesExpectedCount(
+            int startingCount, int startingReserve, int requested,
+            int expectedReserved, int expectedFinalReserve)
         {
-            var db = new FakeCosmosDbService();
+            var db = new FakeCosmosDbService
+            {
+                Counter = new CorpIDCounter(0) { CorpIDCount = startingCount, CorpIDReserve = startingReserve }
+            };
             var manager = CreateManager(db);
 
-            int reserved = await manager.ReserveCorpIDs(50, CancellationToken.None);
+            int reserved = await manager.ReserveCorpIDs(requested, CancellationToken.None);
 
-            Assert.Equal(50, reserved);
-            Assert.Equal(50, db.Counter.CorpIDReserve);
-        }
-
-        /// <summary>
-        /// Verifies that ReserveCorpIDs returns zero and leaves the counter unchanged when at full capacity.
-        /// </summary>
-        [Fact]
-        public async Task ReserveCorpIDs_WhenAtCap_ReturnsZeroAndDoesNotModifyCounter()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = TotalCap } };
-            var manager = CreateManager(db);
-
-            int reserved = await manager.ReserveCorpIDs(10, CancellationToken.None);
-
-            Assert.Equal(0, reserved);
-            Assert.Equal(0, db.Counter.CorpIDReserve);
-        }
-
-        /// <summary>
-        /// Verifies that ReserveCorpIDs reserves only the remaining available slots when partial capacity remains.
-        /// </summary>
-        [Fact]
-        public async Task ReserveCorpIDs_WhenPartialCapacity_ReservesOnlyAvailableSlots()
-        {
-            // 20 slots available
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 980 } };
-            var manager = CreateManager(db);
-
-            int reserved = await manager.ReserveCorpIDs(50, CancellationToken.None);
-
-            Assert.Equal(20, reserved);
-            Assert.Equal(20, db.Counter.CorpIDReserve);
-        }
-
-        /// <summary>
-        /// Verifies that ReserveCorpIDs persists the updated reserve value to the database.
-        /// </summary>
-        [Fact]
-        public async Task ReserveCorpIDs_PersistsReserveToDatabase()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 500 } };
-            var manager = CreateManager(db);
-
-            await manager.ReserveCorpIDs(25, CancellationToken.None);
-
-            Assert.Equal(525, db.Counter.CorpIDReserve);
+            Assert.Equal(expectedReserved, reserved);
+            Assert.Equal(expectedFinalReserve, db.Counter.CorpIDReserve);
         }
 
         // -------------------------------------------------------------------------
@@ -164,63 +112,27 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // -------------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that CommitCorpIDCount decrements the reserve and increments the CorpID count by the committed amount.
+        /// Verifies that CommitCorpIDCount correctly decrements the reserve, increments the count,
+        /// and returns the remaining available slots — including drift and partial-sync scenarios.
         /// </summary>
-        [Fact]
-        public async Task CommitCorpIDCount_DecrementsReserveAndIncrementsCount()
+        [Theory]
+        //               startReserve  reserved  synced  expectedReserve  expectedCount  expectedAvailable
+        [InlineData(          50,         50,      40,         0,             40,              960)] // normal commit
+        [InlineData(         100,        100,      80,         0,             80,              920)] // returns remaining available
+        [InlineData(          10,         50,      10,         0,             10,              990)] // reserve clamped to 0 on drift
+        [InlineData(         100,        100,      60,         0,             60,              940)] // unused reserved slots released
+        public async Task CommitCorpIDCount_UpdatesCounterCorrectly(
+            int startingReserve, int reserved, int synced,
+            int expectedReserve, int expectedCount, int expectedAvailable)
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 50 } };
+            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = startingReserve } };
             var manager = CreateManager(db);
 
-            await manager.CommitCorpIDCount(50, 40, CancellationToken.None);
+            int available = await manager.CommitCorpIDCount(reserved, synced, CancellationToken.None);
 
-            Assert.Equal(0, db.Counter.CorpIDReserve);
-            Assert.Equal(40, db.Counter.CorpIDCount);
-        }
-
-        /// <summary>
-        /// Verifies that CommitCorpIDCount returns the correct remaining available slot count.
-        /// </summary>
-        [Fact]
-        public async Task CommitCorpIDCount_ReturnsRemainingAvailable()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 100 } };
-            var manager = CreateManager(db);
-
-            int available = await manager.CommitCorpIDCount(100, 80, CancellationToken.None);
-
-            Assert.Equal(TotalCap - 80, available);
-        }
-
-        /// <summary>
-        /// Verifies that CommitCorpIDCount prevents the reserve from going below zero in a drift scenario.
-        /// </summary>
-        [Fact]
-        public async Task CommitCorpIDCount_ReserveDoesNotGoBelowZero_OnDrift()
-        {
-            // reserved > counter.CorpIDReserve (drift scenario)
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 10 } };
-            var manager = CreateManager(db);
-
-            await manager.CommitCorpIDCount(50, 10, CancellationToken.None);
-
-            Assert.Equal(0, db.Counter.CorpIDReserve);
-        }
-
-        /// <summary>
-        /// Verifies that CommitCorpIDCount releases unused reserved slots when fewer devices were synced than reserved.
-        /// </summary>
-        [Fact]
-        public async Task CommitCorpIDCount_UnusedReservedSlotsAreReleased()
-        {
-            // 100 reserved, only 60 successfully added — 40 failures released
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDReserve = 100 } };
-            var manager = CreateManager(db);
-
-            await manager.CommitCorpIDCount(100, 60, CancellationToken.None);
-
-            Assert.Equal(0, db.Counter.CorpIDReserve);
-            Assert.Equal(60, db.Counter.CorpIDCount);
+            Assert.Equal(expectedReserve, db.Counter.CorpIDReserve);
+            Assert.Equal(expectedCount, db.Counter.CorpIDCount);
+            Assert.Equal(expectedAvailable, available);
         }
 
         // -------------------------------------------------------------------------
@@ -228,63 +140,30 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         // -------------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that ReleaseCorpIDs decrements the CorpID count by the specified release amount.
+        /// Verifies that ReleaseCorpIDs correctly decrements the CorpID count, leaves the reserve
+        /// unchanged, returns updated available slots, and clamps to zero on drift.
         /// </summary>
-        [Fact]
-        public async Task ReleaseCorpIDs_DecrementsCorpIDCountByReleaseAmount()
+        [Theory]
+        //               startCount  startReserve  release  expectedCount  expectedReserve  expectedAvailable
+        [InlineData(        100,          0,          30,        70,              0,              930)] // normal decrement
+        [InlineData(         10,          0,          50,         0,              0,             1000)] // clamped to 0 on drift
+        [InlineData(        200,          0,          50,       150,              0,              850)] // returns updated available
+        [InlineData(        100,         25,          40,        60,             25,              915)] // reserve is not affected
+        public async Task ReleaseCorpIDs_UpdatesCounterCorrectly(
+            int startingCount, int startingReserve, int release,
+            int expectedCount, int expectedReserve, int expectedAvailable)
         {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100 } };
+            var db = new FakeCosmosDbService
+            {
+                Counter = new CorpIDCounter(0) { CorpIDCount = startingCount, CorpIDReserve = startingReserve }
+            };
             var manager = CreateManager(db);
 
-            int available = await manager.ReleaseCorpIDs(30, CancellationToken.None);
+            int available = await manager.ReleaseCorpIDs(release, CancellationToken.None);
 
-            Assert.Equal(70, db.Counter.CorpIDCount);
-            Assert.Equal(TotalCap - 70, available);
-        }
-
-        /// <summary>
-        /// Verifies that ReleaseCorpIDs prevents the CorpID count from going below zero in a drift scenario.
-        /// </summary>
-        [Fact]
-        public async Task ReleaseCorpIDs_DoesNotGoBelowZero_OnDrift()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 10 } };
-            var manager = CreateManager(db);
-
-            int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
-
-            Assert.Equal(0, db.Counter.CorpIDCount);
-            Assert.Equal(1000, available);
-        }
-
-        /// <summary>
-        /// Verifies that ReleaseCorpIDs returns the updated available count after decrementing the CorpID count.
-        /// </summary>
-        [Fact]
-        public async Task ReleaseCorpIDs_ReturnsUpdatedAvailable()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 200 } };
-            var manager = CreateManager(db);
-
-            int available = await manager.ReleaseCorpIDs(50, CancellationToken.None);
-
-            Assert.Equal(150, db.Counter.CorpIDCount);
-            Assert.Equal(TotalCap - 150, available);
-        }
-
-        /// <summary>
-        /// Verifies that ReleaseCorpIDs does not modify the CorpID reserve.
-        /// </summary>
-        [Fact]
-        public async Task ReleaseCorpIDs_DoesNotAffectCorpIDReserve()
-        {
-            var db = new FakeCosmosDbService { Counter = new CorpIDCounter(0) { CorpIDCount = 100, CorpIDReserve = 25 } };
-            var manager = CreateManager(db);
-
-            int available = await manager.ReleaseCorpIDs(40, CancellationToken.None);
-
-            Assert.Equal(25, db.Counter.CorpIDReserve);
-            Assert.Equal(TotalCap - 60 - 25, available);
+            Assert.Equal(expectedCount, db.Counter.CorpIDCount);
+            Assert.Equal(expectedReserve, db.Counter.CorpIDReserve);
+            Assert.Equal(expectedAvailable, available);
         }
     }
 }

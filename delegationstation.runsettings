@@ -15,15 +15,18 @@
                 <ModulePath>.*CorporateIdentifierSync\.dll$</ModulePath>
               </Include>
               <Exclude>
-                <ModulePath>.*DelegationStationTests\.dll$</ModulePath>
+                <ModulePath>.*\.Tests\.dll$</ModulePath>
                 <ModulePath>.*IntuneEnrollment\.dll$</ModulePath>
                 <ModulePath>.*testhost.*</ModulePath>
               </Exclude>
             </ModulePaths>
 
             <!-- Exclude auto-generated code files (Razor/Blazor .g.cs, migrations, etc.) -->
+			  <!-- Exclude Program/startup methods -->
             <Sources>
               <Exclude>
+				<Source>.*\\Program.cs</Source>
+				<Source>.*\\Startup.cs</Source>
                 <Source>.*\.g\.cs$</Source>
                 <Source>.*\\obj\\.*</Source>
               </Exclude>

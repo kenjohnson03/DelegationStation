@@ -6,6 +6,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Graph.Beta.Models;
+using System.Reflection;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
 
@@ -14,20 +15,12 @@ namespace CorporateIdentifierSync.Tests.DeviceDeletionTests;
 [Collection("EnvVarTests")]
 public class DeviceDeletionTests
 {
+    #region helpers
     // ====================================================================
     // Helpers
     // ====================================================================
 
-    private static TimerInfo CreateTimerInfo(bool withScheduleStatus = false)
-    {
-        var timer = new TimerInfo();
-        if (withScheduleStatus)
-        {
-            timer.ScheduleStatus = new ScheduleStatus { Next = DateTime.UtcNow.AddHours(1) };
-        }
-
-        return timer;
-    }
+    private static TimerInfo CreateTimerInfo() => new TimerInfo();
 
     private static DeviceDeletion CreateSut(
         ILogger<DeviceDeletion>? logger = null,
@@ -45,6 +38,15 @@ public class DeviceDeletionTests
     private static CosmosException CreateCosmosException(System.Net.HttpStatusCode statusCode)
         => new CosmosException("Simulated Cosmos error", statusCode, 0, Guid.NewGuid().ToString(), 0);
 
+    private static int GetMaxCorpIDsAllowed(DeviceDeletion sut)
+    {
+        var field = typeof(DeviceDeletion)
+            .GetField("_MaxCorpIDsAllowed", BindingFlags.NonPublic | BindingFlags.Instance);
+        return (int)field!.GetValue(sut)!;
+    }
+    #endregion helpers
+
+    #region ConstructorTests
     // ====================================================================
     // Constructor tests
     // ====================================================================
@@ -65,109 +67,46 @@ public class DeviceDeletionTests
         // Assert
         Assert.NotNull(sut);
     }
+    #endregion ConstructorTests
 
+    #region GetEnvironmentVariableTests
     // ====================================================================
     // GetEnvironmentVariables tests
     // ====================================================================
 
     /// <summary>
-    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is not set.
+    /// Verifies that GetEnvironmentVariables sets _MaxCorpIDsAllowed to the expected value.
+    /// Invalid, missing, zero, and negative inputs fall back to the default of 10000;
+    /// a valid positive value is used directly.
     /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnvVarNotSet_DoesNotThrow()
+    [Theory]
+    [InlineData(null, 10000)]           // not set → default
+    [InlineData("not-a-number", 10000)] // unparseable → default
+    [InlineData("0", 10000)]            // zero (must be > 0) → default
+    [InlineData("-100", 10000)]         // negative → default
+    [InlineData("5000", 5000)]          // valid positive → used as-is
+    public void GetEnvironmentVariables_SetsMaxCorpIDsAllowedFromEnvVar(string? envVarValue, int expectedMax)
     {
         // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
-        var sut = CreateSut();
-
-        // Act & Assert
-        sut.GetEnvironmentVariables();
-    }
-
-    /// <summary>
-    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a non-numeric string.
-    /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnvVarIsInvalidString_DoesNotThrow()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "not-a-number");
+        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", envVarValue);
         var sut = CreateSut();
 
         try
         {
-            // Act & Assert
+            // Act
             sut.GetEnvironmentVariables();
+
+            // Assert
+            Assert.Equal(expectedMax, GetMaxCorpIDsAllowed(sut));
         }
         finally
         {
             Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
         }
     }
+    #endregion GetEnvironmentVariableTests
 
-    /// <summary>
-    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to zero.
-    /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnvVarIsZero_DoesNotThrow()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "0");
-        var sut = CreateSut();
-
-        try
-        {
-            // Act & Assert
-            sut.GetEnvironmentVariables();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
-        }
-    }
-
-    /// <summary>
-    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a negative value.
-    /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnvVarIsNegative_DoesNotThrow()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "-100");
-        var sut = CreateSut();
-
-        try
-        {
-            // Act & Assert
-            sut.GetEnvironmentVariables();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
-        }
-    }
-
-    /// <summary>
-    /// Verifies that GetEnvironmentVariables does not throw when MAX_CORPIDS_ALLOWED is set to a valid positive number.
-    /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnvVarIsValidPositiveNumber_DoesNotThrow()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "5000");
-        var sut = CreateSut();
-
-        try
-        {
-            // Act & Assert
-            sut.GetEnvironmentVariables();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
-        }
-    }
-
+    #region SingletonLockTests
     // ====================================================================
     // Run – singleton lock tests
     // ====================================================================
@@ -189,49 +128,12 @@ public class DeviceDeletionTests
         // Assert
         Assert.Equal(0, dbService.GetDevicesCallCount);
     }
+    #endregion SingletonLockTests
 
+
+    #region EarlyExitTests
     // ====================================================================
-    // Run – ScheduleStatus branch
-    // ====================================================================
-
-    /// <summary>
-    /// Verifies that Run completes successfully when the timer has no schedule status.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenScheduleStatusIsNull_CompletesSuccessfully()
-    {
-        // Arrange
-        var dbService = new FakeDbService();
-        var sut = CreateSut(dbService: dbService);
-        var timer = CreateTimerInfo(withScheduleStatus: false);
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert – function ran as far as querying the DB
-        Assert.Equal(1, dbService.GetDevicesCallCount);
-    }
-
-    /// <summary>
-    /// Verifies that Run completes successfully when the timer has a schedule status.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenScheduleStatusIsNotNull_CompletesSuccessfully()
-    {
-        // Arrange
-        var dbService = new FakeDbService();
-        var sut = CreateSut(dbService: dbService);
-        var timer = CreateTimerInfo(withScheduleStatus: true);
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert – function ran as far as querying the DB
-        Assert.Equal(1, dbService.GetDevicesCallCount);
-    }
-
-    // ====================================================================
-    // Run – database retrieval failure
+    // Early Exits
     // ====================================================================
 
     /// <summary>
@@ -253,10 +155,6 @@ public class DeviceDeletionTests
         Assert.Equal(0, dbService.DeleteDeviceCallCount);
     }
 
-    // ====================================================================
-    // Run – empty device list
-    // ====================================================================
-
     /// <summary>
     /// Verifies that Run exits without performing any deletions when no devices are marked for deletion.
     /// </summary>
@@ -274,16 +172,19 @@ public class DeviceDeletionTests
         // Assert
         Assert.Equal(0, dbService.DeleteDeviceCallCount);
     }
+    #endregion EarlyExitTests
 
+    #region HappyPathTests
     // ====================================================================
-    // Run – Corporate Identity branching
+    // Happy Path Tests
     // ====================================================================
 
     /// <summary>
-    /// Verifies that Run deletes the device from the database when it has no CorporateIdentityID.
+    /// Deleting device without CorpID in DB
+    /// Expected behavior:  Deleted from DB, no CorpID release
     /// </summary>
     [Fact]
-    public async Task Run_WhenDeviceHasNoCorporateIdentityID_DeletesDeviceFromDatabase()
+    public async Task Run_WhenNoCorpID_AndDeviceDeletionSucceeds_CounterUnchanged()
     {
         // Arrange
         var device = new Device { Make = "Dell", Model = "XPS", SerialNumber = "SN001", CorporateIdentityID = string.Empty };
@@ -296,17 +197,30 @@ public class DeviceDeletionTests
 
         // Assert
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
     /// <summary>
-    /// Verifies that Run deletes the device from the database when the corporate identifier deletion succeeds.
+    /// Deleting device with CorpID in DB
+    /// Expected behavior:  Deleted from CorpID, deleted from DB, CorpID counter decremented by 1
     /// </summary>
     [Fact]
-    public async Task Run_WhenDeleteCorporateIdentifierReturnsSuccess_DeletesDeviceFromDatabase()
+    public async Task Run_WhenCorpIDPresentAndGraphSucceeds_DeletesDeviceAndDecrementsCounter()
     {
         // Arrange
-        var device = new Device { Make = "Dell", Model = "XPS", SerialNumber = "SN001", CorporateIdentityID = "corp-id-001", CorporateIdentity = "corp-identity" };
-        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
+        var device = new Device
+        {
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+            CorporateIdentity = "identity",
+        };
+        var dbService = new FakeDbService
+        {
+            DevicesToReturn = new List<Device> { device },
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5 },
+        };
         var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Success };
         var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
         var timer = CreateTimerInfo();
@@ -316,54 +230,18 @@ public class DeviceDeletionTests
 
         // Assert
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(4, dbService.Counter.CorpIDCount);
     }
+    #endregion HappyPathTests
 
-    /// <summary>
-    /// Verifies that Run still deletes the device from the database even when the Graph API returns NotFound for the corporate identifier.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenDeleteCorporateIdentifierReturnsNotFound_StillDeletesDeviceFromDatabase()
-    {
-        // Arrange
-        var device = new Device { Make = "HP", Model = "Elite", SerialNumber = "SN002", CorporateIdentityID = "corp-id-002" };
-        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
-        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.NotFound };
-        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
-        var timer = CreateTimerInfo();
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert – NotFound means already gone from Graph; Cosmos deletion still proceeds
-        Assert.Equal(1, dbService.DeleteDeviceCallCount);
-    }
-
-    /// <summary>
-    /// Verifies that Run does not delete the device from the database when the corporate identifier deletion returns an error.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenDeleteCorporateIdentifierReturnsError_DoesNotDeleteDeviceFromDatabase()
-    {
-        // Arrange
-        var device = new Device { Make = "Lenovo", Model = "ThinkPad", SerialNumber = "SN003", CorporateIdentityID = "corp-id-003" };
-        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
-        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
-        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
-        var timer = CreateTimerInfo();
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert – corp-id deletion failed; Cosmos deletion must be skipped
-        Assert.Equal(0, dbService.DeleteDeviceCallCount);
-    }
-
+    #region CosmosErrorHandlingTests
     // ====================================================================
-    // Run – Cosmos deletion exception handling
+    // Error Handling - Cosmos Errors
     // ====================================================================
 
     /// <summary>
-    /// Verifies that Run treats a Cosmos NotFound exception during device deletion as a success and continues processing.
+    /// Device without CorpID, Cosmos delete throws 404 NotFound
+    /// Expected behavior: Device deletion treated as successful, no CorpID counter update
     /// </summary>
     [Fact]
     public async Task Run_WhenDeleteDeviceThrowsCosmosNotFound_TreatsAsSuccessAndContinues()
@@ -383,10 +261,12 @@ public class DeviceDeletionTests
 
         // Assert
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount); // Row 2: no corp ID → counter must not change
     }
 
     /// <summary>
-    /// Verifies that Run logs a generic exception thrown during device deletion and continues processing subsequent devices.
+    /// Device with no CorpID, Cosmos delete throws exception other than 404
+    /// Expected behavior:  Stops processing this device, no update to CorpID (will retry on next run)
     /// </summary>
     [Fact]
     public async Task Run_WhenDeleteDeviceThrowsGenericException_LogsAndContinues()
@@ -406,55 +286,29 @@ public class DeviceDeletionTests
 
         // Assert
         Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
-    // ====================================================================
-    // Run – multiple devices
-    // ====================================================================
-
     /// <summary>
-    /// Verifies that Run processes all devices when multiple devices are marked for deletion.
+    /// Device with CorpID in DB, CorpID deleted from Graph successfully; Cosmos device deletion returns 404.
+    /// Expected Behavior:  Cosmos deletion treated as successful, CorpID counter decremented by 1
     /// </summary>
     [Fact]
-    public async Task Run_WithMultipleDevices_ProcessesAllDevices()
-    {
-        // Arrange
-        var devices = new List<Device>
-        {
-            new Device { Make = "Dell", Model = "XPS", SerialNumber = "SN001", CorporateIdentityID = string.Empty },
-            new Device { Make = "HP", Model = "Elite", SerialNumber = "SN002", CorporateIdentityID = string.Empty },
-            new Device { Make = "Lenovo", Model = "ThinkPad", SerialNumber = "SN003", CorporateIdentityID = string.Empty },
-        };
-        var dbService = new FakeDbService { DevicesToReturn = devices };
-        var sut = CreateSut(dbService: dbService);
-        var timer = CreateTimerInfo();
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert
-        Assert.Equal(3, dbService.DeleteDeviceCallCount);
-    }
-
-    // ====================================================================
-    // Run – CorpID capacity release
-    // ====================================================================
-
-    /// <summary>
-    /// Verifies that Run releases capacity in the CorpID counter after successfully deleting corporate identifiers.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDsAreDeleted_ReleasesCapacityInCounter()
+    public async Task Run_WhenCorpIDDeletedFromGraph_AndCosmosDeviceDeletion404_StillDecrementsCounter()
     {
         // Arrange
         var device = new Device
         {
-            Make = "Dell", Model = "XPS", SerialNumber = "SN001",
-            CorporateIdentityID = "corp-id-001", CorporateIdentity = "identity",
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+            CorporateIdentity = "identity",
         };
         var dbService = new FakeDbService
         {
             DevicesToReturn = new List<Device> { device },
+            DeleteDeviceException = CreateCosmosException(System.Net.HttpStatusCode.NotFound),
             Counter = new CorpIDCounter(0) { CorpIDCount = 5 },
         };
         var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Success };
@@ -464,10 +318,170 @@ public class DeviceDeletionTests
         // Act
         await sut.Run(timer);
 
-        // Assert – counter should have been updated (decremented) after the release
-        Assert.True(dbService.TrySetCorpIDCounterCallCount > 0);
+        // Assert – 404 treated as success; counter decremented because Graph deletion succeeded
+        Assert.Equal(1, dbService.DeleteDeviceCallCount);
         Assert.Equal(4, dbService.Counter.CorpIDCount);
     }
+    /// <summary>
+    /// Device has CorpID, CorpID successfuly deleted, but Comsos delete throws generic exception
+    /// Expected behavior:  Decrement CorpID counter, DB object deletion should be tried on next run
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenCorpIDDeletedFromGraph_AndCosmosDeviceDeletionThrows_StillDecrementsCounter()
+    {
+        // Arrange
+        var device = new Device
+        {
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+        };
+        var dbService = new FakeDbService
+        {
+            DevicesToReturn = new List<Device> { device },
+            DeleteDeviceException = new InvalidOperationException("Cosmos write failure"),
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5 },
+        };
+        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Success };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
+        var timer = CreateTimerInfo();
+
+        // Act
+        await sut.Run(timer);
+
+        // Assert – Cosmos deletion failed but corp ID was already removed; counter still decremented
+        Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(4, dbService.Counter.CorpIDCount);
+    }
+    #endregion CosmosErrorHandlingTests
+
+    #region GraphErrorHandlingTest
+    // ====================================================================
+    // Error handling - CorpID deletion failures
+    // ====================================================================
+
+    /// <summary>
+    /// CorpID present in DB but not found in Graph
+    /// Expected behavior:  Attempts DB deletion and doesn't update CorpID Counter
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenCorpIDNotFoundInGraph_AndDeviceDeletionSucceeds_CounterUnchanged()
+    {
+        // Arrange
+        var device = new Device { Make = "Dell", Model = "XPS", SerialNumber = "SN001", CorporateIdentityID = "corp-id-001" };
+        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
+        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.NotFound };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
+        var timer = CreateTimerInfo();
+
+        // Act
+        await sut.Run(timer);
+
+        // Assert
+        Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
+    }
+
+    /// <summary>
+    /// Device has CorpID in DB, Graph deletion fails with generic exception
+    /// Expected behavior:  Does not attempt DB deletion, does not update CorpID Counter (will retry on next run)
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenCorpIDPresentAndGraphFails_SkipsDeviceDeletionAndLeavesCounterUnchanged()
+    {
+        // Arrange
+        var device = new Device { Make = "Dell", Model = "XPS", SerialNumber = "SN001", CorporateIdentityID = "corp-id-001" };
+        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
+        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
+        var timer = CreateTimerInfo();
+
+        // Act
+        await sut.Run(timer);
+
+        // Assert
+        Assert.Equal(0, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
+    }
+    #endregion GraphErrorHandlingTest
+
+    #region CosmosAndGraphErrorHandlingTests
+    // ====================================================================
+    // Error handling - CorpID deletion failure and Cosmos DB failure combinations
+    // ====================================================================
+
+    /// <summary>
+    /// Device with CorpID in DB, CorpID not found and Cosmos delete throws 404
+    /// Expected Behavior:  CorpID and DB object don't exist, counter is not updated
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenCorpIDNotFoundInGraph_AndCosmosDeviceDeletion404_CounterUnchanged()
+    {
+        // Arrange
+        var device = new Device
+        {
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+        };
+        var dbService = new FakeDbService
+        {
+            DevicesToReturn = new List<Device> { device },
+            DeleteDeviceException = CreateCosmosException(System.Net.HttpStatusCode.NotFound),
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5 },
+        };
+        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.NotFound };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
+        var timer = CreateTimerInfo();
+
+        // Act
+        await sut.Run(timer);
+
+        // Assert – 404 treated as success; counter unchanged because Graph returned NotFound
+        Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
+    }
+
+    /// <summary>
+    /// Device has CorpID in DB, CorpID not found during deletion attempt, Cosmos delete throws generic exception
+    /// Expected behavior:  No counter update since Graph deletion failed; DB object deletion should be tried on next run
+    /// </summary>
+    [Fact]
+    public async Task Run_WhenCorpIDNotFoundInGraph_AndCosmosDeviceDeletionThrows_CounterUnchanged()
+    {
+        // Arrange
+        var device = new Device
+        {
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+        };
+        var dbService = new FakeDbService
+        {
+            DevicesToReturn = new List<Device> { device },
+            DeleteDeviceException = new InvalidOperationException("Cosmos write failure"),
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5 },
+        };
+        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.NotFound };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
+        var timer = CreateTimerInfo();
+
+        // Act
+        await sut.Run(timer);
+
+        // Assert – device deletion failed; counter unchanged because Graph returned NotFound
+        Assert.Equal(1, dbService.DeleteDeviceCallCount);
+        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
+    }
+    #endregion CosmosAndGraphErrorHandlingTests
+
+
+    // ====================================================================
+    // Run – CorpID capacity release
+    // ====================================================================
 
     /// <summary>
     /// Verifies that Run does not propagate an exception when releasing CorpID capacity fails.
@@ -478,7 +492,9 @@ public class DeviceDeletionTests
         // Arrange
         var device = new Device
         {
-            Make = "Dell", Model = "XPS", SerialNumber = "SN001",
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
             CorporateIdentityID = "corp-id-001",
         };
         var dbService = new FakeDbService
@@ -494,36 +510,12 @@ public class DeviceDeletionTests
         await sut.Run(timer);
     }
 
-    /// <summary>
-    /// Verifies that Run does not attempt to release capacity when no corporate identifiers were successfully deleted.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenNoCorpIDsWereDeleted_DoesNotAttemptCapacityRelease()
-    {
-        // Arrange – devices have corp IDs but graph deletion returns Error (so corpIDsDeletedCount stays 0)
-        var device = new Device
-        {
-            Make = "Dell", Model = "XPS", SerialNumber = "SN001",
-            CorporateIdentityID = "corp-id-001",
-        };
-        var dbService = new FakeDbService { DevicesToReturn = new List<Device> { device } };
-        var graphService = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
-        var sut = CreateSut(dbService: dbService, graphBetaService: graphService);
-        var timer = CreateTimerInfo();
-
-        // Act
-        await sut.Run(timer);
-
-        // Assert – no capacity release attempted
-        Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
-    }
-
     // ====================================================================
     // Run – env var integration through Run
     // ====================================================================
 
     /// <summary>
-    /// Verifies that Run uses a custom capacity cap from the MAX_CORPIDS_ALLOWED environment variable during capacity release.
+    /// Verifies that Run uses a MAX_CORPIDS_ALLOWED environment variable during capacity release.
     /// </summary>
     [Fact]
     public async Task Run_WhenMaxCorpIDsAllowedEnvVarIsSet_UsesCustomCapInCapacityRelease()
@@ -532,8 +524,11 @@ public class DeviceDeletionTests
         Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "99999");
         var device = new Device
         {
-            Make = "Dell", Model = "XPS", SerialNumber = "SN001",
-            CorporateIdentityID = "corp-id-001", CorporateIdentity = "identity",
+            Make = "Dell",
+            Model = "XPS",
+            SerialNumber = "SN001",
+            CorporateIdentityID = "corp-id-001",
+            CorporateIdentity = "identity",
         };
         var dbService = new FakeDbService
         {
@@ -557,6 +552,7 @@ public class DeviceDeletionTests
             Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
         }
     }
+
 
     // ====================================================================
     // Inner fakes
@@ -659,4 +655,6 @@ public class DeviceDeletionTests
         public Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
     }
+
+
 }
