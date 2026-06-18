@@ -398,14 +398,15 @@ namespace DelegationStation.Services
             device.Make = device.Make.Trim();
             device.Model = device.Model.Trim();
             device.SerialNumber = device.SerialNumber.Trim();
+            device.PreferredHostname = device.PreferredHostname.Trim();
 
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true)");
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true) OR ( d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true))");
             q.WithParameter("@make", device.Make);
             q.WithParameter("@model", device.Model);
             q.WithParameter("@serial", device.SerialNumber);
-
+            q.WithParameter("@name", device.PreferredHostname);
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
             while (deviceQueryIterator.HasMoreResults)
             {
@@ -414,7 +415,23 @@ namespace DelegationStation.Services
             }
             if (devices.Count != 0)
             {
-                throw new Exception("Device already exists.");
+                foreach (Device d in devices)
+                {
+                    if (d.Make == device.Make &&
+                        d.Model == device.Model &&
+                        d.SerialNumber == device.SerialNumber
+                    )
+                    {
+                        throw new Exception("Device already exists.");
+                    }
+                        
+                    if (!string.IsNullOrEmpty(d.PreferredHostname) && d.PreferredHostname == device.PreferredHostname)
+                    {
+                        throw new Exception("PreferredHostName already in use.");
+                    }
+                        
+                }
+                    
             }
             if (!String.IsNullOrEmpty(device.PreferredHostname))
             {
@@ -431,6 +448,7 @@ namespace DelegationStation.Services
                     throw new Exception("PreferredHostname already in use.");
                 }
             }
+
 
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
