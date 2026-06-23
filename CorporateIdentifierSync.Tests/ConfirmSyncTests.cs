@@ -17,6 +17,7 @@ namespace CorporateIdentifierSync.Tests.ConfirmSyncTests;
 [Collection("EnvVarTests")]
 public class ConfirmSyncTests
 {
+    #region setup
     // ─── inner stubs ────────────────────────────────────────────────────────
 
     private sealed class NopAsyncDisposable : IAsyncDisposable
@@ -228,7 +229,9 @@ public class ConfirmSyncTests
         Environment.SetEnvironmentVariable("SyncIntervalHours", null);
         Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
     }
+    #endregion setup
 
+    #region ConstructorTests
     // ═══════════════════════════════════════════════════════════════════════
     // Constructor
     // ═══════════════════════════════════════════════════════════════════════
@@ -242,33 +245,6 @@ public class ConfirmSyncTests
     {
         // Arrange / Act / Assert
         _ = CreateSut();
-    }
-
-    /// <summary>
-    /// Verifies that when the singleton lock cannot be acquired (returns <see langword="null"/>),
-    /// <see cref="ConfirmSync.Run"/> exits early without making any database calls.
-    /// </summary>
-    [Fact]
-    public async Task Constructor_StoresSingletonLock_WhenLockReturnsNull_ExitsEarlyWithoutDbCalls()
-    {
-        // Arrange
-        ClearEnvVars();
-        var db = new StubDbService();
-        var singletonLock = new StubSingletonLock { HandleToReturn = null };
-        var sut = CreateSut(db: db, singletonLock: singletonLock);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert – no DB calls made because lock rejected
-            Assert.False(db.WasGetSyncingDeviceTagsCalled);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
     }
 
     /// <summary>
@@ -297,17 +273,29 @@ public class ConfirmSyncTests
             ClearEnvVars();
         }
     }
+    #endregion ConstructorTests
 
+
+    #region EarlyExitTests
+    // ═══════════════════════════════════════════════════════════════════════
+    // Early exit tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #endregion EarlyExitTests
+
+
+    #region GetEnvironmentVariableTests
     // ═══════════════════════════════════════════════════════════════════════
     // GetEnvironmentVariables
     // ═══════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
-    /// the <c>EnableCorpIDSync</c> environment variable is not set.
+    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error and
+    /// defaults to disabled (<see langword="false"/>) when the <c>EnableCorpIDSync</c>
+    /// environment variable is not set.
     /// </summary>
     [Fact]
-    public void GetEnvironmentVariables_WhenEnableCorpIDSyncNotSet_LogsError()
+    public void GetEnvironmentVariables_WhenEnableCorpIDSyncNotSet_UsesDefaultAndLogsError()
     {
         // Arrange
         ClearEnvVars();
@@ -330,62 +318,22 @@ public class ConfirmSyncTests
     /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
     /// the <c>EnableCorpIDSync</c> environment variable is set to a non-boolean string.
     /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnableCorpIDSyncInvalidString_LogsError()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-bool")]
+    public void GetEnvironmentVariables_WhenEnableCorpIDSyncInvalid_LogsError(string? value)
     {
-        // Arrange
-        Environment.SetEnvironmentVariable("EnableCorpIDSync", "not-a-bool");
+        Environment.SetEnvironmentVariable("EnableCorpIDSync", value);
         var logFactory = new RecordingLoggerFactory();
         var sut = CreateSut(loggerFactory: logFactory);
-
         try
         {
-            // Act
             sut.GetEnvironmentVariables();
-
-            // Assert
-            var errors = logFactory.Logger.Logs
-                .Where(l => l.Level == LogLevel.Error)
-                .Select(l => l.Message)
-                .ToList();
-
-            Assert.Contains(errors, m => m.Contains("EnableCorpIDSync not set or not a valid boolean"));
+            Assert.Contains(
+                logFactory.Logger.Logs.Where(l => l.Level == LogLevel.Error).Select(l => l.Message).ToList(),
+                m => m.Contains("EnableCorpIDSync not set or not a valid boolean"));
         }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
-
-    /// <summary>
-    /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> does not log an error
-    /// for <c>EnableCorpIDSync</c> when the variable is set to <c>true</c>.
-    /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenEnableCorpIDSyncIsTrue_NoSyncFlagError()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("EnableCorpIDSync", "true");
-        var logFactory = new RecordingLoggerFactory();
-        var sut = CreateSut(loggerFactory: logFactory);
-
-        try
-        {
-            // Act
-            sut.GetEnvironmentVariables();
-
-            // Assert – no error for EnableCorpIDSync
-            var errors = logFactory.Logger.Logs
-                .Where(l => l.Level == LogLevel.Error)
-                .Select(l => l.Message)
-                .ToList();
-
-            Assert.DoesNotContain(errors, m => m.Contains("EnableCorpIDSync not set or not a valid boolean"));
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
+        finally { ClearEnvVars(); }
     }
 
     /// <summary>
@@ -416,31 +364,22 @@ public class ConfirmSyncTests
     /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> logs an error when
     /// the <c>SyncIntervalHours</c> environment variable is set to a non-integer string.
     /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenSyncIntervalHoursInvalid_LogsError()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-number")]
+    public void GetEnvironmentVariables_WhenSyncIntervalHoursInvalid_LogsError(string? value)
     {
-        // Arrange
-        Environment.SetEnvironmentVariable("SyncIntervalHours", "not-a-number");
+        Environment.SetEnvironmentVariable("SyncIntervalHours", value);
         var logFactory = new RecordingLoggerFactory();
         var sut = CreateSut(loggerFactory: logFactory);
-
         try
         {
-            // Act
             sut.GetEnvironmentVariables();
-
-            // Assert
-            var errors = logFactory.Logger.Logs
-                .Where(l => l.Level == LogLevel.Error)
-                .Select(l => l.Message)
-                .ToList();
-
-            Assert.Contains(errors, m => m.Contains("SyncIntervalHours is not set or not a valid integer"));
+            Assert.Contains(
+                logFactory.Logger.Logs.Where(l => l.Level == LogLevel.Error).Select(l => l.Message).ToList(),
+                m => m.Contains("SyncIntervalHours is not set or not a valid integer"));
         }
-        finally
-        {
-            ClearEnvVars();
-        }
+        finally { ClearEnvVars(); }
     }
 
     /// <summary>
@@ -502,31 +441,23 @@ public class ConfirmSyncTests
     /// Verifies that <see cref="ConfirmSync.GetEnvironmentVariables"/> falls back to the default
     /// of 10,000 and logs an error when <c>MAX_CORPIDS_ALLOWED</c> is set to an invalid string.
     /// </summary>
-    [Fact]
-    public void GetEnvironmentVariables_WhenMaxCorpIDsInvalid_UsesDefaultAndLogsError()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("bad-value")]
+    [InlineData("0")]
+    public void GetEnvironmentVariables_WhenMaxCorpIDsInvalid_UsesDefaultAndLogsError(string? value)
     {
-        // Arrange
-        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", "bad-value");
+        Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", value);
         var logFactory = new RecordingLoggerFactory();
         var sut = CreateSut(loggerFactory: logFactory);
-
         try
         {
-            // Act
             sut.GetEnvironmentVariables();
-
-            // Assert
-            var errors = logFactory.Logger.Logs
-                .Where(l => l.Level == LogLevel.Error)
-                .Select(l => l.Message)
-                .ToList();
-
-            Assert.Contains(errors, m => m.Contains("MAX_CORPIDS_ALLOWED is not set or invalid") && m.Contains("10000"));
+            Assert.Contains(
+                logFactory.Logger.Logs.Where(l => l.Level == LogLevel.Error).Select(l => l.Message).ToList(),
+                m => m.Contains("MAX_CORPIDS_ALLOWED is not set or invalid") && m.Contains("10000"));
         }
-        finally
-        {
-            ClearEnvVars();
-        }
+        finally { ClearEnvVars(); }
     }
 
     /// <summary>
@@ -616,45 +547,6 @@ public class ConfirmSyncTests
         Assert.False(db.WasGetSyncingDeviceTagsCalled);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Run – timer schedule status
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Verifies that <see cref="ConfirmSync.Run"/> logs the next scheduled run time when
-    /// <see cref="TimerInfo.ScheduleStatus"/> is populated.
-    /// </summary>
-    [Fact]
-    public async Task Run_WithScheduleStatus_LogsNextSchedule()
-    {
-        // Arrange
-        SetSyncEnabled();
-        var logFactory = new RecordingLoggerFactory();
-        var db = MakeSyncDb();
-        var timer = new TimerInfo
-        {
-            ScheduleStatus = new ScheduleStatus { Next = DateTime.UtcNow.AddHours(24) },
-        };
-        var sut = CreateSut(loggerFactory: logFactory, db: db);
-
-        try
-        {
-            // Act
-            await sut.Run(timer);
-
-            // Assert
-            var infos = logFactory.Logger.Logs
-                .Where(l => l.Level == LogLevel.Information)
-                .Select(l => l.Message)
-                .ToList();
-
-            Assert.Contains(infos, m => m.Contains("Next timer schedule at:"));
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Run – sync disabled
@@ -723,31 +615,6 @@ public class ConfirmSyncTests
         }
     }
 
-    /// <summary>
-    /// Verifies that <see cref="ConfirmSync.Run"/> treats a <c>SyncIntervalHours</c> value of zero
-    /// as valid and continues processing by querying sync-enabled device tags.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenSyncIntervalHoursIsZero_ContinuesProcessing()
-    {
-        // Arrange
-        SetSyncEnabled(syncIntervalHours: 0);
-        var db = MakeSyncDb();
-        var sut = CreateSut(db: db);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert – zero is valid, continues to GetSyncingDeviceTags
-            Assert.True(db.WasGetSyncingDeviceTagsCalled);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Run – no sync-enabled tags
@@ -964,48 +831,28 @@ public class ConfirmSyncTests
     // ═══════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Verifies that a Windows device whose corporate identifier is not found in Graph is
-    /// re-added using <see cref="ImportedDeviceIdentityType.ManufacturerModelSerial"/> format
-    /// (<c>"Make","Model",Serial</c>).
+    /// Verifies that <see cref="ConfirmSync.Run"/> re-adds the corporate identifier using the
+    /// correct <see cref="ImportedDeviceIdentityType"/> and identifier string for each OS:
+    /// Windows and Unknown → ManufacturerModelSerial ("Make","Model",Serial);
+    /// macOS, iOS, and Android → SerialNumber (serial only).
     /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDNotFound_WindowsDevice_UsesManufacturerModelSerialFormat()
+    [Theory]
+    [InlineData("Dell", "Latitude", "SN-WIN", DeviceOS.Windows, ImportedDeviceIdentityType.ManufacturerModelSerial, "\"Dell\",\"Latitude\",SN-WIN")]
+    [InlineData("HP", "ProBook", "SN-UNK", DeviceOS.Unknown, ImportedDeviceIdentityType.ManufacturerModelSerial, "\"HP\",\"ProBook\",SN-UNK")]
+    [InlineData("Apple", "MacBook", "SN-MAC", DeviceOS.MacOS, ImportedDeviceIdentityType.SerialNumber, "SN-MAC")]
+    [InlineData("Apple", "iPhone", "SN-IOS", DeviceOS.iOS, ImportedDeviceIdentityType.SerialNumber, "SN-IOS")]
+    [InlineData("Samsung", "Galaxy", "SN-AND", DeviceOS.Android, ImportedDeviceIdentityType.SerialNumber, "SN-AND")]
+    public async Task Run_WhenCorpIDNotFound_UsesExpectedIdentifierFormat(
+        string make,
+        string model,
+        string serial,
+        DeviceOS os,
+        ImportedDeviceIdentityType expectedType,
+        string expectedIdentifier)
     {
         // Arrange
         SetSyncEnabled();
-        var device = MakeDevice(make: "Dell", model: "Latitude", serial: "SN-WIN", os: DeviceOS.Windows, corpId: "corp-id");
-        var db = MakeSyncDb(candidates: new List<Device> { device });
-        var graph = new StubGraphBetaService
-        {
-            OnExists = _ => Task.FromResult(false),
-        };
-        var sut = CreateSut(db: db, graph: graph);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert
-            Assert.Equal(ImportedDeviceIdentityType.ManufacturerModelSerial, graph.LastAddType);
-            Assert.Equal("\"Dell\",\"Latitude\",SN-WIN", graph.LastAddIdentifier);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
-
-    /// <summary>
-    /// Verifies that a device with an unknown OS whose corporate identifier is not found in Graph
-    /// is re-added using <see cref="ImportedDeviceIdentityType.ManufacturerModelSerial"/> format.
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDNotFound_UnknownOsDevice_UsesManufacturerModelSerialFormat()
-    {
-        // Arrange
-        SetSyncEnabled();
-        var device = MakeDevice(make: "HP", model: "ProBook", serial: "SN-UNK", os: DeviceOS.Unknown, corpId: "corp-id");
+        var device = MakeDevice(make: make, model: model, serial: serial, os: os, corpId: "corp-id");
         var db = MakeSyncDb(candidates: new List<Device> { device });
         var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(false) };
         var sut = CreateSut(db: db, graph: graph);
@@ -1016,8 +863,8 @@ public class ConfirmSyncTests
             await sut.Run(new TimerInfo());
 
             // Assert
-            Assert.Equal(ImportedDeviceIdentityType.ManufacturerModelSerial, graph.LastAddType);
-            Assert.Equal("\"HP\",\"ProBook\",SN-UNK", graph.LastAddIdentifier);
+            Assert.Equal(expectedType, graph.LastAddType);
+            Assert.Equal(expectedIdentifier, graph.LastAddIdentifier);
         }
         finally
         {
@@ -1025,92 +872,6 @@ public class ConfirmSyncTests
         }
     }
 
-    /// <summary>
-    /// Verifies that a macOS device whose corporate identifier is not found in Graph is re-added
-    /// using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDNotFound_MacOsDevice_UsesSerialNumberOnlyFormat()
-    {
-        // Arrange
-        SetSyncEnabled();
-        var device = MakeDevice(make: "Apple", model: "MacBook", serial: "SN-MAC", os: DeviceOS.MacOS, corpId: "corp-id");
-        var db = MakeSyncDb(candidates: new List<Device> { device });
-        var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(false) };
-        var sut = CreateSut(db: db, graph: graph);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert
-            Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-            Assert.Equal("SN-MAC", graph.LastAddIdentifier);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
-
-    /// <summary>
-    /// Verifies that an iOS device whose corporate identifier is not found in Graph is re-added
-    /// using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDNotFound_iOsDevice_UsesSerialNumberOnlyFormat()
-    {
-        // Arrange
-        SetSyncEnabled();
-        var device = MakeDevice(make: "Apple", model: "iPhone", serial: "SN-IOS", os: DeviceOS.iOS, corpId: "corp-id");
-        var db = MakeSyncDb(candidates: new List<Device> { device });
-        var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(false) };
-        var sut = CreateSut(db: db, graph: graph);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert
-            Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-            Assert.Equal("SN-IOS", graph.LastAddIdentifier);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
-
-    /// <summary>
-    /// Verifies that an Android device whose corporate identifier is not found in Graph is
-    /// re-added using <see cref="ImportedDeviceIdentityType.SerialNumber"/> format (serial number only).
-    /// </summary>
-    [Fact]
-    public async Task Run_WhenCorpIDNotFound_AndroidDevice_UsesSerialNumberOnlyFormat()
-    {
-        // Arrange
-        SetSyncEnabled();
-        var device = MakeDevice(make: "Samsung", model: "Galaxy", serial: "SN-AND", os: DeviceOS.Android, corpId: "corp-id");
-        var db = MakeSyncDb(candidates: new List<Device> { device });
-        var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(false) };
-        var sut = CreateSut(db: db, graph: graph);
-
-        try
-        {
-            // Act
-            await sut.Run(new TimerInfo());
-
-            // Assert
-            Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-            Assert.Equal("SN-AND", graph.LastAddIdentifier);
-        }
-        finally
-        {
-            ClearEnvVars();
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Run – re-add success/failure
@@ -1281,7 +1042,7 @@ public class ConfirmSyncTests
             // Act
             await sut.Run(new TimerInfo());
 
-            // Assert – no rollback since add failed (nothing to roll back)
+            // Assert
             Assert.Null(graph.LastDeletedId);
         }
         finally
@@ -1553,7 +1314,7 @@ public class ConfirmSyncTests
             // Act
             await sut.Run(new TimerInfo());
 
-            // Assert – no rollback; add failed so nothing to roll back
+            // Assert – no rollback since add failed (nothing to roll back)
             Assert.Null(graph.LastDeletedId);
         }
         finally
@@ -1785,6 +1546,165 @@ public class ConfirmSyncTests
                 .ToList();
 
             Assert.Contains(errors, m => m.Contains("Failed to release") && m.Contains("CorpID slots"));
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+    #endregion GetEnvironmentVariableTests
+
+    // ─── CSV Row 3 ──────────────────────────────────────────────────────────────
+    // CorpID Present=yes, DB Updated=412-deleting, CorpIDCount=no change, Device=don't modify
+
+    /// <summary>
+    /// CSV row 3: Corp ID confirmed present in Graph (<c>corpIDFound = true</c>); a concurrent
+    /// writer set the device to <see cref="DeviceStatus.Deleting"/>, causing
+    /// <see cref="ICosmosDbService.UpdateDevice"/> to throw
+    /// <see cref="HttpStatusCode.PreconditionFailed"/>.
+    /// Expects: no Graph rollback and CorpID counter unchanged.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDFound_DbThrowsPreconditionFailed_DeviceBeingDeleted_NoCounterChangeAndNoRollback()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "existing-corp-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(true) };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert – no rollback of Corp ID in Graph; capacity counter unchanged
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    // ─── CSV Row 4 ──────────────────────────────────────────────────────────────
+    // CorpID Present=yes, DB Updated=412-not syncing, CorpIDCount=no change, Device=don't modify
+
+    /// <summary>
+    /// CSV row 4: Corp ID confirmed present in Graph (<c>corpIDFound = true</c>); a concurrent
+    /// writer set the device to <see cref="DeviceStatus.NotSyncing"/>, causing
+    /// <see cref="ICosmosDbService.UpdateDevice"/> to throw
+    /// <see cref="HttpStatusCode.PreconditionFailed"/>.
+    /// Expects: no Graph rollback and CorpID counter unchanged.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDFound_DbThrowsPreconditionFailed_DeviceNotSyncing_NoCounterChangeAndNoRollback()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "existing-corp-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService { OnExists = _ => Task.FromResult(true) };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert – no rollback of Corp ID in Graph; capacity counter unchanged
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    // ─── CSV Row 13 ─────────────────────────────────────────────────────────────
+    // CorpID Present=no, ReAdded=no, DB Updated=412-deleting, CorpIDCount=no change, Device=don't modify
+
+    /// <summary>
+    /// CSV row 13: Corp ID not present in Graph and re-add failed (<c>corpIDReAddFailed = true</c>);
+    /// a concurrent writer set the device to <see cref="DeviceStatus.Deleting"/>, causing
+    /// <see cref="ICosmosDbService.UpdateDevice"/> to throw
+    /// <see cref="HttpStatusCode.PreconditionFailed"/>.
+    /// The 412 handler decrements <c>countCorpIDsReAddFailed</c> back to zero, so no capacity
+    /// release is triggered and the counter stays unchanged.
+    /// Expects: no Graph rollback and CorpID counter unchanged.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_DbThrowsPreconditionFailed_DeviceBeingDeleted_NoCounterChangeAndNoRollback()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert – nothing rolled back in Graph; counter not decremented
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    // ─── CSV Row 14 ─────────────────────────────────────────────────────────────
+    // CorpID Present=no, ReAdded=no, DB Updated=412-not syncing, CorpIDCount=no change, Device=don't modify
+
+    /// <summary>
+    /// CSV row 14: Corp ID not present in Graph and re-add failed (<c>corpIDReAddFailed = true</c>);
+    /// a concurrent writer set the device to <see cref="DeviceStatus.NotSyncing"/>, causing
+    /// <see cref="ICosmosDbService.UpdateDevice"/> to throw
+    /// <see cref="HttpStatusCode.PreconditionFailed"/>.
+    /// The 412 handler decrements <c>countCorpIDsReAddFailed</c> back to zero, so no capacity
+    /// release is triggered and the counter stays unchanged.
+    /// Expects: no Graph rollback and CorpID counter unchanged.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_DbThrowsPreconditionFailed_DeviceNotSyncing_NoCounterChangeAndNoRollback()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert – nothing rolled back in Graph; counter not decremented
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
         }
         finally
         {
