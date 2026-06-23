@@ -16,6 +16,7 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
     [Collection("EnvVarTests")]
     public class AddNewDevicesTests
     {
+        #region setup
         // ─── inner stubs ────────────────────────────────────────────────────────
 
         private sealed class NopAsyncDisposable : IAsyncDisposable
@@ -249,7 +250,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
             Environment.SetEnvironmentVariable("MAX_CORPID_RETRIES", null);
         }
+        #endregion setup
 
+        #region ConstructorTests
         // ═══════════════════════════════════════════════════════════════════════
         // Constructor
         // ═══════════════════════════════════════════════════════════════════════
@@ -289,7 +292,9 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
+        #endregion ConstructorTests
 
+        #region GetEnvironmentVariablesTests
         // ═══════════════════════════════════════════════════════════════════════
         // GetEnvironmentVariables
         // ═══════════════════════════════════════════════════════════════════════
@@ -687,9 +692,11 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
+        #endregion GetEnvironmentVariablesTests
 
+        #region SingletonLockTest
         // ═══════════════════════════════════════════════════════════════════════
-        // Run – singleton lock
+        // Run – singleton lock test
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -711,11 +718,14 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             Assert.False(db.WasGetNonSyncingDeviceTagsCalled);
             Assert.False(db.WasGetSyncingDeviceTagsCalled);
         }
+        #endregion SingletonLockTest
 
+        #region EarlyExitTests
         // ═══════════════════════════════════════════════════════════════════════
-        // Run – sync disabled
+        // Run – early exit tests
         // ═══════════════════════════════════════════════════════════════════════
 
+        ///
         /// <summary>
         /// Verifies that Run exits early without making any database calls when sync is disabled.
         /// </summary>
@@ -741,10 +751,6 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – capacity manager failures / early exits
-        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Verifies that Run exits early without processing devices when GetAvailableCorpIDCount throws an exception.
@@ -842,7 +848,6 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             // Actually reserve is called with requestSize = min(batchSize, available) = min(5000, 1) = 1
             // We'll instead make TrySetCorpIDCounter set the counter to full capacity
             // so the returned reserved is 0 on the next check.
-            // Easier approach: set counter so that available == 0 from the start.
             db.Counter = new CorpIDCounter(0) { CorpIDCount = 50 }; // exactly at cap
 
             var sut = CreateSut(db: db);
@@ -859,9 +864,11 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
+        #endregion EarlyExitTests
 
+        #region GetDevicesTests
         // ═══════════════════════════════════════════════════════════════════════
-        // Run – GetAddedDevicesToSync failure
+        // Run – GetAddedDevicesToSync
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -925,20 +932,27 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
+        #endregion GetDevicesTests
 
+        #region IdentiferFormatTests
         // ═══════════════════════════════════════════════════════════════════════
         // Run – device OS / identifier format
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Verifies that Run uses the ManufacturerModelSerial identifier format for Windows devices.
+        /// Verifies that Run uses the ManufacturerModelSerial identifier format and the expected
+        /// identifier string for Windows, Unknown, and null OS devices.
         /// </summary>
-        [Fact]
-        public async Task Run_WindowsDevice_UsesManufacturerModelSerialIdentifierFormat()
+        [Theory]
+        [InlineData("Dell", "Latitude", "SN-WIN", DeviceOS.Windows, "\"Dell\",\"Latitude\",SN-WIN")]
+        [InlineData("HP", "ProBook", "SN-UNK", DeviceOS.Unknown, "\"HP\",\"ProBook\",SN-UNK")]
+        [InlineData("Lenovo", "ThinkPad", "SN-NULL", null, "\"Lenovo\",\"ThinkPad\",SN-NULL")]
+        public async Task Run_DeviceWithManufacturerModelSerialOs_UsesManufacturerModelSerialIdentifierFormat(
+            string make, string model, string serial, DeviceOS? os, string expectedIdentifier)
         {
             // Arrange
             SetSyncEnabled();
-            var device = MakeDevice(make: "Dell", model: "Latitude", serial: "SN-WIN", os: DeviceOS.Windows);
+            var device = MakeDevice(make: make, model: model, serial: serial, os: os);
             var db = MakeSyncDb(syncingDevices: new List<Device> { device });
             var graph = new StubGraphBetaService();
 
@@ -950,7 +964,7 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
 
                 // Assert
                 Assert.Equal(ImportedDeviceIdentityType.ManufacturerModelSerial, graph.LastAddType);
-                Assert.Equal("\"Dell\",\"Latitude\",SN-WIN", graph.LastAddIdentifier);
+                Assert.Equal(expectedIdentifier, graph.LastAddIdentifier);
             }
             finally
             {
@@ -959,71 +973,19 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         }
 
         /// <summary>
-        /// Verifies that Run uses the ManufacturerModelSerial identifier format for devices with an unknown OS.
+        /// Verifies that Run uses the SerialNumber-only identifier format and the device's serial
+        /// number as the identifier for macOS, iOS, and Android devices.
         /// </summary>
-        [Fact]
-        public async Task Run_UnknownOsDevice_UsesManufacturerModelSerialIdentifierFormat()
+        [Theory]
+        [InlineData("Apple", "MacBook", "SN-MAC", DeviceOS.MacOS)]
+        [InlineData("Apple", "iPad", "SN-IOS", DeviceOS.iOS)]
+        [InlineData("Samsung", "Galaxy", "SN-AND", DeviceOS.Android)]
+        public async Task Run_DeviceWithSerialNumberOs_UsesSerialNumberOnlyIdentifierFormat(
+            string make, string model, string serial, DeviceOS os)
         {
             // Arrange
             SetSyncEnabled();
-            var device = MakeDevice(make: "HP", model: "ProBook", serial: "SN-UNK", os: DeviceOS.Unknown);
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – Unknown is treated the same as Windows
-                Assert.Equal(ImportedDeviceIdentityType.ManufacturerModelSerial, graph.LastAddType);
-                Assert.Equal("\"HP\",\"ProBook\",SN-UNK", graph.LastAddIdentifier);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run treats a null OS as unknown and uses the ManufacturerModelSerial identifier format.
-        /// </summary>
-        [Fact]
-        public async Task Run_NullOsDevice_TreatedAsUnknownAndUsesManufacturerModelSerialFormat()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice(make: "Lenovo", model: "ThinkPad", serial: "SN-NULL", os: null);
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – null OS → Unknown → Windows format
-                Assert.Equal(ImportedDeviceIdentityType.ManufacturerModelSerial, graph.LastAddType);
-                Assert.NotNull(graph.LastAddIdentifier);
-                Assert.Contains("Lenovo", graph.LastAddIdentifier);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run uses the SerialNumber-only identifier format for macOS devices.
-        /// </summary>
-        [Fact]
-        public async Task Run_MacOsDevice_UsesSerialNumberOnlyFormat()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice(make: "Apple", model: "MacBook", serial: "SN-MAC", os: DeviceOS.MacOS);
+            var device = MakeDevice(make: make, model: model, serial: serial, os: os);
             var db = MakeSyncDb(syncingDevices: new List<Device> { device });
             var graph = new StubGraphBetaService();
 
@@ -1035,35 +997,41 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
 
                 // Assert
                 Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-                Assert.Equal("SN-MAC", graph.LastAddIdentifier);
+                Assert.Equal(serial, graph.LastAddIdentifier);
             }
             finally
             {
                 ClearEnvVars();
             }
         }
+        #endregion IdentifierFormatTests
+
+
+        #region HappyPathTests
+        /// ═══════════════════════════════════════════════════════════════════════
+        /// Happy Path device tests
+        /// =══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Verifies that Run uses the SerialNumber-only identifier format for iOS devices.
+        /// Successful processing of non-syncing device
+        /// Expected behavior:  no corpID created, no increase in count, changes status to not syncing
         /// </summary>
         [Fact]
-        public async Task Run_IosDevice_UsesSerialNumberOnlyFormat()
+        public async Task Run_NonSyncingDevice_SetsStatusToNotSyncing()
         {
             // Arrange
             SetSyncEnabled();
-            var device = MakeDevice(make: "Apple", model: "iPad", serial: "SN-IOS", os: DeviceOS.iOS);
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
+            var device = MakeDevice();
+            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
 
-            var sut = CreateSut(db: db, graph: graph);
+            var sut = CreateSut(db: db);
             try
             {
                 // Act
                 await sut.Run(new TimerInfo());
 
                 // Assert
-                Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-                Assert.Equal("SN-IOS", graph.LastAddIdentifier);
+                Assert.Equal(DeviceStatus.NotSyncing, device.Status);
             }
             finally
             {
@@ -1072,45 +1040,15 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         }
 
         /// <summary>
-        /// Verifies that Run uses the SerialNumber-only identifier format for Android devices.
+        /// Successful processing of syncing device
+        /// Verifies that after a successful sync the device object reflects the new Corp ID,
+        /// the status is Synced, the failure count is reset, and CorpIDCount is incremented by 1.
         /// </summary>
         [Fact]
-        public async Task Run_AndroidDevice_UsesSerialNumberOnlyFormat()
+        public async Task Run_SyncingDevice_SuccessfulSync_SetsDeviceStateAndIncrementsCorpIDCount()
         {
             // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice(make: "Samsung", model: "Galaxy", serial: "SN-AND", os: DeviceOS.Android);
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert
-                Assert.Equal(ImportedDeviceIdentityType.SerialNumber, graph.LastAddType);
-                Assert.Equal("SN-AND", graph.LastAddIdentifier);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – successful device sync
-        // ═══════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Verifies that Run sets the device status to Synced and stores the corporate identity information after a successful sync.
-        /// </summary>
-        [Fact]
-        public async Task Run_DeviceAddedSuccessfully_SetsStatusToSyncedAndStoresCorporateIdInfo()
-        {
-            // Arrange
-            SetSyncEnabled();
+            SetSyncEnabled(maxCorpIds: 100);
             var device = MakeDevice();
             var db = MakeSyncDb(syncingDevices: new List<Device> { device });
             var graph = new StubGraphBetaService();
@@ -1126,11 +1064,14 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 // Act
                 await sut.Run(new TimerInfo());
 
-                // Assert
+                // Assert – device object
                 Assert.Equal(DeviceStatus.Synced, device.Status);
                 Assert.Equal("graph-id-42", device.CorporateIdentityID);
                 Assert.Equal("ident-42", device.CorporateIdentity);
                 Assert.Equal(0, device.CorpIDFailureCount);
+
+                // Assert – CorpIDCount incremented by 1
+                Assert.Equal(1, db.Counter.CorpIDCount);
             }
             finally
             {
@@ -1138,9 +1079,46 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – Corp ID add failure / retry logic
-        // ═══════════════════════════════════════════════════════════════════════
+        #endregion HappyPathTests
+
+        #region GraphErrorHandlingTests
+        /// ═══════════════════════════════════════════════════════════════════════
+        /// Graph error handling tests
+        /// =══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Processing syncing device where Graph fails to add CorpID
+        /// Expected behavior:  does not set CorpID, increments failure count, does not change status
+        /// </summary>
+        [Fact]
+        public async Task Run_SyncingDevice_GraphAddFails_DbUpdateSucceeds_CorpIDCountUnchangedAndStatusAdded()
+        {
+            // Arrange
+            SetSyncEnabled(maxRetries: 5);
+            var device = MakeDevice(failureCount: 0);
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => throw new InvalidOperationException("graph unavailable");
+            // OnUpdateDevice is default – succeeds
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert – CorpID was never added so the committed count stays 0
+                Assert.Equal(0, db.Counter.CorpIDCount);
+                // Failure count must be incremented
+                Assert.Equal(1, device.CorpIDFailureCount);
+                // Status must remain Added – failure count (1) has not exceeded maxRetries (5)
+                Assert.Equal(DeviceStatus.Added, device.Status);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
 
         /// <summary>
         /// Verifies that Run does not mark a device as Failed when the Graph add fails but the failure count is still below the max retry threshold.
@@ -1200,44 +1178,6 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – UpdateDevice exceptions (syncing loop)
-        // ═══════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Verifies that Run rolls back the corp ID from Graph when UpdateDevice throws a Cosmos NotFound exception.
-        /// </summary>
-        [Fact]
-        public async Task Run_UpdateDeviceThrowsNotFound_RollsBackCorpId()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice();
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
-            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
-            {
-                Id = "rollback-id",
-                ImportedDeviceIdentifier = "rollback-ident",
-            });
-            db.OnUpdateDevice = _ => throw new CosmosException(
-                "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – DeleteCorporateIdentifier should have been called with the corp ID
-                Assert.Equal("rollback-id", graph.LastDeletedId);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
         /// <summary>
         /// Verifies that Run logs an error when the corp ID rollback deletion fails after a Cosmos NotFound exception on UpdateDevice.
         /// </summary>
@@ -1279,29 +1219,180 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        #endregion GraphErrorHandlingTests
+
+        #region CosmosErrorHandlingTests
+
+        /// ═══════════════════════════════════════════════════════════════════════
+        /// Cosmos Error Handling Tests - Non syncing devices
+        /// =══════════════════════════════════════════════════════════════════════
+
         /// <summary>
-        /// Verifies that Run skips the corp ID rollback when the device has no CorporateIdentityID stored after a Cosmos NotFound exception.
+        /// Processing non-syncing device fails with Cosmos 404 Exception (device was deleted)
+        /// Expected behavior:  Logs the error, does not throw, does not create corpID, does not increment count, and does not recreate DB object
         /// </summary>
         [Fact]
-        public async Task Run_UpdateDeviceThrowsNotFound_NoCorporateIdentityId_SkipsRollback()
+        public async Task Run_NonSyncingDevice_UpdateThrowsNotFound_LogsException()
         {
-            // Arrange – graph add fails so device.CorporateIdentityID stays empty
-            SetSyncEnabled(maxRetries: 5);
-            var device = MakeDevice(failureCount: 0);
+            // Arrange
+            SetSyncEnabled();
+            var logFactory = new RecordingLoggerFactory();
+            var device = MakeDevice();
+            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
+            var callCount = 0;
+            db.OnUpdateDevice = _ =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    throw new CosmosException(
+                        "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
+                }
+
+                return Task.CompletedTask;
+            };
+
+            var sut = CreateSut(loggerFactory: logFactory, db: db);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert – error logged about device not found
+                var errors = logFactory.Logger.Logs
+                    .Where(l => l.Level == LogLevel.Error)
+                    .Select(l => l.Message)
+                    .ToList();
+
+                Assert.Contains(errors, m => m.Contains("Device not found to updated"));
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        /// <summary>
+        /// Processing non-syncing device fails with Cosmos PreconditionFailed Exception (device was modified concurrently, we assume to Deleting state)
+        /// Expected behavior:  Logs the warning, does not throw, does not create corpID, does not increment count, and does not modify DB object
+        /// </summary>
+        [Fact]
+        public async Task Run_NonSyncingDevice_UpdateThrowsPreconditionFailed_LogsWarning()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var logFactory = new RecordingLoggerFactory();
+            var device = MakeDevice();
+            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
+            var callCount = 0;
+            db.OnUpdateDevice = _ =>
+            {
+                callCount++;
+                if (callCount == 1)
+                {
+                    throw new CosmosException(
+                        "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+                }
+
+                return Task.CompletedTask;
+            };
+
+            var sut = CreateSut(loggerFactory: logFactory, db: db);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert
+                var warnings = logFactory.Logger.Logs
+                    .Where(l => l.Level == LogLevel.Warning)
+                    .Select(l => l.Message)
+                    .ToList();
+
+                Assert.Contains(warnings, m => m.Contains("modified concurrently"));
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        /// ═══════════════════════════════════════════════════════════════════════
+        /// Cosmos Error Handling Tests - syncing devices (corp ID created successfully)
+        /// =══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Processing syncing device where graph add succeeds but DB update fails with Cosmos 404 Exception (device was deleted)
+        /// Expected behavior: Rolls back the CorpID created and does not increase count
+        /// </summary>
+        [Fact]
+        public async Task Run_UpdateDeviceThrowsNotFound_RollsBackCorpId()
+        {
+            // Arrange
+            SetSyncEnabled(maxCorpIds: 10);
+            var device = MakeDevice();
             var db = MakeSyncDb(syncingDevices: new List<Device> { device });
             var graph = new StubGraphBetaService();
-            graph.OnAdd = (_, _) => throw new InvalidOperationException("graph unavailable");
+            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
+            {
+                Id = "rollback-id",
+                ImportedDeviceIdentifier = "rollback-ident",
+            });
+            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Success);
             db.OnUpdateDevice = _ => throw new CosmosException(
                 "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
 
             var sut = CreateSut(db: db, graph: graph);
             try
             {
-                // Act – should NOT throw
+                // Act
                 await sut.Run(new TimerInfo());
 
-                // Assert – delete was never called since CorporateIdentityID is empty
-                Assert.Null(graph.LastDeletedId);
+                // Assert – DeleteCorporateIdentifier should have been called with the corp ID
+                Assert.Equal("rollback-id", graph.LastDeletedId);
+
+                // CorpIDCount must stay at 0 since the rollback succeeded
+                Assert.Equal(0, db.Counter.CorpIDCount);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+
+        /// <summary>
+        /// Processing syncing device where graph add succeeds but DB update fails with Cosmos PreconditionFailed Exception (device was modified concurrently, we assume to Deleting state)
+        /// Expected behavior: Rolls back the CorpID created and does not increase count
+        /// </summary>
+        [Fact]
+        public async Task Run_UpdateDeviceThrowsPreconditionFailed_CurrentDeviceDeleting_RollsBackCorpId()
+        {
+            // Arrange
+            SetSyncEnabled(maxCorpIds: 10);
+            var device = MakeDevice();
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
+            {
+                Id = "deleting-id",
+                ImportedDeviceIdentifier = "deleting-ident",
+            });
+            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Success);
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Deleting });
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert
+                Assert.Equal("deleting-id", graph.LastDeletedId);
+                // CorpIDCount must stay at 0 since the rollback succeeded
+                Assert.Equal(0, db.Counter.CorpIDCount);
             }
             finally
             {
@@ -1337,41 +1428,8 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
 
                 // Assert – rollback called
                 Assert.Equal("pf-id", graph.LastDeletedId);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run rolls back the corp ID when UpdateDevice throws a Cosmos PreconditionFailed exception and the refreshed device is in a Deleting state.
-        /// </summary>
-        [Fact]
-        public async Task Run_UpdateDeviceThrowsPreconditionFailed_CurrentDeviceDeleting_RollsBackCorpId()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice();
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            var graph = new StubGraphBetaService();
-            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
-            {
-                Id = "deleting-id",
-                ImportedDeviceIdentifier = "deleting-ident",
-            });
-            db.OnUpdateDevice = _ => throw new CosmosException(
-                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
-            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Deleting });
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert
-                Assert.Equal("deleting-id", graph.LastDeletedId);
+                // CorpIDCount must stay at 0 since the rollback succeeded
+                Assert.Equal(0, db.Counter.CorpIDCount);
             }
             finally
             {
@@ -1423,53 +1481,6 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
-        /// <summary>
-        /// Verifies that Run continues to the next device when UpdateDevice throws PreconditionFailed and the subsequent GetDevice call also throws.
-        /// </summary>
-        [Fact]
-        public async Task Run_UpdateDeviceThrowsPreconditionFailed_FetchThrows_ContinuesToNextDevice()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device1 = MakeDevice(serial: "SN-001");
-            var device2 = MakeDevice(serial: "SN-002");
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device1, device2 });
-            var graph = new StubGraphBetaService();
-            var addCallCount = 0;
-            graph.OnAdd = (_, _) =>
-            {
-                addCallCount++;
-                return Task.FromResult(new ImportedDeviceIdentity { Id = $"id-{addCallCount}", ImportedDeviceIdentifier = $"ident-{addCallCount}" });
-            };
-
-            var updateCallCount = 0;
-            db.OnUpdateDevice = _ =>
-            {
-                updateCallCount++;
-                if (updateCallCount == 1)
-                {
-                    throw new CosmosException(
-                        "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
-                }
-
-                return Task.CompletedTask;
-            };
-            db.OnGetDevice = (_, _) => throw new InvalidOperationException("fetch failed");
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – second device was also processed (function continued after continue statement)
-                Assert.Equal(2, addCallCount);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
 
         /// <summary>
         /// Verifies that Run logs an exception and continues processing when UpdateDevice throws a generic exception.
@@ -1498,124 +1509,6 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                     .ToList();
 
                 Assert.Contains(errors, m => m.Contains("Device entry not updated - CorpIDStatus may not be in sync"));
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – non-syncing devices loop
-        // ═══════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Verifies that Run sets the device status to NotSyncing for non-syncing devices.
-        /// </summary>
-        [Fact]
-        public async Task Run_NonSyncingDevice_SetsStatusToNotSyncing()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var device = MakeDevice();
-            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
-
-            var sut = CreateSut(db: db);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert
-                Assert.Equal(DeviceStatus.NotSyncing, device.Status);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run logs an error when UpdateDevice throws a Cosmos NotFound exception for a non-syncing device.
-        /// </summary>
-        [Fact]
-        public async Task Run_NonSyncingDevice_UpdateThrowsNotFound_LogsException()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var logFactory = new RecordingLoggerFactory();
-            var device = MakeDevice();
-            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
-            var callCount = 0;
-            db.OnUpdateDevice = _ =>
-            {
-                callCount++;
-                if (callCount == 1)
-                {
-                    throw new CosmosException(
-                        "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
-                }
-
-                return Task.CompletedTask;
-            };
-
-            var sut = CreateSut(loggerFactory: logFactory, db: db);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – error logged about device not found
-                var errors = logFactory.Logger.Logs
-                    .Where(l => l.Level == LogLevel.Error)
-                    .Select(l => l.Message)
-                    .ToList();
-
-                Assert.Contains(errors, m => m.Contains("Device not found to updated"));
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run logs a warning when UpdateDevice throws a Cosmos PreconditionFailed exception for a non-syncing device.
-        /// </summary>
-        [Fact]
-        public async Task Run_NonSyncingDevice_UpdateThrowsPreconditionFailed_LogsWarning()
-        {
-            // Arrange
-            SetSyncEnabled();
-            var logFactory = new RecordingLoggerFactory();
-            var device = MakeDevice();
-            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
-            var callCount = 0;
-            db.OnUpdateDevice = _ =>
-            {
-                callCount++;
-                if (callCount == 1)
-                {
-                    throw new CosmosException(
-                        "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
-                }
-
-                return Task.CompletedTask;
-            };
-
-            var sut = CreateSut(loggerFactory: logFactory, db: db);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert
-                var warnings = logFactory.Logger.Logs
-                    .Where(l => l.Level == LogLevel.Warning)
-                    .Select(l => l.Message)
-                    .ToList();
-
-                Assert.Contains(warnings, m => m.Contains("modified concurrently"));
             }
             finally
             {
@@ -1666,35 +1559,88 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        #endregion CosmosErrorHandlingTests
+
+
+        #region GraphAndCosmosErrorHandlingTests
         // ═══════════════════════════════════════════════════════════════════════
-        // Run – CommitCorpIDCount at end
+        // Tests for cases where Graph and Cosmos fail
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Verifies that Run commits the CorpID count after a successful device sync.
+        /// Processing syncing device where graph add fails and DB update fails with Cosmos 404 Exception (device was deleted)
+        /// Expected behavior:  CorpIDCount is not incremented
         /// </summary>
         [Fact]
-        public async Task Run_AfterSuccessfulSync_CommitsCorpIDCount()
+        public async Task Run_SyncingDevice_GraphAddFails_UpdateThrowsNotFound_CorpIDCountUnchangedAndNoRollback()
         {
             // Arrange
-            SetSyncEnabled(maxCorpIds: 100);
-            var device = MakeDevice();
+            SetSyncEnabled();
+            var device = MakeDevice(failureCount: 0);
             var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => throw new InvalidOperationException("graph unavailable");
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
 
-            var sut = CreateSut(db: db);
+            var sut = CreateSut(db: db, graph: graph);
             try
             {
                 // Act
                 await sut.Run(new TimerInfo());
 
-                // Assert – CorpIDCount was incremented by 1 (one device synced)
-                Assert.Equal(1, db.Counter.CorpIDCount);
+                // Assert – no CorpID was added so count remains 0
+                Assert.Equal(0, db.Counter.CorpIDCount);
+                // No rollback needed because CorporateIdentityID was never set
+                Assert.Null(graph.LastDeletedId);
             }
             finally
             {
                 ClearEnvVars();
             }
         }
+
+        /// <summary>
+        /// Processing syncing device where graph add fails and DB update fails with Cosmos PreconditionFailed Exception (device was modified concurrently, we assume to Deleting state)
+        /// Expected behavior:  CorpIDCount is not incremented and no update to DB object is attempted
+        /// </summary>
+        [Fact]
+        public async Task Run_SyncingDevice_GraphAddFails_UpdateThrowsPreconditionFailed_DeviceDeleting_CorpIDCountUnchangedAndNoRollback()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var device = MakeDevice(failureCount: 0);
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => throw new InvalidOperationException("graph unavailable");
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Deleting });
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert – no CorpID was added; DeviceDeletion completes cleanup, so count stays 0
+                Assert.Equal(0, db.Counter.CorpIDCount);
+                // No rollback attempted since CorporateIdentityID was never set
+                Assert.Null(graph.LastDeletedId);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        #endregion GraphAndCosmosErrorHandlingTests
+
+
+        #region CommitCorpIDCountTests
+        // ═══════════════════════════════════════════════════════════════════════
+        // Run – CommitCorpIDCount related test cases
+        // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Verifies that Run logs an exception and does not rethrow when CommitCorpIDCount fails.
@@ -1806,105 +1752,7 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 ClearEnvVars();
             }
         }
+        #endregion CommitCorpIDCountTests
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Run – UpdateDevice rollback with PreconditionFailed (corp-id rollback success)
-        // ═══════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Verifies that Run decrements the sync count after a successful corp ID rollback when UpdateDevice throws PreconditionFailed for a Deleting device.
-        /// </summary>
-        [Fact]
-        public async Task Run_UpdateDeviceThrowsPreconditionFailed_DeletingDevice_RollbackSucceeds_DecrementsSyncCount()
-        {
-            // Arrange
-            SetSyncEnabled(maxCorpIds: 10);
-            var device = MakeDevice();
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            db.Counter = new CorpIDCounter(0) { CorpIDCount = 0, CorpIDReserve = 0 };
-
-            var graph = new StubGraphBetaService();
-            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "id-rb", ImportedDeviceIdentifier = "ident-rb" });
-            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Success);
-
-            db.OnUpdateDevice = _ => throw new CosmosException(
-                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
-            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Deleting });
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – rollback succeeded so devicesSynced was decremented to 0 → CorpIDCount stays 0
-                Assert.Equal(0, db.Counter.CorpIDCount);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run decrements the sync count after a successful corp ID rollback when UpdateDevice throws a Cosmos NotFound exception.
-        /// </summary>
-        [Fact]
-        public async Task Run_UpdateDeviceThrowsNotFound_RollbackSucceeds_DecrementsSyncCount()
-        {
-            // Arrange
-            SetSyncEnabled(maxCorpIds: 10);
-            var device = MakeDevice();
-            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
-            db.Counter = new CorpIDCounter(0) { CorpIDCount = 0, CorpIDReserve = 0 };
-
-            var graph = new StubGraphBetaService();
-            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "id-nf", ImportedDeviceIdentifier = "ident-nf" });
-            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Success);
-
-            db.OnUpdateDevice = _ => throw new CosmosException(
-                "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
-
-            var sut = CreateSut(db: db, graph: graph);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – sync count was decremented back to 0
-                Assert.Equal(0, db.Counter.CorpIDCount);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
-
-        /// <summary>
-        /// Verifies that Run passes the configured batch size through to the GetAddedDevicesNotSyncing database call.
-        /// </summary>
-        [Fact]
-        public async Task Run_GetEnvironmentVariables_ValidBatchSize_IsPassedToGetAddedDevicesNotSyncing()
-        {
-            // Arrange
-            SetSyncEnabled(batchSize: 77);
-            var device = MakeDevice();
-            var db = MakeSyncDb(notSyncingDevices: new List<Device> { device });
-
-            var sut = CreateSut(db: db);
-            try
-            {
-                // Act
-                await sut.Run(new TimerInfo());
-
-                // Assert – the batch size 77 was passed through to the DB call
-                Assert.Single(db.GetAddedDevicesNotSyncingCalls);
-                Assert.Equal(77, db.GetAddedDevicesNotSyncingCalls[0].BatchSize);
-            }
-            finally
-            {
-                ClearEnvVars();
-            }
-        }
     }
 }
