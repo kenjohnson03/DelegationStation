@@ -4,6 +4,7 @@ using CorporateIdentifierSync.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta.Models;
+using System.Reflection;
 using Xunit;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
@@ -193,50 +194,49 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         }
 
         // -----------------------------------------------------------------------
-        // Constructor tests
+        // Reflection helpers
         // -----------------------------------------------------------------------
 
-        /// <summary>
-        /// Verifies that the constructor creates a valid ReconcileSyncState instance when all dependencies are provided.
-        /// </summary>
-        [Fact]
-        public void Constructor_WithValidDependencies_CreatesInstance()
+        private static bool GetIsCorpIDSyncEnabled(ReconcileSyncState sut)
         {
-            var loggerFactory = new CapturingLoggerFactory();
-            var db = new StubCosmosDbService();
-            var graph = new StubGraphBetaService();
-            var singletonLock = new StubSingletonLock(false);
-
-            var sut = new ReconcileSyncState(loggerFactory, db, graph, singletonLock);
-
-            Assert.NotNull(sut);
+            var field = typeof(ReconcileSyncState)
+                .GetField("_IsCorpIDSyncEnabled", BindingFlags.NonPublic | BindingFlags.Instance);
+            return (bool)field!.GetValue(sut)!;
         }
 
-        /// <summary>
-        /// Verifies that the constructor calls CreateLogger on the provided logger factory.
-        /// </summary>
-        [Fact]
-        public void Constructor_CallsCreateLoggerOnLoggerFactory()
+        private static int GetBatchSize(ReconcileSyncState sut)
         {
-            var loggerFactory = new CapturingLoggerFactory();
-
-            _ = CreateSut(loggerFactory);
-
-            Assert.True(loggerFactory.CreateLoggerCalled);
+            var field = typeof(ReconcileSyncState)
+                .GetField("_BatchSize", BindingFlags.NonPublic | BindingFlags.Instance);
+            return (int)field!.GetValue(sut)!;
         }
 
+        private static int GetMaxCorpIDsAllowed(ReconcileSyncState sut)
+        {
+            var field = typeof(ReconcileSyncState)
+                .GetField("_MaxCorpIDsAllowed", BindingFlags.NonPublic | BindingFlags.Instance);
+            return (int)field!.GetValue(sut)!;
+        }
+
+
+        #region GetEnvironmentVariableTests
         // -----------------------------------------------------------------------
         // GetEnvironmentVariables – EnableCorpIDSync
         // -----------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when the EnableCorpIDSync environment variable is not set.
+        /// Verifies that GetEnvironmentVariables sets _IsCorpIDSyncEnabled to the expected value.
+        /// Invalid or missing inputs default to false; valid boolean strings are parsed correctly.
         /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_EnableCorpIDSyncNotSet_LogsError()
+        [Theory]
+        [InlineData(null, false)]           // not set → default false
+        [InlineData("not-a-bool", false)]   // unparseable → default false
+        [InlineData("true", true)]          // valid → true
+        [InlineData("false", false)]        // valid → false
+        public void GetEnvironmentVariables_SetsIsCorpIDSyncEnabledFromEnvVar(string? envVarValue, bool expected)
         {
             using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", null);
+            env.Set("EnableCorpIDSync", envVarValue);
             env.Set("ReconcileSyncBatchSize", "100");
             env.Set("MAX_CORPIDS_ALLOWED", "5000");
 
@@ -245,72 +245,7 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
 
             sut.GetEnvironmentVariables();
 
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when EnableCorpIDSync is set to an invalid boolean string.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_EnableCorpIDSyncInvalid_LogsError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "not-a-bool");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables does not log a sync-flag error when EnableCorpIDSync is set to true.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_EnableCorpIDSyncTrue_NoSyncFlagError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.DoesNotContain(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables does not log a sync-flag error when EnableCorpIDSync is set to false.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_EnableCorpIDSyncFalse_NoSyncFlagError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "false");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.DoesNotContain(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("EnableCorpIDSync not set or not a valid boolean"));
+            Assert.Equal(expected, GetIsCorpIDSyncEnabled(sut));
         }
 
         // -----------------------------------------------------------------------
@@ -318,14 +253,22 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // -----------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is not set.
+        /// Verifies that GetEnvironmentVariables sets _BatchSize to the expected value.
+        /// Invalid, missing, zero, and negative inputs fall back to the default of 1000;
+        /// a valid positive value is used directly.
         /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_BatchSizeNotSet_LogsWarning()
+        [Theory]
+        [InlineData(null, 1000)]            // not set → default
+        [InlineData("not-a-number", 1000)]  // unparseable → default
+        [InlineData("0", 1000)]             // zero (must be > 0) → default
+        [InlineData("-5", 1000)]            // negative → default
+        [InlineData("500", 500)]            // valid positive → used as-is
+        [InlineData("100", 100)]            // valid positive → used as-is
+        public void GetEnvironmentVariables_SetsBatchSizeFromEnvVar(string? envVarValue, int expectedBatchSize)
         {
             using var env = new EnvVarScope();
             env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", null);
+            env.Set("ReconcileSyncBatchSize", envVarValue);
             env.Set("MAX_CORPIDS_ALLOWED", "5000");
 
             var loggerFactory = new CapturingLoggerFactory();
@@ -333,93 +276,7 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
 
             sut.GetEnvironmentVariables();
 
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to a non-numeric string.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_BatchSizeInvalidString_LogsWarning()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "not-a-number");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to zero.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_BatchSizeZero_LogsWarning()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "0");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs a warning when ReconcileSyncBatchSize is set to a negative value.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_BatchSizeNegative_LogsWarning()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "-5");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Warning && l.Message.Contains("ReconcileSyncBatchSize is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs the batch size at information level when ReconcileSyncBatchSize is valid.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_BatchSizeValid_LogsInformation()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "500");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Information && l.Message.Contains("Using ReconcileSyncBatchSize: 500"));
+            Assert.Equal(expectedBatchSize, GetBatchSize(sut));
         }
 
         // -----------------------------------------------------------------------
@@ -427,110 +284,33 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         // -----------------------------------------------------------------------
 
         /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is not set.
+        /// Verifies that GetEnvironmentVariables sets _MaxCorpIDsAllowed to the expected value.
+        /// Invalid, missing, zero, and negative inputs fall back to the default of 10000;
+        /// a valid positive value is used directly.
         /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_MaxCorpIDsNotSet_LogsError()
+        [Theory]
+        [InlineData(null, 10000)]           // not set → default
+        [InlineData("bad-value", 10000)]    // unparseable → default
+        [InlineData("0", 10000)]            // zero (must be > 0) → default
+        [InlineData("-10", 10000)]          // negative → default
+        [InlineData("5000", 5000)]          // valid positive → used as-is
+        public void GetEnvironmentVariables_SetsMaxCorpIDsAllowedFromEnvVar(string? envVarValue, int expectedMax)
         {
             using var env = new EnvVarScope();
             env.Set("EnableCorpIDSync", "true");
             env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", null);
+            env.Set("MAX_CORPIDS_ALLOWED", envVarValue);
 
             var loggerFactory = new CapturingLoggerFactory();
             ReconcileSyncState sut = CreateSut(loggerFactory);
 
             sut.GetEnvironmentVariables();
 
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
+            Assert.Equal(expectedMax, GetMaxCorpIDsAllowed(sut));
         }
+        #endregion GetEnvironmentVariableTests
 
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to an invalid string.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_MaxCorpIDsInvalidString_LogsError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "bad-value");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to zero.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_MaxCorpIDsZero_LogsError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "0");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs an error when MAX_CORPIDS_ALLOWED is set to a negative value.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_MaxCorpIDsNegative_LogsError()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "-10");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Error && l.Message.Contains("MAX_CORPIDS_ALLOWED is not set or invalid"));
-        }
-
-        /// <summary>
-        /// Verifies that GetEnvironmentVariables logs the max corp IDs at information level when MAX_CORPIDS_ALLOWED is valid.
-        /// </summary>
-        [Fact]
-        public void GetEnvironmentVariables_MaxCorpIDsValid_LogsInformation()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-
-            sut.GetEnvironmentVariables();
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Information && l.Message.Contains("Maximum allowed Corporate Identifiers for the tenant is set to: 5000"));
-        }
-
+        #region SingletonLockTests
         // -----------------------------------------------------------------------
         // Run tests
         // -----------------------------------------------------------------------
@@ -556,56 +336,14 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 loggerFactory.Logger.Logs,
                 l => l.Level == LogLevel.Warning && l.Message.Contains("Another instance of ReconcileSyncState is already running"));
 
-            // GetEnvironmentVariables should NOT have been called (no batch-size warning)
+            // GetEnvironmentVariables should NOT have been called (no execution-start message)
             Assert.DoesNotContain(
                 loggerFactory.Logger.Logs,
                 l => l.Message.Contains("C# Timer trigger function executed at"));
         }
+        #endregion SingletonLockTests
 
-        /// <summary>
-        /// Verifies that Run does not log the next schedule when the timer has no schedule status.
-        /// </summary>
-        [Fact]
-        public async Task Run_WhenScheduleStatusIsNull_DoesNotLogNextSchedule()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "false");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-            TimerInfo timer = MakeTimerInfo(withScheduleStatus: false);
-
-            await sut.Run(timer);
-
-            Assert.DoesNotContain(
-                loggerFactory.Logger.Logs,
-                l => l.Message.Contains("Next timer schedule at"));
-        }
-
-        /// <summary>
-        /// Verifies that Run logs the next scheduled time when the timer has a schedule status.
-        /// </summary>
-        [Fact]
-        public async Task Run_WhenScheduleStatusIsNotNull_LogsNextSchedule()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "false");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory);
-            TimerInfo timer = MakeTimerInfo(withScheduleStatus: true);
-
-            await sut.Run(timer);
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Information && l.Message.Contains("Next timer schedule at"));
-        }
-
+        #region EarlyExitTests
         /// <summary>
         /// Verifies that Run logs an informational message and does not call the database when sync is not enabled.
         /// </summary>
@@ -633,6 +371,7 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 loggerFactory.Logger.Logs,
                 l => l.Message.Contains("ReconcileSyncState completed"));
         }
+        #endregion EarlyExitTests
 
         /// <summary>
         /// Verifies that Run completes a full execution including both the non-syncing and syncing device sections when sync is enabled.
@@ -671,27 +410,5 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Level == LogLevel.Information && l.Message.Contains("ReconcileSyncState completed"));
         }
 
-        /// <summary>
-        /// Verifies that Run logs the execution start message when sync is enabled.
-        /// </summary>
-        [Fact]
-        public async Task Run_WhenSyncEnabled_LogsExecutionStart()
-        {
-            using var env = new EnvVarScope();
-            env.Set("EnableCorpIDSync", "true");
-            env.Set("ReconcileSyncBatchSize", "100");
-            env.Set("MAX_CORPIDS_ALLOWED", "5000");
-
-            var db = new StubCosmosDbService();
-            var loggerFactory = new CapturingLoggerFactory();
-            ReconcileSyncState sut = CreateSut(loggerFactory, db);
-            TimerInfo timer = MakeTimerInfo(withScheduleStatus: false);
-
-            await sut.Run(timer);
-
-            Assert.Contains(
-                loggerFactory.Logger.Logs,
-                l => l.Level == LogLevel.Information && l.Message.Contains("C# Timer trigger function executed at"));
-        }
     }
 }

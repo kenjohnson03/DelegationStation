@@ -13,6 +13,8 @@ namespace CorporateIdentifierSync
 
         public CorpIdCapacityManager(ICosmosDbService dbService, ILogger logger, int totalCap)
         {
+            ArgumentOutOfRangeException.ThrowIfNegative(totalCap);
+
             _dbService = dbService;
             _logger = logger;
             _totalCap = totalCap;
