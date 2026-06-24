@@ -117,6 +117,7 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
             public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
             public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
             public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
+            public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
         }
 
         /// <summary>Stub for <see cref="IGraphBetaService"/> — not called by the methods under test.</summary>

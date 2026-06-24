@@ -29,5 +29,7 @@ namespace CorporateIdentifierSync.Interfaces
 
         Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize);
         Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize);
+
+        Task<int> GetSyncedDeviceCountAsync();
     }
 }

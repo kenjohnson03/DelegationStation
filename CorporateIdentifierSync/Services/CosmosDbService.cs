@@ -551,5 +551,40 @@ namespace CorporateIdentifierSync.Services
 
         }
 
+        public async Task<int> GetSyncedDeviceCountAsync()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation("Getting count of devices with status Synced.", fullMethodName);
+
+            try
+            {
+                QueryDefinition query = new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.Type = \"Device\" AND c.Status = @status");
+                query.WithParameter("@status", DeviceStatus.Synced);
+
+                var queryIterator = _container.GetItemQueryIterator<int>(query);
+                int count = 0;
+
+                while (queryIterator.HasMoreResults)
+                {
+                    var response = await queryIterator.ReadNextAsync();
+                    foreach (var item in response)
+                    {
+                        count = item;
+                    }
+                }
+
+                _logger.DSLogInformation($"Found {count} devices with status Synced.", fullMethodName);
+                return count;
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to query Cosmos DB for synced device count.", ex, fullMethodName);
+                return 0;
+            }
+        }
+
     }
 }

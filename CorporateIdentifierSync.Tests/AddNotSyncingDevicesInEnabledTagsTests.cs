@@ -667,5 +667,6 @@ public class AddNotSyncingDevicesInEnabledTagsTests
         public Task<List<Device>> GetDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
+        public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
     }
 }
