@@ -2,7 +2,7 @@ using DelegationStationShared.Enums;
 using System.ComponentModel.DataAnnotations;
 
 
-namespace DelegationStationTests.Validation
+namespace DelegationStation.Tests.Validation
 {
     [TestClass]
     public class DeviceBulkModelValidationTests
