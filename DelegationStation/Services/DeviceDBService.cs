@@ -271,6 +271,25 @@ namespace DelegationStation.Services
             device.Model = device.Model.Trim();
             device.SerialNumber = device.SerialNumber.Trim();
 
+            // For non-Windows devices, serial number must be globally unique regardless of Make/Model
+            if (device.OS != DeviceOS.Windows)
+            {
+                List<Device> devicesWithSerial = new List<Device>();
+                QueryDefinition qSerial = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.SerialNumber, @serial, true)");
+                qSerial.WithParameter("@serial", device.SerialNumber);
+
+                var serialQueryIterator = this._container.GetItemQueryIterator<Device>(qSerial);
+                while (serialQueryIterator.HasMoreResults)
+                {
+                    var qIresponse = await serialQueryIterator.ReadNextAsync();
+                    devicesWithSerial.AddRange(qIresponse.ToList());
+                }
+                if (devicesWithSerial.Count != 0)
+                {
+                    throw new Exception("A non-Windows device with this Serial Number already exists.");
+                }
+            }
+
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
             QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true)");
