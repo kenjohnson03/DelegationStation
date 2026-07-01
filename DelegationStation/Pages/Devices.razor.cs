@@ -25,6 +25,7 @@ namespace DelegationStation.Pages
 
         private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
         private string tagSearch = "";
+        private string currentDeviceSearchTag = "";
         private int pageSize = 10;
         // Current 1-based page number for display and navigation
         private int PageNumber = 1;
@@ -59,6 +60,8 @@ namespace DelegationStation.Pages
             editContext = new EditContext(newDevice);
             editContext.OnValidationRequested += HandleValidationRequested;
             messageStore = new ValidationMessageStore(editContext);
+            searchDevice.Tags = new List<string>();
+            searchDevice.Tags.Add(string.Empty);
         }
 
         protected override async Task OnInitializedAsync()
@@ -134,6 +137,21 @@ namespace DelegationStation.Pages
                 logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
+        private List<string> GetMatchingTags()
+        {
+            var matchingTags = new List<string>(); 
+            if (!string.IsNullOrEmpty(currentDeviceSearchTag))
+            {
+                foreach (var tag in deviceTags)
+                {
+                    if (tag.Name.Contains(currentDeviceSearchTag, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchingTags.Add(tag.Id.ToString());
+                    }
+                }
+            }
+            return matchingTags;
+        }
         private async Task GetDevices()
         {
             Guid c = Guid.NewGuid();
@@ -168,7 +186,7 @@ namespace DelegationStation.Pages
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
             devicesLoading = true;
-
+            searchDevice.Tags = GetMatchingTags();
             try
             {                
                 // Reset to page 1 whenever a new search is initiated
@@ -179,6 +197,7 @@ namespace DelegationStation.Pages
                 activeSearchDevice.Make = searchDevice.Make;
                 activeSearchDevice.Model = searchDevice.Model;
                 activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
+                activeSearchDevice.Tags = searchDevice.Tags;
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, activeSearchDevice);
