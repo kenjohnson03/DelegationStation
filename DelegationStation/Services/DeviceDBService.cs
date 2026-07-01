@@ -275,7 +275,7 @@ namespace DelegationStation.Services
             if (device.OS != DeviceOS.Windows)
             {
                 List<Device> devicesWithSerial = new List<Device>();
-                QueryDefinition qSerial = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.SerialNumber, @serial, true)");
+                QueryDefinition qSerial = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.OS != 1 AND STRINGEQUALS(d.SerialNumber, @serial, true)");
                 qSerial.WithParameter("@serial", device.SerialNumber);
 
                 var serialQueryIterator = this._container.GetItemQueryIterator<Device>(qSerial);
