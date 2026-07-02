@@ -272,7 +272,7 @@ namespace DelegationStation.Services
             device.SerialNumber = device.SerialNumber.Trim();
 
             // For non-Windows devices, serial number must be globally unique regardless of Make/Model
-            if (device.OS != DeviceOS.Windows)
+            if (device.OS != DeviceOS.Windows && device.OS != DeviceOS.Unknown)
             {
                 // SELECT TOP 1 with a single field: stops at first match and minimizes RU cost.
                 // d.OS > 1 excludes both Unknown (0) and Windows (1), checking only MacOS, iOS, and Android
