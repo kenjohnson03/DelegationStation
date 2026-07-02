@@ -52,7 +52,7 @@ namespace DelegationStation.Tests.Pages
             {
                 GetDevicesAsyncIEnumerableOfStringInt32Int32 =
                     (groupIds, pageSize, currentPage) => Task.FromResult(new List<Device>()),
-                AddOrUpdateDeviceAsyncDevice = addOrUpdateStub
+                AddOrUpdateDeviceAsyncDevice = device => addOrUpdateStub(device)
             };
 
             var config = new ConfigurationBuilder()
