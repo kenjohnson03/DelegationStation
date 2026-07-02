@@ -73,6 +73,9 @@ namespace DelegationStation.Tests.Pages
         /// Fills in the add-device form fields and clicks the Add button.
         /// osValue must be the enum NAME as rendered by @os in the razor (e.g. "Windows", "MacOS", "iOS", "Android").
         /// The option tag renders value=@os which outputs the enum name, not the integer.
+        ///
+        /// InputText components in .NET 8 bind via oninput, so .Input() must be used (not .Change())
+        /// for those fields. InputSelect and native checkboxes use onchange, so .Change() is correct.
         /// </summary>
         private static void FillAndSubmitAddForm(
             IRenderedComponent<Devices> cut,
@@ -81,11 +84,13 @@ namespace DelegationStation.Tests.Pages
             string serialNumber,
             string osValue)
         {
-            cut.Find("#DeviceMake").Change(make);
-            cut.Find("#DeviceModel").Change(model);
-            cut.Find("#SerialNumber").Change(serialNumber);
+            // InputText uses @bind-value:event="oninput" in .NET 8 — use .Input() to fire the oninput event
+            cut.Find("#DeviceMake").Input(make);
+            cut.Find("#DeviceModel").Input(model);
+            cut.Find("#SerialNumber").Input(serialNumber);
+            // InputSelect uses onchange — .Change() is correct here
             cut.Find("#OS").Change(osValue);
-            // Select the first available tag via its checkbox
+            // Native checkbox with @onchange — .Change() is correct here
             cut.Find(".form-check-input").Change(true);
             cut.Find("input[value='Add']").Click();
         }
