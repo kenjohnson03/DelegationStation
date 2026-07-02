@@ -279,18 +279,9 @@ namespace DelegationStation.Services
                 QueryDefinition qSerial = new QueryDefinition("SELECT TOP 1 d.id FROM d WHERE d.Type = \"Device\" AND d.OS > 1 AND STRINGEQUALS(d.SerialNumber, @serial, true)");
                 qSerial.WithParameter("@serial", device.SerialNumber);
 
-                bool duplicateSerialExists = false;
                 var serialQueryIterator = this._container.GetItemQueryIterator<dynamic>(qSerial);
-                while (serialQueryIterator.HasMoreResults)
-                {
-                    var qIresponse = await serialQueryIterator.ReadNextAsync();
-                    if (qIresponse.Any())
-                    {
-                        duplicateSerialExists = true;
-                        break;
-                    }
-                }
-                if (duplicateSerialExists)
+                var serialResult = await serialQueryIterator.ReadNextAsync();
+                if (serialResult.Any())
                 {
                     throw new Exception("A non-Windows device with this Serial Number already exists.");
                 }
