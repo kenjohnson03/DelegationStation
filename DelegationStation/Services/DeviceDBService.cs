@@ -275,6 +275,7 @@ namespace DelegationStation.Services
             if (device.OS != DeviceOS.Windows)
             {
                 List<Device> devicesWithSerial = new List<Device>();
+                // d.OS > 1 excludes both Unknown (0) and Windows (1), checking only MacOS, iOS, and Android
                 QueryDefinition qSerial = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND d.OS > 1 AND STRINGEQUALS(d.SerialNumber, @serial, true)");
                 qSerial.WithParameter("@serial", device.SerialNumber);
 
