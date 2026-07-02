@@ -2,9 +2,11 @@ using DelegationStation.Interfaces;
 using DelegationStation.Pages;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.QualityTools.Testing.Fakes;
+using System.Security.Claims;
 
 namespace DelegationStation.Tests.Pages
 {
@@ -20,6 +22,24 @@ namespace DelegationStation.Tests.Pages
     public class DevicesAddDeviceTests : Bunit.TestContext
     {
         private const string DuplicateSerialErrorMessage = "A non-Windows device with this Serial Number already exists.";
+
+        /// <summary>
+        /// Minimal IAuthorizationService that authorizes every request. The Devices page calls
+        /// authorizationService.AuthorizeAsync(user, tag, DeviceTagOperations.Read) inside AddDevice;
+        /// bUnit's AddTestAuthorization() does not satisfy that resource-based operation check.
+        /// The real authorization logic is covered by DeviceTagAuthorizationHandlerTests, so here we
+        /// short-circuit it to focus on the duplicate-serial behavior.
+        /// </summary>
+        private sealed class AlwaysAllowAuthorizationService : IAuthorizationService
+        {
+            public Task<AuthorizationResult> AuthorizeAsync(
+                ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
+                => Task.FromResult(AuthorizationResult.Success());
+
+            public Task<AuthorizationResult> AuthorizeAsync(
+                ClaimsPrincipal user, object? resource, string policyName)
+                => Task.FromResult(AuthorizationResult.Success());
+        }
 
         private IRenderedComponent<Devices> SetupComponent(
             List<DeviceTag> deviceTags,
@@ -65,6 +85,10 @@ namespace DelegationStation.Tests.Pages
             Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
             Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
             Services.AddSingleton<IConfiguration>(config);
+            // Override bUnit's fake IAuthorizationService so the resource-based
+            // DeviceTagOperations.Read check inside AddDevice succeeds. Registered
+            // after AddTestAuthorization() so this is the resolved instance.
+            Services.AddSingleton<IAuthorizationService>(new AlwaysAllowAuthorizationService());
 
             return RenderComponent<Devices>();
         }
@@ -73,9 +97,6 @@ namespace DelegationStation.Tests.Pages
         /// Fills in the add-device form fields and clicks the Add button.
         /// osValue must be the enum NAME as rendered by @os in the razor (e.g. "Windows", "MacOS", "iOS", "Android").
         /// The option tag renders value=@os which outputs the enum name, not the integer.
-        ///
-        /// InputText components in .NET 8 bind via oninput, so .Input() must be used (not .Change())
-        /// for those fields. InputSelect and native checkboxes use onchange, so .Change() is correct.
         /// </summary>
         private static void FillAndSubmitAddForm(
             IRenderedComponent<Devices> cut,
@@ -84,15 +105,19 @@ namespace DelegationStation.Tests.Pages
             string serialNumber,
             string osValue)
         {
-            // InputText uses @bind-value:event="oninput" in .NET 8 — use .Input() to fire the oninput event
-            cut.Find("#DeviceMake").Input(make);
-            cut.Find("#DeviceModel").Input(model);
-            cut.Find("#SerialNumber").Input(serialNumber);
-            // InputSelect uses onchange — .Change() is correct here
-            cut.Find("#OS").Change(osValue);
-            // Native checkbox with @onchange — .Change() is correct here
+            cut.Find("#DeviceMake").Change(make);
+            cut.Find("#DeviceModel").Change(model);
+            cut.Find("#SerialNumber").Change(serialNumber);
+            // NOTE: id="OS" appears twice on the page -- once for the search filter
+            // (searchDevice.OS) in the table header and once for the add form (newDevice.OS).
+            // Scope to the <form> so we target the add-device OS select, not the search one.
+            cut.Find("form #OS").Change(osValue);
+            // Select the first available tag via its checkbox
             cut.Find(".form-check-input").Change(true);
-            cut.Find("input[value='Add']").Click();
+            // In bUnit, clicking a submit <input> does not trigger the EditForm's
+            // onsubmit (there is no real browser). Submit the form directly so
+            // OnValidSubmit (AddDevice) runs.
+            cut.Find("form").Submit();
         }
 
         [TestMethod]
