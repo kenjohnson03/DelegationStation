@@ -71,7 +71,8 @@ namespace DelegationStation.Tests.Pages
 
         /// <summary>
         /// Fills in the add-device form fields and clicks the Add button.
-        /// osValue is the integer string of the DeviceOS enum (e.g. "1"=Windows, "2"=MacOS, "3"=iOS, "4"=Android).
+        /// osValue must be the enum NAME as rendered by @os in the razor (e.g. "Windows", "MacOS", "iOS", "Android").
+        /// The option tag renders value=@os which outputs the enum name, not the integer.
         /// </summary>
         private static void FillAndSubmitAddForm(
             IRenderedComponent<Devices> cut,
@@ -90,10 +91,10 @@ namespace DelegationStation.Tests.Pages
         }
 
         [TestMethod]
-        [DataRow("2", "MacOS")]
-        [DataRow("3", "iOS")]
-        [DataRow("4", "Android")]
-        public void AddDevice_NonWindowsDevice_DuplicateSerial_ShowsErrorMessage(string osValue, string osDisplayName)
+        [DataRow("MacOS")]
+        [DataRow("iOS")]
+        [DataRow("Android")]
+        public void AddDevice_NonWindowsDevice_DuplicateSerial_ShowsErrorMessage(string osValue)
         {
             using (ShimsContext.Create())
             {
@@ -111,17 +112,17 @@ namespace DelegationStation.Tests.Pages
                 cut.WaitForAssertion(() =>
                     Assert.IsTrue(
                         cut.Markup.Contains(DuplicateSerialErrorMessage),
-                        $"Expected duplicate serial error for {osDisplayName} device. Markup: {cut.Markup}"
+                        $"Expected duplicate serial error for {osValue} device. Markup: {cut.Markup}"
                     )
                 );
             }
         }
 
         [TestMethod]
-        [DataRow("2", "MacOS")]
-        [DataRow("3", "iOS")]
-        [DataRow("4", "Android")]
-        public void AddDevice_NonWindowsDevice_UniqueSerial_ShowsSuccessMessage(string osValue, string osDisplayName)
+        [DataRow("MacOS")]
+        [DataRow("iOS")]
+        [DataRow("Android")]
+        public void AddDevice_NonWindowsDevice_UniqueSerial_ShowsSuccessMessage(string osValue)
         {
             using (ShimsContext.Create())
             {
@@ -140,7 +141,7 @@ namespace DelegationStation.Tests.Pages
                 cut.WaitForAssertion(() =>
                     Assert.IsTrue(
                         cut.Markup.Contains("Device added successfully"),
-                        $"Expected success message for {osDisplayName} device with unique serial. Markup: {cut.Markup}"
+                        $"Expected success message for {osValue} device with unique serial. Markup: {cut.Markup}"
                     )
                 );
             }
@@ -160,8 +161,8 @@ namespace DelegationStation.Tests.Pages
                     device => Task.FromResult(addedDevice)
                 );
 
-                // Act - "1" = DeviceOS.Windows
-                FillAndSubmitAddForm(cut, "Dell", "Latitude", "SN12345", "1");
+                // Act - "Windows" matches the enum name rendered in option value=@os
+                FillAndSubmitAddForm(cut, "Dell", "Latitude", "SN12345", "Windows");
 
                 // Assert
                 cut.WaitForAssertion(() =>
@@ -185,8 +186,8 @@ namespace DelegationStation.Tests.Pages
                     device => Task.FromException<Device>(new Exception(DuplicateSerialErrorMessage))
                 );
 
-                // Act - MacOS device
-                FillAndSubmitAddForm(cut, "Apple", "MacBook", "SN12345", "2");
+                // Act - MacOS device; "MacOS" matches the enum name rendered in option value=@os
+                FillAndSubmitAddForm(cut, "Apple", "MacBook", "SN12345", "MacOS");
 
                 // Assert: error message is shown in an error-styled alert and includes the correlation ID context
                 cut.WaitForAssertion(() =>
