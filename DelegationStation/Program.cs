@@ -77,6 +77,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor()
     .AddMicrosoftIdentityConsentHandler();
 
+builder.Services.AddScoped<RecentUpdatesNotificationService>();
 builder.Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
 builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
