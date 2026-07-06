@@ -394,6 +394,125 @@ namespace DelegationStationTests.Pages
             }
         }
 
+        [TestMethod]
+        public void SearchByTagAsAdminShouldForwardAllMatchingTagIds()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange – admin: user's group == DefaultAdminGroupObjectId, so all tags are accessible
+                Guid defaultId = Guid.NewGuid();
+
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("ADMIN USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "ADMIN USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+
+                // Admin sees every tag – two of them match "Corp"
+                DeviceTag corpLaptops = new DeviceTag() { Name = "Corp-Laptops" };
+                DeviceTag corpPhones = new DeviceTag() { Name = "Corp-Phones" };
+                DeviceTag kiosks = new DeviceTag() { Name = "Kiosks" };
+                List<DeviceTag> allTags = new List<DeviceTag>() { corpLaptops, corpPhones, kiosks };
+
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    GetDeviceTagsAsyncIEnumerableOfStringString = (groupIds, name) => Task.FromResult(allTags)
+                };
+
+                List<string>? capturedTags = null;
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (g, s, ps, p) => Task.FromResult(new List<Device>()),
+                    GetDeviceSearchCountAsyncIEnumerableOfStringDevice =
+                        (g, s) => Task.FromResult(0),
+                    GetDevicesSearchAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (groupIds, searchDevice, pageSize, page) =>
+                        {
+                            capturedTags = searchDevice.Tags?.ToList();
+                            return Task.FromResult(new List<Device>());
+                        }
+                };
+
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?> { { "DefaultAdminGroupObjectId", defaultId.ToString() } })
+                    .Build();
+
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act – type into the Tag search input and click Search
+                var cut = RenderComponent<Devices>();
+                cut.Find("input[placeholder='Tag']").Change("Corp");
+                cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
+
+                // Assert – both admin-visible tags matching "Corp" are forwarded to the search
+                Assert.IsNotNull(capturedTags, "GetDevicesSearchAsync should have been invoked.");
+                Assert.AreEqual(2, capturedTags!.Count, "Admin should forward all matching tag IDs.");
+                CollectionAssert.Contains(capturedTags, corpLaptops.Id.ToString());
+                CollectionAssert.Contains(capturedTags, corpPhones.Id.ToString());
+                CollectionAssert.DoesNotContain(capturedTags, kiosks.Id.ToString());
+            }
+        }
+
+        [TestMethod]
+        public void SearchByTagAsNonAdminShouldForwardOnlyAuthorizedMatchingTagIds()
+        {
+            using (ShimsContext.Create())
+            {
+                // Arrange – non-admin: user's group != DefaultAdminGroupObjectId
+                Guid userGroupId = Guid.NewGuid();
+                Guid defaultId = Guid.NewGuid();
+
+                var authContext = this.AddTestAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
+
+                // Tag DB service only returns tags the non-admin user has access to
+                DeviceTag corpLaptops = new DeviceTag() { Name = "Corp-Laptops" };
+                List<DeviceTag> accessibleTags = new List<DeviceTag>() { corpLaptops };
+
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    GetDeviceTagsAsyncIEnumerableOfStringString = (groupIds, name) => Task.FromResult(accessibleTags)
+                };
+
+                List<string>? capturedTags = null;
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (g, s, ps, p) => Task.FromResult(new List<Device>()),
+                    GetDeviceSearchCountAsyncIEnumerableOfStringDevice =
+                        (g, s) => Task.FromResult(0),
+                    GetDevicesSearchAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (groupIds, searchDevice, pageSize, page) =>
+                        {
+                            capturedTags = searchDevice.Tags?.ToList();
+                            return Task.FromResult(new List<Device>());
+                        }
+                };
+
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?> { { "DefaultAdminGroupObjectId", defaultId.ToString() } })
+                    .Build();
+
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act – search for "Corp"; the non-admin's inaccessible "Corp-Phones" tag isn't in deviceTags
+                var cut = RenderComponent<Devices>();
+                cut.Find("input[placeholder='Tag']").Change("Corp");
+                cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
+
+                // Assert – only the authorized matching tag ID is forwarded
+                Assert.IsNotNull(capturedTags, "GetDevicesSearchAsync should have been invoked.");
+                Assert.AreEqual(1, capturedTags!.Count, "Non-admin should only forward authorized matching tag IDs.");
+                CollectionAssert.Contains(capturedTags, corpLaptops.Id.ToString());
+            }
+        }
+
         private void AddDefaultServices(string defaultId = "")
         {
 
