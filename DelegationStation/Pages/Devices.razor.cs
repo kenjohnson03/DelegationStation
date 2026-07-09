@@ -139,17 +139,22 @@ namespace DelegationStation.Pages
         }
         private List<string> GetMatchingTags()
         {
-            var matchingTags = new List<string>(); 
-            if (!string.IsNullOrEmpty(currentDeviceSearchTag))
+            var matchingTags = new List<string>();
+            var tagFilter = currentDeviceSearchTag.Trim();
+
+            if (tagFilter.Length == 0)
             {
-                foreach (var tag in deviceTags)
+                return matchingTags;
+            }
+
+            foreach (var tag in deviceTags)
+            {
+                if (tag.Name.Contains(tagFilter, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (tag.Name.Contains(currentDeviceSearchTag, StringComparison.OrdinalIgnoreCase))
-                    {
-                        matchingTags.Add(tag.Id.ToString());
-                    }
+                    matchingTags.Add(tag.Id.ToString());
                 }
             }
+
             return matchingTags;
         }
         private async Task GetDevices()
