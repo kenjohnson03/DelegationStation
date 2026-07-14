@@ -20,6 +20,7 @@ namespace DelegationStation.Pages
             // default to set for new tags only
             CorpIDSyncEnabled = true
         };
+        private Dictionary<Guid, int> deviceCounts = new Dictionary<Guid, int>();
         private string userMessage = string.Empty;
         private bool tagsLoading = true;
         private int TotalTags = 0;
@@ -122,6 +123,7 @@ namespace DelegationStation.Pages
                 TotalPages = (int)Math.Ceiling((decimal)TotalTags / PageSize);
 
                 deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize, searchTag.Name);
+                await GetDevicesCount();
             }
             catch (Exception ex)
             {
@@ -131,6 +133,22 @@ namespace DelegationStation.Pages
             finally
             {
                 tagsLoading = false;
+            }
+        }
+        private async Task GetDevicesCount()
+        {
+            foreach (var tag in deviceTags)
+            {
+                try
+                {
+                    int count = await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
+                    deviceCounts[tag.Id] = count;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"Error retrieving device count for tag {tag.Name} ({tag.Id}).\n{ex.Message}\nUser: {userName} {userId}");
+                    deviceCounts[tag.Id] = -1; // Indicate an error occurred
+                }
             }
         }
 
