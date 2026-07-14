@@ -137,18 +137,25 @@ namespace DelegationStation.Pages
         }
         private async Task GetDevicesCount()
         {
-            foreach (var tag in deviceTags)
+            deviceCounts.Clear();
+
+            var countTasks = deviceTags.Select(async tag =>
             {
                 try
                 {
-                    int count = await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
-                    deviceCounts[tag.Id] = count;
+                    var count = await deviceTagDBService.GetDeviceCountByTagIdAsync(tag.Id.ToString());
+                    return (Id: tag.Id, Count: count);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError($"Error retrieving device count for tag {tag.Name} ({tag.Id}).\n{ex.Message}\nUser: {userName} {userId}");
-                    deviceCounts[tag.Id] = -1; // Indicate an error occurred
+                    logger.LogError(ex, "Error retrieving device count for tag {TagName} ({TagId}). User: {UserName} {UserId}", tag.Name, tag.Id, userName, userId);
+                    return (Id: tag.Id, Count: -1);
                 }
+            });
+
+            foreach (var result in await Task.WhenAll(countTasks))
+            {
+                deviceCounts[result.Id] = result.Count;
             }
         }
 

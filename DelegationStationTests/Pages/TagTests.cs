@@ -71,8 +71,10 @@ namespace DelegationStationTests.Pages
                 Assert.IsTrue(cut.Markup.Contains("testDescription1</td>"), "Tag1 description should be rendered in the table.");
                 Assert.IsTrue(cut.Markup.Contains("testName2</td>"), "Tag2 name should be rendered in the table.");
                 Assert.IsTrue(cut.Markup.Contains("testDescription2</td>"), "Tag2 description should be rendered in the table.");
-                Assert.IsTrue(cut.Markup.Contains(">5</td>"), $"Tag1 device count should be rendered in the table.\nActual:\n{cut.Markup}");
-                Assert.IsTrue(cut.Markup.Contains(">7</td>"), $"Tag2 device count should be rendered in the table.\nActual:\n{cut.Markup}");
+                var row1 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName1"));
+                var row2 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName2"));
+                Assert.IsTrue(row1.TextContent.Contains("5"), $"Tag1 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
+                Assert.IsTrue(row2.TextContent.Contains("7"), $"Tag2 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
             }
         }
 
