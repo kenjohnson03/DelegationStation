@@ -278,13 +278,13 @@ namespace UpdateDevices
                     try
                     {
                         await _graphService.AddDeviceToAzureADGroup(device.Id, deviceObjectID, deviceUpdateAction);
-
-                        // mark failure to trigger retry
-                        result = false;
                     }
                     catch (Exception ex)
                     {
                         _logger.DSLogException("Unable to add device " + device.Id + " (as " + deviceObjectID + ") to Group: " + deviceUpdateAction.Name + " (" + deviceUpdateAction.Value + ").", ex, fullMethodName);
+
+                        // mark failure to trigger retry
+                        result = false;
                     }
                 }
 
