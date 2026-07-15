@@ -14,6 +14,5 @@ namespace DelegationStation.Interfaces
         Task<List<DeviceTag>> GetDeviceTagsByPageAsync(IEnumerable<string> groupIds, int pageNumber, int pageSize, string name = null);
         Task<int> GetDeviceTagCountAsync(IEnumerable<string> groupIds, string name = null);
         Task<List<DeviceTag>> GetTagsSearchAsync(string name);
-        Task<CorpIDCounter?> GetCorpIDCounterAsync();
     }
 }

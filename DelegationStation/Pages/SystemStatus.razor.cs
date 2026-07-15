@@ -60,7 +60,7 @@ namespace DelegationStation.Pages
             {
                 MaxCorpIDsAllowed = GetMaxCorpIDsAllowed();
 
-                CorpIDCounter? counter = await deviceTagDBService.GetCorpIDCounterAsync();
+                CorpIDCounter? counter = await corpIdDBService.GetCorpIDCounterAsync();
                 if (counter == null)
                 {
                     errorMessage = "Corporate Identifier counter was not found in the database.";

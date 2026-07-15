@@ -366,23 +366,6 @@ namespace DelegationStation.Services
         {
             await this._container.DeleteItemAsync<DeviceTag>(deviceTag.Id.ToString(), new PartitionKey(deviceTag.PartitionKey));
         }
-
-        public async Task<CorpIDCounter?> GetCorpIDCounterAsync()
-        {
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.PartitionKey = \"CorpIDCounter\"");
-            var queryIterator = this._container.GetItemQueryIterator<CorpIDCounter>(query);
-            while (queryIterator.HasMoreResults)
-            {
-                FeedResponse<CorpIDCounter> response = await queryIterator.ReadNextAsync();
-                CorpIDCounter? counter = response.FirstOrDefault();
-                if (counter != null)
-                {
-                    return counter;
-                }
-            }
-
-            return null;
-        }
     }
     public class DeviceTagSearch
     {
