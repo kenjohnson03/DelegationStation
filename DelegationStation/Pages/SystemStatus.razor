@@ -1,0 +1,43 @@
+@page "/SystemStatus"
+@using DelegationStation.Interfaces;
+@using DelegationStationShared.Models;
+
+@inject IDeviceTagDBService deviceTagDBService
+@inject ILogger<SystemStatus> logger
+
+@attribute [Authorize]
+
+<h3>System Status</h3>
+
+<div class="card mb-3">
+    <div class="card-header">
+        Corporate Identifier Status
+    </div>
+    <div class="card-body">
+        @if (loading)
+        {
+            <p>Loading...</p>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                @errorMessage
+            </div>
+        }
+        else
+        {
+            <dl class="row mb-0">
+                <dt class="col-sm-4">Max Allowed Corporate Identifiers</dt>
+                <dd class="col-sm-8">@MaxCorpIDsAllowed</dd>
+
+                <dt class="col-sm-4">Current Corporate Identifier Count</dt>
+                <dd class="col-sm-8">@DisplayCount</dd>
+
+                <dt class="col-sm-4">Utilization</dt>
+                <dd class="col-sm-8">
+                    <span class="@UtilizationCssClass">@DisplayPercentage.ToString("0.##")%</span>
+                </dd>
+            </dl>
+        }
+    </div>
+</div>
