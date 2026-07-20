@@ -51,7 +51,7 @@
                 <tr>
                     <th>Tag Name</th>
                     <th>Number of Devices</th>
-                    <th></th>
+                    <th>Utilization</th>
                 </tr>
                 <tr>
                     <td>
@@ -67,7 +67,7 @@
                 @if (tagsLoading)
                 {
                     <tr>
-                        <td colspan="2">
+                        <td colspan="3">
                             <div class="spinner-border" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
@@ -77,7 +77,7 @@
                 else if (deviceTags.Count == 0)
                 {
                     <tr>
-                        <td colspan="2">No tags found.</td>
+                        <td colspan="3">No tags found.</td>
                     </tr>
                 }
                 else
@@ -89,6 +89,10 @@
                             <td>@(corpIDCounts.ContainsKey(tag.Id) ?
                                     (corpIDCounts[tag.Id] > -1 ? corpIDCounts[tag.Id].ToString() : "Unable to retrieve device count") : "Loading...")
                             </td>
+                            <td>
+                                @GetTagPercentageDisplay(tag.Id)
+                            </td>
+
                         </tr>
                     }
 

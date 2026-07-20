@@ -172,6 +172,29 @@ namespace DelegationStation.Pages
                 }
             }
         }
+        // Percentage of the max allowed corpIDs used by a single tag's synced device count.
+        private string GetTagPercentageDisplay(Guid tagId)
+        {
+            if (!corpIDCounts.ContainsKey(tagId))
+            {
+                return "Loading...";
+            }
+
+            int count = corpIDCounts[tagId];
+            if (count < 0)
+            {
+                return "N/A";
+            }
+
+            if (MaxCorpIDsAllowed <= 0)
+            {
+                return "0%";
+            }
+
+            double percentage = (double)count / MaxCorpIDsAllowed * 100;
+            return $"{percentage.ToString("0.##")}%";
+        }
+
         private void UpdateClaims()
         {
             groups = new List<string>();
