@@ -203,6 +203,7 @@ namespace DelegationStation.Pages
                 activeSearchDevice.Model = searchDevice.Model;
                 activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
                 activeSearchDevice.Tags = searchDevice.Tags;
+                activeSearchDevice.Status = searchDevice.Status;
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, activeSearchDevice);
