@@ -33,6 +33,8 @@ namespace DelegationStation.Pages
         private int TotalPages = 0;
         private Device searchDevice = new Device();
         private Device activeSearchDevice = new Device();
+        // Selected device state filter from the search dropdown (empty = no filter)
+        private string? searchStatus;
         // Tracks whether the user's last action was a search (true) or a default page load (false)
         private bool isSearchActive = false;
         private bool devicesLoading = true;
@@ -203,7 +205,9 @@ namespace DelegationStation.Pages
                 activeSearchDevice.Model = searchDevice.Model;
                 activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
                 activeSearchDevice.Tags = searchDevice.Tags;
-                activeSearchDevice.Status = searchDevice.Status;
+                activeSearchDevice.Status = string.IsNullOrEmpty(searchStatus)
+                    ? null
+                    : Enum.Parse<DeviceStatus>(searchStatus);
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, activeSearchDevice);

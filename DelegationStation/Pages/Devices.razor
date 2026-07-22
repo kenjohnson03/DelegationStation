@@ -94,13 +94,13 @@
                                         <input type="text" @bind="currentDeviceSearchTag" class="form-control" placeholder="Tag" />
                                     </td>
                                     <td>
-                                        <InputSelect @bind-Value=searchDevice.Status class="form-select" id="State">
-                                            <option selected value>Select State</option>
+                                        <select @bind="searchStatus" class="form-select" id="State">
+                                            <option value="">Select State</option>
                                             @foreach (var status in Enum.GetValues(typeof(DeviceStatus)))
                                             {
                                                 <option value=@status>@status</option>
                                             }
-                                        </InputSelect>
+                                        </select>
                                     </td>
                                     <td align="center">
                                         <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
