@@ -368,7 +368,7 @@ namespace DelegationStation.Services
         /// Builds the SQL WHERE clause fragment for per-field device searches.
         /// Appends an AND condition for each non-empty/non-null filter value.
         /// The caller is responsible for binding the corresponding @make, @model,
-        /// @serial, @os, @hostname, and @searchTag{N} parameters on the QueryDefinition.
+        /// @serial, @os, @hostname, @searchTag{N}, and @status parameters on the QueryDefinition.
         /// </summary>
         private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname, List<string> tags, int? statusID = null)
         {
