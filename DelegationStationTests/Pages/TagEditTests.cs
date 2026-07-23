@@ -268,7 +268,7 @@ namespace DelegationStationTests.Pages
                 var cut = RenderComponent<TagEdit>();
 
                 // Assert
-                string match = @"<h3>Tag Edit</h3>.*";
+                string match = @"<h2>Tag Edit</h2>.*";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
                 match = @"<h3>Not Authorized</h3>";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
@@ -296,7 +296,7 @@ namespace DelegationStationTests.Pages
 
 
             // Assert
-            string match = @"<h3>Tag Edit</h3>.*";
+            string match = @"<h2>Tag Edit</h2>.*";
             Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
             match = @"<h3>Error in navigation path</h3>";
             Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
