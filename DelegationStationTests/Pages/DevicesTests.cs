@@ -537,7 +537,11 @@ namespace DelegationStationTests.Pages
                     GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
                         (g, s, ps, p) => Task.FromResult(new List<Device>()),
                     GetDeviceSearchCountAsyncIEnumerableOfStringDevice =
-                        (g, s) => Task.FromResult(0),
+                        (g, s) =>
+                        {
+                            capturedStatus = s.Status;
+                            return Task.FromResult(0);
+                        },
                     GetDevicesSearchAsyncIEnumerableOfStringDeviceInt32Int32 =
                         (groupIds, searchDevice, pageSize, page) =>
                         {

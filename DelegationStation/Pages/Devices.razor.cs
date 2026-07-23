@@ -205,9 +205,15 @@ namespace DelegationStation.Pages
                 activeSearchDevice.Model = searchDevice.Model;
                 activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
                 activeSearchDevice.Tags = searchDevice.Tags;
-                activeSearchDevice.Status = string.IsNullOrEmpty(searchStatus)
-                    ? null
-                    : Enum.Parse<DeviceStatus>(searchStatus);
+                if (string.IsNullOrWhiteSpace(searchStatus) ||
+                    !Enum.TryParse<DeviceStatus>(searchStatus, ignoreCase: true, out var parsedStatus))
+                {
+                    activeSearchDevice.Status = null;
+                }
+                else
+                {
+                    activeSearchDevice.Status = parsedStatus;
+                }
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, activeSearchDevice);
