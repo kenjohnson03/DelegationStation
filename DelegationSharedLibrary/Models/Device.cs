@@ -11,15 +11,15 @@ namespace DelegationStationShared.Models
         public Guid Id { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Make is Required")]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.,&\(\)\s]+$", ErrorMessage = "Only use letters, numbers, or the following special characters: -_&().,")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.,&\(\) ]+$", ErrorMessage = "Only use letters, numbers, or the following special characters: -_&().,")]
         public string Make { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Model is Required")]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.,&\(\)+\s]+$", ErrorMessage = "Only use letters, numbers, or the following special characters: -_&().+,")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_.,&\(\)+ ]+$", ErrorMessage = "Only use letters, numbers, or the following special characters: -_&().+,")]
         public string Model { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "Serial Number is Required")]
-        [RegularExpression(@"^[a-zA-Z0-9\-_.\s]+$", ErrorMessage = "Only use letters, numbers, -, _, or . for SerialNumber value.")]
+        [RegularExpression(@"^[a-zA-Z0-9\-_. ]+$", ErrorMessage = "Only use letters, numbers, -, _, or . for SerialNumber value.")]
         public string SerialNumber { get; set; }
 
         // Validation applicable to all devices done here
@@ -45,12 +45,18 @@ namespace DelegationStationShared.Models
         public string CorporateIdentity { get; set; }
         public DateTime LastCorpIdentitySync { get; set; }
         public string CorporateIdentityID { get; set; }
+        public int CorpIDFailureCount { get; set;  }
         public DeviceStatus Status { get; set; }
 
         [Required]
         public DeviceOS? OS { get; set; }
         public DateTime? MarkedToDeleteUTC { get; set; }
 
+        /// <summary>
+        /// Maps to Cosmos DB's native _etag system property for optimistic concurrency.
+        /// </summary>
+        [JsonProperty(PropertyName = "_etag")]
+        public string? ETag { get; set; }
 
         //NOTE:  The following settings are currently unused
         [RegularExpression(@"^([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2})$", ErrorMessage = "MAC address must use : or -  and be 12 numbers or letters A - F to match the IEEE 802 format")]

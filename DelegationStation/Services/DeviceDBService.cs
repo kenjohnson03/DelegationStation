@@ -1,9 +1,9 @@
 using Azure.Core;
+using Azure.Identity;
 using DelegationStation.Interfaces;
+using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
-using Azure.Identity;
-using DelegationStationShared.Enums;
 
 namespace DelegationStation.Services
 {
@@ -94,41 +94,127 @@ namespace DelegationStation.Services
             }
         }
 
-        public async Task<List<Device>> GetDevicesSearchAsync(string make, string model, string serialNumber, int? osID, string preferredHostname)
+        public async Task<List<Device>> GetDevicesSearchAsync(IEnumerable<string> groupIds, Device searchDevice, int pageSize = 10, int page = 0)
         {
             List<Device> devices = new List<Device>();
-            string queryBuilder = "SELECT * FROM d WHERE d.Type = \"Device\" ";
-            if (!string.IsNullOrEmpty(make.Trim()))
+            // Filter out invalid group IDs from user's groups
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+            if (groupIds.Count() < 1)
             {
-                queryBuilder += "AND CONTAINS(d.Make, @make, true) ";
+                return devices;
             }
 
-            if (!string.IsNullOrEmpty(model.Trim()))
+            //
+            // Retrieve tags that the logged in user can access
+            //
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
+
+            // If user is in admin group, they have access to all tags so no need to filter
+            if (groupIds.Contains(_DefaultGroup))
             {
-                queryBuilder += " AND CONTAINS(d.Model, @model, true)";
+                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            }
+            else
+            {
+                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
             }
 
-            if (!string.IsNullOrEmpty(serialNumber.Trim()))
+            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            while (queryIterator.HasMoreResults)
             {
-                queryBuilder += " AND CONTAINS(d.SerialNumber, @serial, true)";
+                var response = await queryIterator.ReadNextAsync();
+                deviceTags.AddRange(response.ToList());
             }
 
-            if (osID != null)
+            // If the user has no authorized tags and is not a default group member, return empty
+            if (!groupIds.Contains(_DefaultGroup) && deviceTags.Count == 0)
             {
-                queryBuilder += " AND d.OS=@os";
-            }
-            if (!string.IsNullOrEmpty(preferredHostname.Trim()))
-            {
-                queryBuilder += " AND CONTAINS(d.PreferredHostname, @hostname, true)";
+                return devices;
             }
 
-            QueryDefinition q = new QueryDefinition(queryBuilder);
+            //
+            // Build device search query filtered by authorized tags and search criteria
+            //
+            sb = new System.Text.StringBuilder();
+            argCount = 0;
+            int? deviceOSID = null;
+            if (searchDevice.OS != null)
+            {
+                deviceOSID = (int)searchDevice.OS;
+            }
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
+            }
+            else
+            {
+                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\" AND (");
 
-            q.WithParameter("@make", make);
-            q.WithParameter("@model", model);
-            q.WithParameter("@serial", serialNumber);
-            q.WithParameter("@os", osID);
-            q.WithParameter("@hostname", preferredHostname);
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    sb.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
+                    if (tag != deviceTags.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
+
+            sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
+            
+            argCount = 0;
+            q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    q.WithParameter($"@arg{argCount}", tag.Id);
+                    argCount++;
+                }
+            }
+
+            q.WithParameter("@make", searchDevice.Make);
+            q.WithParameter("@model", searchDevice.Model);
+            q.WithParameter("@serial", searchDevice.SerialNumber);
+            q.WithParameter("@os", deviceOSID);
+            q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            if (searchDevice.Tags != null)
+            {
+                for (int i = 0; i < searchDevice.Tags.Count; i++)
+                {
+                    q.WithParameter($"@searchTag{i}", searchDevice.Tags[i]);
+                }
+            }
+            q.WithParameter("@offset", page * pageSize);
+            q.WithParameter("@limit", pageSize);
 
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
             while (deviceQueryIterator.HasMoreResults)
@@ -137,7 +223,177 @@ namespace DelegationStation.Services
                 devices.AddRange(qIresponse.ToList());
             }
 
-            return devices;
+            return devices;            
+        }
+
+        /// <summary>
+        /// Returns the total count of devices that match the given per-field search criteria.
+        /// Used for server-side pagination of the advanced search on the Devices page.
+        /// </summary>
+        public async Task<int> GetDeviceSearchCountAsync(IEnumerable<string> groupIds, Device searchDevice)
+        {
+            List<Device> devices = new List<Device>();
+            // Filter out invalid group IDs from user's groups
+            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
+            if (groupIds.Count() < 1)
+            {
+                return 0;
+            }
+
+            //
+            // Retrieve tags that the logged in user can access
+            //
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            int argCount = 0;
+
+            // If user is in admin group, they have access to all tags so no need to filter
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
+            }
+            else
+            {
+                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
+
+                foreach (string groupId in groupIds)
+                {
+                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
+                    if (groupId != groupIds.Last())
+                    {
+                        sb.Append("OR ");
+                    }
+                    argCount++;
+                }
+                sb.Append(")");
+            }
+            argCount = 0;
+            QueryDefinition q = new QueryDefinition(sb.ToString());
+
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (string groupId in groupIds)
+                {
+                    q.WithParameter($"@arg{argCount}", groupId);
+                    argCount++;
+                }
+            }
+
+            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
+            while (queryIterator.HasMoreResults)
+            {
+                var response = await queryIterator.ReadNextAsync();
+                deviceTags.AddRange(response.ToList());
+            }
+
+            // If the user has no authorized tags and is not a default group member, return empty
+            if (!groupIds.Contains(_DefaultGroup) && deviceTags.Count == 0)
+            {
+                return 0;
+            }
+            argCount = 0;
+            var queryBuilder = new System.Text.StringBuilder();
+            if (groupIds.Contains(_DefaultGroup))
+            {
+                queryBuilder.Append("SELECT VALUE COUNT(1) FROM d WHERE d.Type = \"Device\"");
+            }
+            else
+            {
+                queryBuilder.Append("SELECT VALUE COUNT(1) FROM d WHERE d.Type = \"Device\" AND (");
+
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    queryBuilder.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
+                    if (tag != deviceTags.Last())
+                    {
+                        queryBuilder.Append("OR ");
+                    }
+                    argCount++;
+                }
+                queryBuilder.Append(")");
+            }
+            int? deviceOSID = null;
+            if (searchDevice.OS != null)
+            {
+                deviceOSID = (int)searchDevice.OS;
+            }
+            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
+            q = new QueryDefinition(queryBuilder.ToString());
+            argCount = 0;
+            if (!groupIds.Contains(_DefaultGroup))
+            {
+                foreach (DeviceTag tag in deviceTags)
+                {
+                    q.WithParameter($"@arg{argCount}", tag.Id);
+                    argCount++;
+                }
+            }
+            q.WithParameter("@make", searchDevice.Make);
+            q.WithParameter("@model", searchDevice.Model);
+            q.WithParameter("@serial", searchDevice.SerialNumber);
+            q.WithParameter("@os", deviceOSID);
+            q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            if (searchDevice.Tags != null)
+            {
+                for (int i = 0; i < searchDevice.Tags.Count; i++)
+                {
+                    q.WithParameter($"@searchTag{i}", searchDevice.Tags[i]);
+                }
+            }
+
+            int count = 0;
+            var countIterator = this._container.GetItemQueryIterator<int>(q);
+            while (countIterator.HasMoreResults)
+            {
+                var response = await countIterator.ReadNextAsync();
+                count += response.Sum();
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Builds the SQL WHERE clause fragment for per-field device searches.
+        /// Appends an AND condition for each non-empty/non-null filter value.
+        /// The caller is responsible for binding the corresponding @make, @model,
+        /// @serial, @os, @hostname, and @searchTag{N} parameters on the QueryDefinition.
+        /// </summary>
+        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname, List<string> tags)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            if (!string.IsNullOrEmpty(make.Trim()))
+                sb.Append(" AND CONTAINS(d.Make, @make, true)");
+
+            if (!string.IsNullOrEmpty(model.Trim()))
+                sb.Append(" AND CONTAINS(d.Model, @model, true)");
+
+            if (!string.IsNullOrEmpty(serialNumber.Trim()))
+                sb.Append(" AND CONTAINS(d.SerialNumber, @serial, true)");
+
+            if (osID != null)
+                sb.Append(" AND d.OS=@os");
+
+            if (!string.IsNullOrEmpty(preferredHostname.Trim()))
+                sb.Append(" AND CONTAINS(d.PreferredHostname, @hostname, true)");
+
+            if (tags != null && tags.Count > 0)
+            {
+                // Match devices whose Tags array contains ANY of the supplied tag ids (OR-combined).
+                sb.Append(" AND (");
+                for (int i = 0; i < tags.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        sb.Append(" OR ");
+                    }
+                    sb.Append($"ARRAY_CONTAINS(d.Tags, @searchTag{i}, true)");
+                }
+                sb.Append(")");
+            }
+
+
+            return sb.ToString();
         }
 
         public async Task<List<Device>> GetDevicesByTagAsync(string tagId)
@@ -161,110 +417,6 @@ namespace DelegationStation.Services
             return devices;
         }
 
-        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds)
-        {
-            List<Device> devices = new List<Device>();
-
-            List<DeviceTag> deviceTags = new List<DeviceTag>();
-            groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
-
-            if (groupIds.Count() < 1)
-            {
-                throw new Exception("DeviceDBService GetDevicesAsync no valid group ids sent.");
-            }
-
-            // Get tags that the user has access to
-            System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            int argCount = 0;
-
-            if (groupIds.Contains(_DefaultGroup))
-            {
-                sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
-            }
-            else
-            {
-                sb.Append("SELECT t.id,t.Name,t.Description,t.RoleDelegations,t.UpdateActions,t.PartitionKey,t.Type FROM t JOIN r IN t.RoleDelegations WHERE t.PartitionKey = \"DeviceTag\" AND (");
-
-                foreach (string groupId in groupIds)
-                {
-                    sb.Append($"CONTAINS(r.SecurityGroupId, @arg{argCount}, true) ");
-                    if (groupId != groupIds.Last())
-                    {
-                        sb.Append("OR ");
-                    }
-                    argCount++;
-                }
-                sb.Append(")");
-            }
-
-
-            argCount = 0;
-            QueryDefinition q = new QueryDefinition(sb.ToString());
-
-            if (!groupIds.Contains(_DefaultGroup))
-            {
-                foreach (string groupId in groupIds)
-                {
-                    q.WithParameter($"@arg{argCount}", groupId);
-                    argCount++;
-                }
-            }
-
-            var queryIterator = this._container.GetItemQueryIterator<DeviceTag>(q);
-            while (queryIterator.HasMoreResults)
-            {
-                var response = await queryIterator.ReadNextAsync();
-                deviceTags.AddRange(response.ToList());
-            }
-
-
-            // Get Devices with the tags the user has access to
-            sb = new System.Text.StringBuilder();
-            argCount = 0;
-
-            if (groupIds.Contains(_DefaultGroup))
-            {
-                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
-            }
-            else
-            {
-                sb.Append("SELECT * FROM d WHERE d.Type = \"Device\" AND (");
-
-                foreach (DeviceTag tag in deviceTags)
-                {
-                    sb.Append($"ARRAY_CONTAINS(d.Tags, @arg{argCount}, true) ");
-                    if (tag != deviceTags.Last())
-                    {
-                        sb.Append("OR ");
-                    }
-                    argCount++;
-                }
-                sb.Append(")");
-            }
-
-
-            argCount = 0;
-            q = new QueryDefinition(sb.ToString());
-
-            if (!groupIds.Contains(_DefaultGroup))
-            {
-                foreach (DeviceTag tag in deviceTags)
-                {
-                    q.WithParameter($"@arg{argCount}", tag.Id);
-                    argCount++;
-                }
-            }
-
-            var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
-            while (deviceQueryIterator.HasMoreResults)
-            {
-                var response = await deviceQueryIterator.ReadNextAsync();
-                devices.AddRange(response.ToList());
-            }
-
-            return devices;
-        }
-
         public async Task<Device> AddOrUpdateDeviceAsync(Device device)
         {
             if (device == null)
@@ -276,14 +428,31 @@ namespace DelegationStation.Services
             device.Make = device.Make.Trim();
             device.Model = device.Model.Trim();
             device.SerialNumber = device.SerialNumber.Trim();
+            device.PreferredHostname = device.PreferredHostname.Trim();
+
+            // For non-Windows devices, serial number must be globally unique regardless of Make/Model
+            if (device.OS != DeviceOS.Windows && device.OS != DeviceOS.Unknown)
+            {
+                // SELECT TOP 1 with a single field: stops at first match and minimizes RU cost.
+                // d.OS > 1 excludes both Unknown (0) and Windows (1), checking only MacOS, iOS, and Android
+                QueryDefinition qSerial = new QueryDefinition("SELECT TOP 1 d.id FROM d WHERE d.Type = \"Device\" AND d.OS > 1 AND STRINGEQUALS(d.SerialNumber, @serial, true)");
+                qSerial.WithParameter("@serial", device.SerialNumber);
+
+                var serialQueryIterator = this._container.GetItemQueryIterator<dynamic>(qSerial);
+                var serialResult = await serialQueryIterator.ReadNextAsync();
+                if (serialResult.Any())
+                {
+                    throw new Exception("A non-Windows device with this Serial Number already exists.");
+                }
+            }
 
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
-            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true)");
+            QueryDefinition q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.Make,@make,true) AND STRINGEQUALS(d.Model,@model,true) AND STRINGEQUALS(d.SerialNumber,@serial,true) OR ( d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true))");
             q.WithParameter("@make", device.Make);
             q.WithParameter("@model", device.Model);
             q.WithParameter("@serial", device.SerialNumber);
-
+            q.WithParameter("@name", device.PreferredHostname);
             var deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
             while (deviceQueryIterator.HasMoreResults)
             {
@@ -292,8 +461,41 @@ namespace DelegationStation.Services
             }
             if (devices.Count != 0)
             {
-                throw new Exception("Device already exists.");
+                foreach (Device d in devices)
+                {
+                    if (d.Make == device.Make &&
+                        d.Model == device.Model &&
+                        d.SerialNumber == device.SerialNumber
+                    )
+                    {
+                        throw new Exception("Device already exists.");
+                    }
+                        
+                    if (!string.IsNullOrEmpty(d.PreferredHostname) && d.PreferredHostname == device.PreferredHostname)
+                    {
+                        throw new Exception("PreferredHostName already in use.");
+                    }
+                        
+                }
+                    
             }
+            if (!String.IsNullOrEmpty(device.PreferredHostname))
+            {
+                q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true)");
+                q.WithParameter("@name", device.PreferredHostname);
+                deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
+                while (deviceQueryIterator.HasMoreResults)
+                {
+                    var qIresponse = await deviceQueryIterator.ReadNextAsync();
+                    devices.AddRange(qIresponse.ToList());
+                }
+                if (devices.Count != 0)
+                {
+                    throw new Exception("PreferredHostname already in use.");
+                }
+            }
+
+
 
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
             return response;
@@ -315,11 +517,11 @@ namespace DelegationStation.Services
             return response;
         }
 
-        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, string search, int pageSize = 10, int page = 0)
+        public async Task<List<Device>> GetDevicesAsync(IEnumerable<string> groupIds, Device searchDevice,  int pageSize = 10, int page = 0)
         {
             List<Device> devices = new List<Device>();
 
-            List<DeviceTag> deviceTags = new List<DeviceTag>();
+            // Filter out invalid group IDs from user's groups
             groupIds = groupIds.Where(g => System.Text.RegularExpressions.Regex.Match(g, "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$").Success);
 
             if (groupIds.Count() < 1)
@@ -327,10 +529,14 @@ namespace DelegationStation.Services
                 return devices;
             }
 
-            // Get tags that the user has access to
+            //
+            // Retrieve tags that the logged in user can access
+            //
+            List<DeviceTag> deviceTags = new List<DeviceTag>();
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
             int argCount = 0;
 
+            // If user is in admin gropu, they have access to all tags so no need to filter
             if (groupIds.Contains(_DefaultGroup))
             {
                 sb.Append("SELECT * FROM t WHERE t.PartitionKey = \"DeviceTag\"");
@@ -351,7 +557,6 @@ namespace DelegationStation.Services
                 sb.Append(")");
             }
 
-
             argCount = 0;
             QueryDefinition q = new QueryDefinition(sb.ToString());
 
@@ -371,8 +576,15 @@ namespace DelegationStation.Services
                 deviceTags.AddRange(response.ToList());
             }
 
+            // If user doesn't have access to any tags, just return empty device list
+            if (deviceTags.Count < 1)
+            {
+                return devices;
+            }
 
-            // Get Devices with the tags the user has access to
+            //
+            // Now retrieving matching devices in the tags the user has access to
+            //
             sb = new System.Text.StringBuilder();
             argCount = 0;
 
@@ -395,7 +607,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            sb.Append(" AND (CONTAINS(d.Make, @search, true) OR CONTAINS(d.Model, @search, true) OR CONTAINS(d.SerialNumber, @search, true)) ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
+            sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
 
 
             argCount = 0;
@@ -409,7 +621,6 @@ namespace DelegationStation.Services
                     argCount++;
                 }
             }
-            q.WithParameter("@search", search);
             q.WithParameter("@offset", page * pageSize);
             q.WithParameter("@limit", pageSize);
 
