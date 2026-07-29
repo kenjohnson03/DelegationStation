@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Overview](#overview)
+- [Usage](#usage)
 - [Dependencies](#dependencies)
 	- [CosmosDB](#cosmosdb)
 	- [Azure AD Configuration](#azure-ad-configuration)
@@ -56,7 +57,7 @@ These applications can be deployed into Azure App Services (Windows or Linux) or
 
 Software is currently built on .NET8 and function apps are using isolated worker model.
 
-> **Upgrading an existing deployment?** See [`SPECIAL_INSTRUCTIONS.md`](SPECIAL_INSTRUCTIONS.md) for any one-time migration steps that may be required between releases.
+**Upgrading an existing deployment?** See [`SPECIAL_INSTRUCTIONS.md`](SPECIAL_INSTRUCTIONS.md) for any one-time migration steps that may be required between releases.
 
 ## Dependencies
 
