@@ -25,12 +25,16 @@ namespace DelegationStation.Pages
 
         private Role userRole = new Role() { Id = Guid.Empty, Name = "None", Attributes = new List<AllowedAttributes>() { }, SecurityGroups = false, AdministrativeUnits = false };
         private string tagSearch = "";
+        private string currentDeviceSearchTag = "";
         private int pageSize = 10;
-        private int currentPage = 0;
-        //private int TotalDevices = 0;
-        //private int TotalPages = 0;
-        private string search = "";
+        // Current 1-based page number for display and navigation
+        private int PageNumber = 1;
+        private int TotalDevices = 0;
+        private int TotalPages = 0;
         private Device searchDevice = new Device();
+        private Device activeSearchDevice = new Device();
+        // Tracks whether the user's last action was a search (true) or a default page load (false)
+        private bool isSearchActive = false;
         private bool devicesLoading = true;
         private MarkupString userMessage = new MarkupString("");
 
@@ -44,7 +48,8 @@ namespace DelegationStation.Pages
             { DeviceStatus.Added, "Device has been added to the system but not yet synced with corporate identifiers." },
             { DeviceStatus.Synced, "Device has been successfully synced with corporate identifiers." },
             { DeviceStatus.Deleting, "Device is in the process of being deleted from the system." },
-            { DeviceStatus.NotSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." }
+            { DeviceStatus.NotSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." },
+            { DeviceStatus.Failed, "Device repeatedly failed to sync to Corporate Identifiers." }
         };
 
         private EditContext editContext;
@@ -56,6 +61,8 @@ namespace DelegationStation.Pages
             editContext = new EditContext(newDevice);
             editContext.OnValidationRequested += HandleValidationRequested;
             messageStore = new ValidationMessageStore(editContext);
+            searchDevice.Tags = new List<string>();
+            searchDevice.Tags.Add(string.Empty);
         }
 
         protected override async Task OnInitializedAsync()
@@ -66,12 +73,7 @@ namespace DelegationStation.Pages
                 user = authState?.User ?? new System.Security.Claims.ClaimsPrincipal();
                 userName = user.Claims.Where(c => c.Type == "name").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
                 userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
-            }
-
-            //if (PageNumber < 1)
-            //{
-            //    PageNumber = 1;
-            //}
+            }            
 
             UpdateClaims();
             await GetTags();
@@ -81,17 +83,43 @@ namespace DelegationStation.Pages
 
         private void HandleValidationRequested(object? sender, ValidationRequestedEventArgs args)
         {
+            // THIS WILL ALWAYS LOG WHEN FORM IS SUBMITTED - even if DataAnnotations fail
+            logger?.LogWarning("=== VALIDATION TRIGGERED === SerialNumber: {SerialNumber}, Make: {Make}, Model: {Model}, Hostname: {PreferredHostname}, Tags: {TagCount}",
+                newDevice.SerialNumber ?? "NULL",
+                newDevice.Make ?? "NULL",
+                newDevice.Model ?? "NULL",
+                newDevice.PreferredHostname ?? "NULL",
+                newDevice.Tags?.Count ?? 0);
+
             if (messageStore == null || editContext == null)
+            {
+                logger?.LogWarning("HandleValidationRequested: messageStore or editContext is null");
                 return;
+            }
 
             messageStore?.Clear();
 
             //custom validation
-            var validationErrors = Validation.NewDeviceValidation.ValidateDevice(newDevice, deviceTags);
+            logger?.LogInformation("Starting custom device validation for SerialNumber: {SerialNumber}, TagCount: {TagCount}",
+                newDevice.SerialNumber, newDevice.Tags?.Count ?? 0);
+
+            var validationErrors = Validation.NewDeviceValidation.ValidateDevice(newDevice, deviceTags, logger);
+
+            if (validationErrors.Count > 0)
+            {
+                logger?.LogWarning("Validation completed with {ErrorCount} error(s) for device SerialNumber: {SerialNumber}",
+                    validationErrors.Count, newDevice.SerialNumber);
+            }
+            else
+            {
+                logger?.LogInformation("Validation passed for device SerialNumber: {SerialNumber}", newDevice.SerialNumber);
+            }
 
             foreach(var err in validationErrors)
             {
                 messageStore.Add(editContext.Field(err.Key), err.Value);
+                logger?.LogInformation("Validation error added - Field: {FieldName}, Errors: {@Errors}", err.Key, err.Value);
+                editContext.NotifyValidationStateChanged();
             }
 
 
@@ -136,18 +164,42 @@ namespace DelegationStation.Pages
                 logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
             }
         }
+        private List<string> GetMatchingTags()
+        {
+            var matchingTags = new List<string>();
+            var tagFilter = currentDeviceSearchTag.Trim();
+
+            if (tagFilter.Length == 0)
+            {
+                return matchingTags;
+            }
+
+            foreach (var tag in deviceTags)
+            {
+                if (tag.Name.Contains(tagFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchingTags.Add(tag.Id.ToString());
+                }
+            }
+
+            return matchingTags;
+        }
         private async Task GetDevices()
         {
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
-
+            // Default mode: clear any active search state
+            isSearchActive = false;
+            activeSearchDevice = new Device();
             try
             {
-                //AllDevices = await deviceDBService.GetDevicesAsync(groups);
-                //TotalDevices = AllDevices.Count;
-                //TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                //devices = GetDevicesByPage(PageNumber, pageSize);
-                devices = await deviceDBService.GetDevicesAsync(groups, search, pageSize, currentPage);
+                // Fetch total device count to compute total pages for pagination                
+                TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
+                    groups, activeSearchDevice);
+                TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
+
+                // Lazy load only the current page of devices (0-based page index)
+                devices = await deviceDBService.GetDevicesAsync(groups, activeSearchDevice, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
@@ -160,50 +212,70 @@ namespace DelegationStation.Pages
             }
         }
 
-        //public List<Device> GetDevicesByPage(int pageNumber, int pageSize)
-        //{
-        //    List<Device> pagedDevices = new List<Device>();
-
-        //    if (AllDevices.Count <= pageSize)
-        //    {
-        //        return AllDevices;
-        //    }
-        //    else
-        //    {
-        //        int startIndex = (pageNumber - 1) * pageSize;
-        //        int endIndex = Math.Min(startIndex + pageSize, AllDevices.Count);
-        //        for (int i = startIndex; i < endIndex; i++)
-        //        {
-        //            pagedDevices.Add(AllDevices[i]);
-        //        }
-        //    }
-
-        //    return pagedDevices;
-
-        //}
+        
         private async Task GetDevicesSearch()
         {
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
-
+            devicesLoading = true;
+            searchDevice.Tags = GetMatchingTags();
             try
-            {
-                int? deviceOSID = null;
-                if (searchDevice.OS != null)
-                {
-                    deviceOSID = (int)searchDevice.OS;
-                }
+            {                
+                // Reset to page 1 whenever a new search is initiated
+                PageNumber = 1;
+                isSearchActive = true;
+                activeSearchDevice.OS = searchDevice.OS;
+                activeSearchDevice.SerialNumber = searchDevice.SerialNumber;
+                activeSearchDevice.Make = searchDevice.Make;
+                activeSearchDevice.Model = searchDevice.Model;
+                activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
+                activeSearchDevice.Tags = searchDevice.Tags;
+                // Fetch the total count of matching devices to compute pagination
+                TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
+                    groups, activeSearchDevice);
+                TotalPages = (int)Math.Ceiling((decimal)TotalDevices / pageSize);
 
-                //AllDevices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
-                //TotalDevices = AllDevices.Count;
-                //TotalPages = (int)Math.Ceiling((double)AllDevices.Count / pageSize);
-                //FirstPage();
-                devices = await deviceDBService.GetDevicesSearchAsync(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname);
+                // Lazy load only the first page of search results
+                devices = await deviceDBService.GetDevicesSearchAsync(
+                    groups, activeSearchDevice, pageSize, PageNumber - 1);
             }
             catch (Exception ex)
             {
-                userMessage = (MarkupString)$"Error retrieving searching Devices.\nCorrelation Id: {c.ToString()}";
+                userMessage = (MarkupString)$"Error searching Devices.\nCorrelation Id: {c.ToString()}";
                 logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+            }
+            finally
+            {
+                devicesLoading = false;
+            }
+        }
+
+        /// <summary>
+        /// Reloads only the device list for the current page without resetting PageNumber.
+        /// Respects the current mode: uses search parameters when a search is active,
+        /// otherwise falls back to the default group-filtered device load.
+        /// </summary>
+        private async Task ReloadCurrentPage()
+        {
+            if (isSearchActive)
+            {
+                Guid c = Guid.NewGuid();
+                try
+                {
+                    // Fetch only the requested page of search results
+                    devices = await deviceDBService.GetDevicesSearchAsync(
+                        groups, activeSearchDevice, pageSize, PageNumber - 1);
+                }
+                catch (Exception ex)
+                {
+                    userMessage = (MarkupString)$"Error retrieving Devices.\nCorrelation Id: {c.ToString()}";
+                    logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+                }
+            }
+            else
+            {
+                // Default mode: delegate to GetDevices() which handles count + page fetch
+                await GetDevices();
             }
         }
 
@@ -212,21 +284,39 @@ namespace DelegationStation.Pages
             Guid c = Guid.NewGuid();
             userMessage = new MarkupString("");
 
+            logger?.LogInformation("Starting AddDevice operation. SerialNumber: {SerialNumber}, CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
+                newDevice.SerialNumber, c, userName, userId);
+
             try
             {
 
                 DeviceTag tag = deviceTags.Where(t => t.Id.ToString() == newDevice.Tags[0]).FirstOrDefault() ?? new DeviceTag();
-                if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
+
+                logger?.LogDebug("Retrieved tag {TagId} ({TagName}) and Regex = {DeviceNameRegex} for device {SerialNumber}",
+                    tag.Id, tag.Name, tag.DeviceNameRegex, newDevice.SerialNumber);
+                var authRequest = await authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read);
+                if (!authRequest.Succeeded)
+                    //if (!authorizationService.AuthorizeAsync(user, tag, Authorization.DeviceTagOperations.Read).Result.Succeeded)
                 {
                     userMessage = (MarkupString)$"Error: Not authorized to add devices to tag {tag.Id} {tag.Name}.\nCorrelation Id: {c.ToString()}";
-                    logger.LogError($"{userMessage}\nUser: {userName} {userId}");
+                    logger.LogError("Authorization failed: User not authorized to add devices to tag {TagId} ({TagName}). CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
+                        tag.Id, tag.Name, c, userName, userId);
                     return;
                 }
 
+                logger?.LogDebug("Authorization successful for tag {TagId}", tag.Id);
+
                 newDevice.ModifiedUTC = DateTime.UtcNow;
                 newDevice.AddedBy = userId;
+
+                logger?.LogInformation("Adding device to database. Make: {Make}, Model: {Model}, SerialNumber: {SerialNumber}, Tag: {TagId}, CorrelationId: {CorrelationId}",
+                    newDevice.Make, newDevice.Model, newDevice.SerialNumber, tag.Id, c);
+
                 Device resp = await deviceDBService.AddOrUpdateDeviceAsync(newDevice);
                 devices.Add(resp);
+
+                logger?.LogInformation("Device added successfully. DeviceId: {DeviceId}, SerialNumber: {SerialNumber}, CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
+                    resp.Id, resp.SerialNumber, c, userName, userId);
 
                 // Reset form
                 newDevice = new Device();
@@ -240,12 +330,15 @@ namespace DelegationStation.Pages
                 editContext.OnValidationRequested += HandleValidationRequested;
                 messageStore = new ValidationMessageStore(editContext);
 
+                logger?.LogDebug("Form reset completed");
+
                 userMessage = (MarkupString)$"Device added successfully.";
             }
             catch (Exception ex)
             {
                 userMessage = (MarkupString)$"Error adding device: {ex.Message} <br />Correlation Id:{c.ToString()}";
-                logger.LogError($"{userMessage}\n{ex.Message}\nUser: {userName} {userId}");
+                logger.LogError(ex, "Error adding device. SerialNumber: {SerialNumber}, CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
+                    newDevice.SerialNumber, c, userName, userId);
             }
         }
 
@@ -308,33 +401,38 @@ namespace DelegationStation.Pages
             ConfirmDelete?.Show();
         }
 
-        //private void FirstPage()
-        //{
-        //    PageNumber = 1;
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the first page and reloads devices.</summary>
+        private async Task FirstPage()
+        {
+            PageNumber = 1;
+            await ReloadCurrentPage();
+        }
 
-        //private void LastPage()
-        //{
-        //    PageNumber = TotalPages;
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
-        //private void NextPage()
-        //{
-        //    if (PageNumber < TotalPages)
-        //    {
-        //        PageNumber++;
-        //    }
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the last page and reloads devices.</summary>
+        private async Task LastPage()
+        {
+            PageNumber = TotalPages > 0 ? TotalPages : 1;
+            await ReloadCurrentPage();
+        }
 
-        //private void PreviousPage()
-        //{
-        //    if (PageNumber > 1)
-        //    {
-        //        PageNumber--;
-        //    }
-        //    devices = GetDevicesByPage(PageNumber, pageSize);
-        //}
+        /// <summary>Navigates to the next page if one exists and reloads devices.</summary>
+        private async Task NextPage()
+        {
+            if (PageNumber < TotalPages)
+            {
+                PageNumber++;
+            }
+            await ReloadCurrentPage();
+        }
+
+        /// <summary>Navigates to the previous page if one exists and reloads devices.</summary>
+        private async Task PreviousPage()
+        {
+            if (PageNumber > 1)
+            {
+                PageNumber--;
+            }
+            await ReloadCurrentPage();
+        }
     }
 }
