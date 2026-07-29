@@ -126,8 +126,9 @@ namespace DelegationStation.Pages
         private async Task GetTags()
         {
             Guid c = Guid.NewGuid();
-            userMessage = "";
-            try
+            tagsLoading = true;
+            corpIDCounts.Clear();
+            userMessage = string.Empty;
             {
                 TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups);
                 TotalPages = (int)Math.Ceiling((decimal)TotalTags / PageSize);

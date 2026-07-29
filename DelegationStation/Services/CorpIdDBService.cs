@@ -8,7 +8,7 @@ namespace DelegationStation.Services
 {
     public class CorpIdDBService : ICorpIdDBService
     {
-        private readonly ILogger? _logger;
+        private readonly ILogger<CorpIdDBService> _logger;
         private readonly Container _container;
 
         public CorpIdDBService(IConfiguration configuration, ILogger<CorpIdDBService> logger)
@@ -16,7 +16,7 @@ namespace DelegationStation.Services
             _logger = logger;
             if (configuration == null)
             {
-                throw new Exception("DeviceDBService appsettings configuration is null.");
+                throw new Exception("CorpIdDBService appsettings configuration is null.");
             }
 
             string cosmosEndpoint = configuration.GetSection("COSMOS_ENDPOINT").Value ?? "";
@@ -57,10 +57,11 @@ namespace DelegationStation.Services
                     connectionString: configuration.GetSection("COSMOS_CONNECTION_STRING").Value!
                 );
             }
-            ConfigureCosmosDatabase(client, dbName, containerName);
+            ConfigureCosmosDatabaseAsync(client, dbName, containerName).GetAwaiter().GetResult();
             this._container = client.GetContainer(dbName, containerName);
         }
-        public async void ConfigureCosmosDatabase(CosmosClient client, string databaseName, string containerName)
+
+        private async Task ConfigureCosmosDatabaseAsync(CosmosClient client, string databaseName, string containerName)
         {
             DatabaseResponse database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
             await database.Database.CreateContainerIfNotExistsAsync(containerName, "/PartitionKey");
