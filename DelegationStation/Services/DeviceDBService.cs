@@ -185,7 +185,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname));
+            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
 
             sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
             
@@ -206,6 +206,13 @@ namespace DelegationStation.Services
             q.WithParameter("@serial", searchDevice.SerialNumber);
             q.WithParameter("@os", deviceOSID);
             q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            if (searchDevice.Tags != null)
+            {
+                for (int i = 0; i < searchDevice.Tags.Count; i++)
+                {
+                    q.WithParameter($"@searchTag{i}", searchDevice.Tags[i]);
+                }
+            }
             q.WithParameter("@offset", page * pageSize);
             q.WithParameter("@limit", pageSize);
 
@@ -310,7 +317,7 @@ namespace DelegationStation.Services
             {
                 deviceOSID = (int)searchDevice.OS;
             }
-            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname));
+            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
             q = new QueryDefinition(queryBuilder.ToString());
             argCount = 0;
             if (!groupIds.Contains(_DefaultGroup))
@@ -326,6 +333,13 @@ namespace DelegationStation.Services
             q.WithParameter("@serial", searchDevice.SerialNumber);
             q.WithParameter("@os", deviceOSID);
             q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            if (searchDevice.Tags != null)
+            {
+                for (int i = 0; i < searchDevice.Tags.Count; i++)
+                {
+                    q.WithParameter($"@searchTag{i}", searchDevice.Tags[i]);
+                }
+            }
 
             int count = 0;
             var countIterator = this._container.GetItemQueryIterator<int>(q);
@@ -342,9 +356,9 @@ namespace DelegationStation.Services
         /// Builds the SQL WHERE clause fragment for per-field device searches.
         /// Appends an AND condition for each non-empty/non-null filter value.
         /// The caller is responsible for binding the corresponding @make, @model,
-        /// @serial, @os, and @hostname parameters on the QueryDefinition.
+        /// @serial, @os, @hostname, and @searchTag{N} parameters on the QueryDefinition.
         /// </summary>
-        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname)
+        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname, List<string> tags)
         {
             var sb = new System.Text.StringBuilder();
 
@@ -362,6 +376,22 @@ namespace DelegationStation.Services
 
             if (!string.IsNullOrEmpty(preferredHostname.Trim()))
                 sb.Append(" AND CONTAINS(d.PreferredHostname, @hostname, true)");
+
+            if (tags != null && tags.Count > 0)
+            {
+                // Match devices whose Tags array contains ANY of the supplied tag ids (OR-combined).
+                sb.Append(" AND (");
+                for (int i = 0; i < tags.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        sb.Append(" OR ");
+                    }
+                    sb.Append($"ARRAY_CONTAINS(d.Tags, @searchTag{i}, true)");
+                }
+                sb.Append(")");
+            }
+
 
             return sb.ToString();
         }
@@ -399,6 +429,22 @@ namespace DelegationStation.Services
             device.Model = device.Model.Trim();
             device.SerialNumber = device.SerialNumber.Trim();
             device.PreferredHostname = device.PreferredHostname.Trim();
+
+            // For non-Windows devices, serial number must be globally unique regardless of Make/Model
+            if (device.OS != DeviceOS.Windows && device.OS != DeviceOS.Unknown)
+            {
+                // SELECT TOP 1 with a single field: stops at first match and minimizes RU cost.
+                // d.OS > 1 excludes both Unknown (0) and Windows (1), checking only MacOS, iOS, and Android
+                QueryDefinition qSerial = new QueryDefinition("SELECT TOP 1 d.id FROM d WHERE d.Type = \"Device\" AND d.OS > 1 AND STRINGEQUALS(d.SerialNumber, @serial, true)");
+                qSerial.WithParameter("@serial", device.SerialNumber);
+
+                var serialQueryIterator = this._container.GetItemQueryIterator<dynamic>(qSerial);
+                var serialResult = await serialQueryIterator.ReadNextAsync();
+                if (serialResult.Any())
+                {
+                    throw new Exception("A non-Windows device with this Serial Number already exists.");
+                }
+            }
 
             // Confirm DB does not already contain device - treating fields as case insensitive
             List<Device> devices = new List<Device>();
