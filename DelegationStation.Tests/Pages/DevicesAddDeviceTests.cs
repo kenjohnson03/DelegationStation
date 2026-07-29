@@ -70,9 +70,10 @@ namespace DelegationStation.Tests.Pages
 
             var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
-                GetDevicesAsyncIEnumerableOfStringInt32Int32 =
-                    (groupIds, pageSize, currentPage) => Task.FromResult(new List<Device>()),
+                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                    (groupIds, searchDevice, pageSize, currentPage) => Task.FromResult(new List<Device>()),
                 AddOrUpdateDeviceAsyncDevice = device => addOrUpdateStub(device)
+
             };
 
             var config = new ConfigurationBuilder()

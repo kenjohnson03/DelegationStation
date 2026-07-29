@@ -268,7 +268,7 @@ namespace DelegationStation.Tests.Pages
                 var cut = RenderComponent<TagEdit>();
 
                 // Assert
-                string match = @"<h3>Tag Edit</h3>.*";
+                string match = @"<h2>Tag Edit</h2>.*";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
                 match = @"<h3>Not Authorized</h3>";
                 Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
@@ -296,7 +296,7 @@ namespace DelegationStation.Tests.Pages
 
 
             // Assert
-            string match = @"<h3>Tag Edit</h3>.*";
+            string match = @"<h2>Tag Edit</h2>.*";
             Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
             match = @"<h3>Error in navigation path</h3>";
             Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
@@ -387,8 +387,8 @@ namespace DelegationStation.Tests.Pages
             devices.Add(device1);
             var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
-                GetDevicesAsyncIEnumerableOfStringInt32Int32 = (a, c, d) =>
-                    Task.FromResult(devices)
+                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (groupIds, searchDevice, pageSize, page) => Task.FromResult(devices)
             };
 
             List<Role> roles = new List<Role>();
@@ -477,8 +477,8 @@ namespace DelegationStation.Tests.Pages
             devices.Add(device1);
             var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
-                GetDevicesAsyncIEnumerableOfStringInt32Int32 = (a, c, d) =>
-                    Task.FromResult(devices)
+                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                        (groupIds, searchDevice, pageSize, page) => Task.FromResult(devices)
             };
 
 
