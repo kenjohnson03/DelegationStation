@@ -24,7 +24,7 @@ namespace DelegationStation.Services
 
             if (string.IsNullOrEmpty(cosmosConnectionString) && string.IsNullOrEmpty(cosmosEndpoint))
             {
-                throw new Exception("DeviceDBService appsettings COSMOS_CONNECTION_STRING and COSMOS_ENDPOINT settings are both null or empty. At least one must be set.");
+                throw new Exception("CorpIdDBService appsettings COSMOS_CONNECTION_STRING and COSMOS_ENDPOINT settings are both null or empty. At least one must be set.");
             }
             if (string.IsNullOrEmpty(configuration.GetSection("DefaultAdminGroupObjectId").Value))
             {
@@ -57,11 +57,10 @@ namespace DelegationStation.Services
                     connectionString: configuration.GetSection("COSMOS_CONNECTION_STRING").Value!
                 );
             }
-            ConfigureCosmosDatabaseAsync(client, dbName, containerName).GetAwaiter().GetResult();
+            ConfigureCosmosDatabase(client, dbName, containerName);
             this._container = client.GetContainer(dbName, containerName);
         }
-
-        private async Task ConfigureCosmosDatabaseAsync(CosmosClient client, string databaseName, string containerName)
+        public async void ConfigureCosmosDatabase(CosmosClient client, string databaseName, string containerName)
         {
             DatabaseResponse database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
             await database.Database.CreateContainerIfNotExistsAsync(containerName, "/PartitionKey");
