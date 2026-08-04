@@ -20,7 +20,7 @@ namespace CorporateIdentifierSync
                 {
                     services.AddApplicationInsightsTelemetryWorkerService(options =>
                     {
-                        options.EnableAdaptiveSampling = false;
+                        options.SamplingRatio = 1;
                     });
                     services.ConfigureFunctionsApplicationInsights();
                     services.AddSingleton<ICosmosDbService, CosmosDbService>();
