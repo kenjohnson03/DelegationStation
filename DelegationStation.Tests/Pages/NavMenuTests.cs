@@ -9,7 +9,7 @@ using DelegationStation.Shared;
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
-    public class NavMenuTests : Bunit.TestContext
+    public class NavMenuTests : BunitTestContext
     {
         [TestMethod]
         public void DisplayRolesMenuToAdmins()
@@ -19,7 +19,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
                 Guid userGroupId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -45,7 +45,7 @@ namespace DelegationStation.Tests.Pages
 
 
                 // Act
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("<a href=\"Roles\" class=\"nav-link\"><span class=\"oi oi-shield\" aria-hidden=\"true\" b-l9c7g71qbx></span> Roles\r\n            </a></div></nav></div>"), $"Role link should be rendered. \\nActual:\\n{cut.Markup}\"");
@@ -62,7 +62,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
                 Guid userGroupId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
@@ -88,7 +88,7 @@ namespace DelegationStation.Tests.Pages
 
 
                 // Act
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Assert
                 Assert.IsFalse(cut.Markup.Contains("Roles"), $"Menu should not display Roles link. \\nActual:\\n{cut.Markup}\"");

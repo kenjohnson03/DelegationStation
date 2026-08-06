@@ -32,6 +32,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CorporateIdentifierSync.Tests", "CorporateIdentifierSync.Tests\CorporateIdentifierSync.Tests.csproj", "{8203ED1A-6462-41B9-90D3-2B893BB6DF62}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeedCorpIDCounter", "SeedCorpIDCounter\SeedCorpIDCounter.csproj", "{6DCE1B03-EDDB-7918-A966-D27E208A63B4}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeviceAudit", "DeviceAudit\DeviceAudit.csproj", "{E386B8BA-139F-4CA2-B6A1-22842A5EF19A}"
 EndProject
 Global
