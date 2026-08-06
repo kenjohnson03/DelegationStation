@@ -3,17 +3,17 @@
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
-    public class LoginDisplayTests : Bunit.TestContext
+    public class LoginDisplayTests : BunitTestContext
     {
         [TestMethod]
         public void UnauthorizedShouldNotRender()
         {
             // Arrange
-            var authContext = this.AddTestAuthorization();
+            var authContext = this.AddAuthorization();
             authContext.SetNotAuthorized();
 
             // Act
-            var cut = RenderComponent<LoginDisplay>();
+            var cut = Render<LoginDisplay>();
 
             // Assert
             cut.MarkupMatches(@"<a href=""MicrosoftIdentity/Account/SignIn"">Log in</a>");
@@ -23,12 +23,12 @@ namespace DelegationStation.Tests.Pages
         public void SuccessfulLoginShouldShowSignOutLink()
         {
             // Arrange
-            var authContext = this.AddTestAuthorization();
+            var authContext = this.AddAuthorization();
             authContext.SetAuthorized("TEST USER");
             authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
 
             // Act
-            var cut = RenderComponent<LoginDisplay>();
+            var cut = Render<LoginDisplay>();
 
             // Assert            
             cut.Markup.Contains(@"<a href=""MicrosoftIdentity/Account/SignOut"">Log out</a>");
@@ -38,13 +38,13 @@ namespace DelegationStation.Tests.Pages
         public void SuccessfulLoginShouldShowUserName()
         {
             // Arrange
-            var authContext = this.AddTestAuthorization();
+            var authContext = this.AddAuthorization();
             string userName = "TEST USER";
             authContext.SetAuthorized(userName);
             authContext.SetClaims(new System.Security.Claims.Claim("name", userName));
 
             // Act
-            var cut = RenderComponent<LoginDisplay>();
+            var cut = Render<LoginDisplay>();
 
             // Assert
             bool test = cut.Markup.Contains(userName);
