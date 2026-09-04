@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using DelegationStation.Pages;
 using DelegationStation.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,7 +45,7 @@ namespace DelegationStation.Tests.Pages
                 // Add Dependent Services
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
-                Services.AddSingleton<DelegationStation.Services.RecentUpdatesNotificationService>();
+                Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -92,7 +92,7 @@ Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be r
                 // Add Dependent Services
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
-                Services.AddSingleton<DelegationStation.Services.RecentUpdatesNotificationService>();
+                Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -131,7 +131,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
 
                 Services.AddSingleton<IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
-                Services.AddSingleton<RecentUpdatesNotificationService>();
+                Services.AddSingleton<HelpNotificationService>();
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -168,7 +168,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 var httpContext = new HttpContextAccessor();
                 httpContext.HttpContext = new DefaultHttpContext();
 
-                var updatesNotification = new RecentUpdatesNotificationService();
+                var updatesNotification = new HelpNotificationService();
 
                 Services.AddSingleton<IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
@@ -179,7 +179,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
 
                 var cut = RenderComponent<NavMenu>();
 
-                // Act - simulate the user viewing the RecentUpdates page
+                // Act - simulate the user viewing the Help page
                 updatesNotification.MarkAsViewed();
                 cut.WaitForState(() => cut.FindAll(".bg-danger.rounded-circle").Count == 0);
 
