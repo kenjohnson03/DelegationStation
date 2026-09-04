@@ -6,6 +6,7 @@ name: ds-build-and-test
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   statuses: write

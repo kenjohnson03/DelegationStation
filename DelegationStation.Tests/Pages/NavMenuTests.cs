@@ -12,7 +12,7 @@ using DelegationStation.Shared;
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
-    public class NavMenuTests : Bunit.TestContext
+    public class NavMenuTests : BunitTestContext
     {
         [TestMethod]
         public void DisplayRolesMenuToAdmins()
@@ -22,7 +22,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
                 Guid userGroupId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -52,7 +52,7 @@ namespace DelegationStation.Tests.Pages
 
 
                 // Act
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Assert
 Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be rendered. Actual: {cut.Markup}");
@@ -69,7 +69,7 @@ Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be r
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
                 Guid userGroupId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
@@ -99,7 +99,7 @@ Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be r
 
 
                 // Act
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Assert
 Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not display Roles link. Actual: {cut.Markup}");
