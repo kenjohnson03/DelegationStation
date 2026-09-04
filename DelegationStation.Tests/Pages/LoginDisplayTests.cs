@@ -30,8 +30,8 @@ namespace DelegationStation.Tests.Pages
             // Act
             var cut = Render<LoginDisplay>();
 
-            // Assert            
-            cut.Markup.Contains(@"<a href=""MicrosoftIdentity/Account/SignOut"">Log out</a>");
+            // Assert
+            Assert.IsTrue(cut.Markup.Contains(@"<a href=""MicrosoftIdentity/Account/SignOut"">Log out</a>"));
         }
 
         [TestMethod]
