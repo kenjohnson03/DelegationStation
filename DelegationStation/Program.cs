@@ -8,18 +8,13 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure the app-wide logging pipeline (applies to DI-injected ILogger<T>)
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.Logging.AddApplicationInsights(
-    configureTelemetryConfiguration: config =>
-        config.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"],
-    configureApplicationInsightsLoggerOptions: _ => { }
-);
-
 
 // Setup Ilogger for startup errors
 var loggerFactory = LoggerFactory.Create(loggingBuilder =>
@@ -92,7 +87,8 @@ builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
 builder.Services.AddSingleton<IRoleDBService, RoleDBService>();
 
-builder.Services.AddApplicationInsightsTelemetry(opt => opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
+builder.Services.AddApplicationInsightsTelemetry(opt => 
+    opt.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
 var app = builder.Build();
 

@@ -91,7 +91,7 @@ namespace DeviceAudit
                 else
                 {
                     _logger.DSLogInformation("Using Managed Identity to connect to CosmosDB.", fullMethodName);
-                    TokenCredential credential = new ManagedIdentityCredential();
+                    TokenCredential credential = new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned);
                     client = new CosmosClient(cosmosEndpoint, credential);
                 }
                 _container = client.GetContainer(databaseName, containerName);

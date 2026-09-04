@@ -7,7 +7,7 @@ using DelegationStation.Interfaces;
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
-    public class TagTests : Bunit.TestContext
+    public class TagTests : BunitTestContext
     {
         [TestMethod]
         public void TagsShouldRender()
@@ -17,7 +17,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 // Add Dependent Services
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -64,7 +64,7 @@ namespace DelegationStation.Tests.Pages
 
 
                 // Act
-                var cut = RenderComponent<Tags>();
+                var cut = Render<Tags>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("testName1</td>"), $"Tag1 name should be rendered in the table. \\nActual:\\n{cut.Markup}\"");
@@ -85,7 +85,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -123,7 +123,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act
-                var cut = RenderComponent<Tags>();
+                var cut = Render<Tags>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
@@ -139,7 +139,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 // Add Dependent Services
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetNotAuthorized();
 
 
@@ -181,7 +181,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act
-                var cut = RenderComponent<Tags>();
+                var cut = Render<Tags>();
 
                 // Assert
                 cut.MarkupMatches(@"
