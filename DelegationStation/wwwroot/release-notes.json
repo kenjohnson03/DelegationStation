@@ -2,20 +2,13 @@
   {
     "version": "2.3",
     "date": "July 2026",
-    "title": "CorpID Sync Hotfixes & Capacity Management",
+    "title": "CorpID Capacity Management Updates",
     "changes": [
-      "Fixed CorporateIdentifierSync issues related to the tenant limit on Corporate Identifiers (CorpIDs).",
-      "Delete function now returns Success, NotFound, or Error instead of relying solely on REST status codes.",
-      "Add function now checks whether a CorpID is already present and treats that as success instead of failing.",
-      "Added a CorpID counter and capacity manager to track how many CorpIDs are in use across the system.",
-      "Added a singleton lock to prevent multiple instances of the same function from running at once.",
-      "Added a function to audit CorpID counts against device status and Graph to catch discrepancies.",
-      "Split the logic that migrates devices to syncing on tag enablement from the logic that resyncs existing CorpIDs.",
+      "Backend updates to prevent exceeding tenant limit of Corporate Identifiers.",
       "Added a failed status to stop continuous retries on devices that repeatedly fail to sync.",
-      "Added the SeedCorpIDCounter WebJob for initializing the CorpID counter during deployment.",
-      "Fixed duplicate serial number entries for non-Windows devices pointing at the same CorpID.",
+      "Stopped allowing duplicate serial number entries for non-Windows devices. If you have duplicates, remove all and add back the correct entry.",
       "Fixed a bug where preferred hostname regex validation wasn't executing in all cases.",
-      "Updated dependency libraries to address recently identified vulnerabilities."
+      "Regular updates for security and hygiene."
     ]
   },
   {
@@ -23,7 +16,7 @@
     "date": "March 2026",
     "title": "Security Fix - Device Tag Access",
     "changes": [
-      "Fixed a security vulnerability on the Devices screen that returned devices to users outside of the tags they have access to."
+      "Fixed a security issue on the Devices screen that could allow a user to view devices outside their tags. May also address issues where tag was not displayed in search results."
     ]
   },
   {
@@ -31,7 +24,7 @@
     "date": "March 2026",
     "title": "Duplicate Hostname Prevention",
     "changes": [
-      "Added logic to prevent users from re-using the same preferred hostname across multiple devices."
+      "Added logic to prevent users from re-using the same preferred hostname across multiple devices. Past duplicates may still exist."
     ]
   },
   {
@@ -39,19 +32,16 @@
     "date": "March 2026",
     "title": "Logging & Telemetry Improvements",
     "changes": [
-      "Increased the function timeout to 4 hours to address lost logs in production.",
-      "Migrated to the Application Insights SDK and disabled log filtering.",
-      "Ensured Adaptive Sampling is disabled so all telemetry is captured."
+      "Improved logging and telemetry to capture more detailed information for troubleshooting and performance monitoring."
     ]
   },
   {
     "version": "2.1",
     "date": "January 2026",
-    "title": "Tag Search & Hostname Requirements",
+    "title": "Implemented Preferred Hostname format validation by tag",
     "changes": [
-      "Added Tag Search.",
-      "Replaced the system-wide Preferred Hostname requirement with tag-specific requirements.",
-      "Added a tag-specific device naming enablement flag and optional tag-specific regex validation for the Preferred Hostname field."
+      "Enhancing the system-wide Preferred Hostname validation requirement with tag-specific requirements.",
+      "Added Tag Search."
     ]
   },
   {
@@ -59,14 +49,12 @@
     "date": "October 2025",
     "title": "Intune Autopilot 2.0 Support",
     "changes": [
-      "Added syncing of devices with the Intune Corporate Identifiers list in preparation for Intune Autopilot 2.0.",
-      "Added a new backend function app responsible for syncing.",
-      "Added a new OS field to support future use of MacOS, iOS, and Android devices.",
-      "Added tag-level and application-level settings to enable or disable syncing.",
-      "Added device naming on enrollment in support of Intune Autopilot 2.0, including a new required Preferred Hostname field.",
-      "Added a WebJob to set the Preferred Hostname field of already-enrolled devices to their current device name.",
+      "Added ability to enable syncing of devices to the Intune Corporate Identifiers list at tag level.",
+      "New state field related to CorpID sync status.",
+      "Added a new OS field to support future use of MacOS, iOS, and Android devices. (Currently experimental.)  All devices previously entered are processed will show an OS of Unknown, but will be treated as Windows devices.",
+      "Added new Preferred Hostname field to support device naming on enrollment in support of Intune Autopilot 2.0.",
       "Improved the devices screen and search capabilities.",
-      "Updated dependency libraries for security and hygiene."
+      "Regular updates for security and hygiene."
     ]
   }
 ]
