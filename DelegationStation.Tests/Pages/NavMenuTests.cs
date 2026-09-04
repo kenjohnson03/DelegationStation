@@ -74,7 +74,7 @@ Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be r
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
 
-                
+
                 var myConfiguration = new Dictionary<string, string?>
                 {
                     {"DefaultAdminGroupObjectId", defaultId.ToString()},
@@ -113,7 +113,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
 
@@ -137,7 +137,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 JSInterop.Mode = JSRuntimeMode.Loose;
 
                 // Act
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Assert - badge should show because local storage has no viewed version
                 Assert.AreEqual(1, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should be displayed when updates have not been viewed. Actual: {cut.Markup}");
@@ -152,7 +152,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
 
@@ -177,7 +177,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
 
-                var cut = RenderComponent<NavMenu>();
+                var cut = Render<NavMenu>();
 
                 // Act - simulate the user viewing the Help page
                 updatesNotification.MarkAsViewed();
