@@ -70,7 +70,10 @@
                          role="region"
                          aria-labelledby="@($"faq-header-{index}")">
                         <div class="accordion-body">
-                            @faq.Answer
+                            @foreach (var (paragraph, pIndex) in faq.Answers.Select((p, i) => (p, i)))
+                            {
+                                <p class="@(pIndex == faq.Answers.Count - 1 ? "mb-0" : "mb-2")">@paragraph</p>
+                            }
                         </div>
                     </div>
                 }
