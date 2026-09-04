@@ -1,6 +1,6 @@
 namespace DelegationStation.Services
 {
-    public class RecentUpdatesNotificationService
+    public class HelpNotificationService
     {
         public event Action? OnUpdatesViewed;
 

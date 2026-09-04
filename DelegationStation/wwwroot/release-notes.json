@@ -1,0 +1,26 @@
+[
+  {
+    "version": "2.1",
+    "date": "2024",
+    "title": "Bulk Device Actions",
+    "changes": [
+      "Added the Bulk Devices page, allowing users to perform actions on multiple devices at once."
+    ]
+  },
+  {
+    "version": "2.0",
+    "date": "2024",
+    "title": "Tags & Roles Management",
+    "changes": [
+      "Introduced device tag management and role-based access control with admin policies."
+    ]
+  },
+  {
+    "version": "1.0",
+    "date": "2023",
+    "title": "Initial Release",
+    "changes": [
+      "Initial release of DelegationStation with device management capabilities."
+    ]
+  }
+]

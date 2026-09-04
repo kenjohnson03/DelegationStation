@@ -13,7 +13,10 @@ namespace DelegationStation.Shared
         private ProtectedLocalStorage LocalStorage { get; set; } = default!;
 
         [Inject]
-        private RecentUpdatesNotificationService UpdatesNotification { get; set; } = default!;
+        private HelpNotificationService UpdatesNotification { get; set; } = default!;
+
+        [Inject]
+        private IReleaseNotesService ReleaseNotes { get; set; } = default!;
 
         [Inject]
         private ILogger<NavMenu> Logger { get; set; } = default!;
@@ -31,8 +34,8 @@ namespace DelegationStation.Shared
             {
                 try
                 {
-                    var result = await LocalStorage.GetAsync<string>(RecentUpdatesVersion.RecentUpdatesViewedVersionKey);
-                    showUpdatesBadge = !result.Success || result.Value != RecentUpdatesVersion.CurrentVersion;
+                    var result = await LocalStorage.GetAsync<string>(HelpVersion.HelpViewedVersionKey);
+                    showUpdatesBadge = !result.Success || result.Value != ReleaseNotes.CurrentVersion;
                     StateHasChanged();
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop calls cannot be issued", StringComparison.OrdinalIgnoreCase))
