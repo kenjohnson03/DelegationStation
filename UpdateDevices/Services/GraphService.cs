@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Hosting;
 
 
 namespace UpdateDevices.Services
@@ -22,16 +23,19 @@ namespace UpdateDevices.Services
 
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
 
+        private readonly IHostEnvironment _env;
         private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
 
-        public GraphService(IConfiguration configuration, ILogger<GraphService> logger)
+        public GraphService(IHostEnvironment env, IConfiguration configuration, ILogger<GraphService> logger)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
+            this._env = env;
             this._logger = logger;
+
 
             var azureCloud = configuration.GetSection("AzureEnvironment").Value;
             var graphEndpoint = configuration.GetSection("GraphEndpoint").Value;
@@ -44,43 +48,57 @@ namespace UpdateDevices.Services
             var scopes = new string[] { $"{graphEndpoint}.default" };
             string baseUrl = graphEndpoint + "v1.0";
 
-            var certDN = configuration.GetSection("CertificateDistinguishedName").Value;
 
-            if (!String.IsNullOrEmpty(certDN))
+            if (_env.IsDevelopment())
             {
-                _logger.DSLogInformation("Using certificate authentication: ", fullMethodName);
-                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
-                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
-                X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
-                store.Open(OpenFlags.ReadOnly);
-                _logger.DSLogInformation("Using certificate with Subject Name {0} for Graph service: " + certDN, fullMethodName);
-                var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certDN);
+                var certDN = configuration.GetSection("CertificateDistinguishedName").Value;
 
-                var clientCertCredential = new ClientCertificateCredential(
-                    configuration.GetSection("AzureAd:TenantId").Value,
-                    configuration.GetSection("AzureAd:ClientId").Value,
-                    certificate,
-                    options
-                );
-                store.Close();
-                this._graphClient = new GraphServiceClient(clientCertCredential, scopes, baseUrl);
+                if (!String.IsNullOrEmpty(certDN))
+                {
+                    _logger.DSLogInformation("Using certificate authentication: ", fullMethodName);
+                    _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                    _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
+
+                    X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+                    store.Open(OpenFlags.ReadOnly);
+                    _logger.DSLogInformation("Using certificate with Subject Name {0} for Graph service: " + certDN, fullMethodName);
+                    var certificate = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(cert => cert.Subject.ToString() == certDN);
+
+                    var clientCertCredential = new ClientCertificateCredential(
+                        configuration.GetSection("AzureAd:TenantId").Value,
+                        configuration.GetSection("AzureAd:ClientId").Value,
+                        certificate,
+                        options
+                    );
+                    store.Close();
+                    this._graphClient = new GraphServiceClient(clientCertCredential, scopes, baseUrl);
+                }
+                else
+                {
+                    _logger.DSLogInformation("Using Client Secret for Graph service", fullMethodName);
+                    _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                    _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
+
+
+                    var clientSecretCredential = new ClientSecretCredential(
+                        configuration.GetSection("AzureAd:TenantId").Value,
+                        configuration.GetSection("AzureAd:ClientId").Value,
+                        configuration.GetSection("AzureApp:ClientSecret").Value,
+                        options
+                    );
+
+                    this._graphClient = new GraphServiceClient(clientSecretCredential, scopes, baseUrl);
+                }
             }
-            else
+            else // Use Managed identity in Azure
             {
-                _logger.DSLogInformation("Using Client Secret for Graph service", fullMethodName);
-                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
-                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
+                _logger.LogInformation("Using Managed Identity to authenticate to Graph service");
+                _logger.LogDebug("AzureCloud: " + azureCloud);
+                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
 
-
-                var clientSecretCredential = new ClientSecretCredential(
-                    configuration.GetSection("AzureAd:TenantId").Value,
-                    configuration.GetSection("AzureAd:ClientId").Value,
-                    configuration.GetSection("AzureApp:ClientSecret").Value,
-                    options
-                );
-
-                this._graphClient = new GraphServiceClient(clientSecretCredential, scopes, baseUrl);
+                ManagedIdentityCredential managedIdentityCredential = new ManagedIdentityCredential(options: options);
+                this._graphClient = new GraphServiceClient(managedIdentityCredential, scopes, baseUrl);
             }
         }
 
