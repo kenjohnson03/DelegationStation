@@ -1,3 +1,5 @@
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -7,26 +9,22 @@ using UpdateDevices.Services;
 namespace UpdateDevices
 {
     internal class Program
-  {
-    static void Main(string[] args)
     {
+        static void Main(string[] args)
+        {
+            var builder = FunctionsApplication.CreateBuilder(args);
 
-      var host = new HostBuilder()
-          .ConfigureFunctionsWebApplication()
-          .ConfigureLogging(logging =>
-          {
-            logging.SetMinimumLevel(LogLevel.Debug);
-          }).
-          ConfigureServices(services =>
-          {
-            services.AddSingleton<ICosmosDbService, CosmosDbService>();
-            services.AddSingleton<IGraphBetaService, GraphBetaService>();
-            services.AddSingleton<IGraphService, GraphService>();
-          })
-          .Build();
+            builder.ConfigureFunctionsWebApplication();
+            builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
-      host.Run();
+            builder.Services.AddApplicationInsightsTelemetryWorkerService();
+            builder.Services.ConfigureFunctionsApplicationInsights();
+            builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
+            builder.Services.AddSingleton<IGraphBetaService, GraphBetaService>();
+            builder.Services.AddSingleton<IGraphService, GraphService>();
+
+            var host = builder.Build();
+            host.Run();
+        }
     }
-
-  }
 }

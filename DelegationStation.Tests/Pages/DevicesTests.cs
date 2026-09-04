@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
-    public class DevicesTests : Bunit.TestContext
+    public class DevicesTests : BunitTestContext
     {
         [TestMethod]
         public void DevicesShouldRender()
@@ -21,7 +21,7 @@ namespace DelegationStation.Tests.Pages
                 Guid defaultId = Guid.NewGuid();
                 AddDefaultServices(defaultId.ToString());
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -80,7 +80,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("testMake</td>"), $"testMake should be rendered in the table as a Make. \\nActual:\\n{cut.Markup}\"");
@@ -98,11 +98,11 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 AddDefaultServices();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetNotAuthorized();
 
                 // Act
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
 
                 // Assert
                 cut.MarkupMatches(@"
@@ -121,7 +121,7 @@ namespace DelegationStation.Tests.Pages
                 Guid userGroupId = Guid.NewGuid();
                 Guid defaultId = Guid.NewGuid(); // Different from userGroupId: user is not a default admin
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
@@ -193,7 +193,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act - render the component, then click the Search button
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
 
                 // Assert: the user's group ID was forwarded to GetDevicesSearchAsync
@@ -223,7 +223,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – two pages of 10 devices, 15 total
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -268,7 +268,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
 
                 // Assert: pagination controls are rendered showing page 1 of 2
                 Assert.IsTrue(cut.Markup.Contains("1 of 2"), $"Pagination should show '1 of 2'. Actual:\n{cut.Markup}");
@@ -287,7 +287,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – zero devices
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -323,7 +323,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
 
                 // Assert: no devices message is shown (no pagination row when count is 0)
                 Assert.IsTrue(cut.Markup.Contains("No devices found."), $"Should show no-devices message. Actual:\n{cut.Markup}");
@@ -338,7 +338,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – search returns 15 devices → 2 pages of 10
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -382,7 +382,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act – render component and trigger Search
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 var makeInput = cut.Find("input[placeholder='Make']");
                 makeInput.Change("Dell");
                 var searchButton = cut.FindAll("button").First(b => b.TextContent.Trim() == "Search");
@@ -402,7 +402,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – admin: user's group == DefaultAdminGroupObjectId, so all tags are accessible
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("ADMIN USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "ADMIN USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -442,7 +442,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act – type into the Tag search input and click Search
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 cut.Find("input[placeholder='Tag']").Change("Corp");
                 cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
 
@@ -464,7 +464,7 @@ namespace DelegationStation.Tests.Pages
                 Guid userGroupId = Guid.NewGuid();
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
@@ -502,7 +502,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act – search for "Corp"; the non-admin's inaccessible "Corp-Phones" tag isn't in deviceTags
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 cut.Find("input[placeholder='Tag']").Change("Corp");
                 cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
 
