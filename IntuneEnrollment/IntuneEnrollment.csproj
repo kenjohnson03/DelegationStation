@@ -6,8 +6,8 @@
 
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.16.0" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.53.1" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.62.0" />
     <PackageReference Include="Microsoft.Graph" Version="6.2.0" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
   </ItemGroup>
