@@ -1,26 +1,73 @@
 [
   {
-    "version": "2.1",
-    "date": "2024",
-    "title": "Bulk Device Actions",
+    "version": "2.3",
+    "date": "July 2026",
+    "title": "CorpID Sync Hotfixes & Capacity Management",
     "changes": [
-      "Added the Bulk Devices page, allowing users to perform actions on multiple devices at once."
+      "Fixed CorporateIdentifierSync issues related to the tenant limit on Corporate Identifiers (CorpIDs).",
+      "Delete function now returns Success, NotFound, or Error instead of relying solely on REST status codes.",
+      "Add function now checks whether a CorpID is already present and treats that as success instead of failing.",
+      "Added a CorpID counter and capacity manager to track how many CorpIDs are in use across the system.",
+      "Added a singleton lock to prevent multiple instances of the same function from running at once.",
+      "Added a function to audit CorpID counts against device status and Graph to catch discrepancies.",
+      "Split the logic that migrates devices to syncing on tag enablement from the logic that resyncs existing CorpIDs.",
+      "Added a failed status to stop continuous retries on devices that repeatedly fail to sync.",
+      "Added the SeedCorpIDCounter WebJob for initializing the CorpID counter during deployment.",
+      "Fixed duplicate serial number entries for non-Windows devices pointing at the same CorpID.",
+      "Fixed a bug where preferred hostname regex validation wasn't executing in all cases.",
+      "Updated dependency libraries to address recently identified vulnerabilities."
+    ]
+  },
+  {
+    "version": "2.2.1",
+    "date": "March 2026",
+    "title": "Security Fix - Device Tag Access",
+    "changes": [
+      "Fixed a security vulnerability on the Devices screen that returned devices to users outside of the tags they have access to."
+    ]
+  },
+  {
+    "version": "2.2",
+    "date": "March 2026",
+    "title": "Duplicate Hostname Prevention",
+    "changes": [
+      "Added logic to prevent users from re-using the same preferred hostname across multiple devices."
+    ]
+  },
+  {
+    "version": "2.1.1",
+    "date": "March 2026",
+    "title": "Logging & Telemetry Improvements",
+    "changes": [
+      "Increased the function timeout to 4 hours to address lost logs in production.",
+      "Migrated to the Application Insights SDK and disabled log filtering.",
+      "Ensured Adaptive Sampling is disabled so all telemetry is captured."
+    ]
+  },
+  {
+    "version": "2.1",
+    "date": "January 2026",
+    "title": "Tag Search & Hostname Requirements",
+    "changes": [
+      "Added Tag Search.",
+      "Replaced the system-wide Preferred Hostname requirement with tag-specific requirements.",
+      "Added a tag-specific device naming enablement flag and optional tag-specific regex validation for the Preferred Hostname field."
     ]
   },
   {
     "version": "2.0",
-    "date": "2024",
-    "title": "Tags & Roles Management",
+    "date": "October 2025",
+    "title": "Intune Autopilot 2.0 Support",
     "changes": [
-      "Introduced device tag management and role-based access control with admin policies."
-    ]
-  },
-  {
-    "version": "1.0",
-    "date": "2023",
-    "title": "Initial Release",
-    "changes": [
-      "Initial release of DelegationStation with device management capabilities."
+      "Added syncing of devices with the Intune Corporate Identifiers list in preparation for Intune Autopilot 2.0.",
+      "Added a new backend function app responsible for syncing.",
+      "Added a new OS field to support future use of MacOS, iOS, and Android devices.",
+      "Added tag-level and application-level settings to enable or disable syncing.",
+      "Added device naming on enrollment in support of Intune Autopilot 2.0, including a new required Preferred Hostname field.",
+      "Added a WebJob to set the Preferred Hostname field of already-enrolled devices to their current device name.",
+      "Improved the devices screen and search capabilities.",
+      "Updated dependency libraries for security and hygiene."
     ]
   }
 ]
+
