@@ -49,6 +49,7 @@ namespace DelegationStation.Tests.Pages
                 device.Model = "testModel";
                 device.SerialNumber = "1111";
                 device.PreferredHostname = "testHostname";
+                device.Status = DeviceStatus.NonSyncing;
                 device.Tags.Add(deviceTag.Name);
                 devices.Add(device);
 
@@ -87,6 +88,9 @@ namespace DelegationStation.Tests.Pages
                 Assert.IsTrue(cut.Markup.Contains("testModel</td>"), "testModel should be rendered in the table as a Model.");
                 Assert.IsTrue(cut.Markup.Contains("1111</td>"), "1111 should be rendered in the table as a serialNumber.");
                 Assert.IsTrue(cut.Markup.Contains("testHostname</td>"), "testHostname should be rendered in the table as a Hostname.");
+                Assert.IsTrue(cut.Markup.Contains(">Non-Syncing</span></td>"), "Non-syncing devices should render with the Non-Syncing state label.");
+                Assert.IsFalse(cut.Markup.Contains(">NonSyncing</span></td>"), "Non-syncing devices should render with the Non-Syncing state label.");
+                Assert.IsFalse(cut.Markup.Contains(">Added</span></td>"), "Non-syncing devices should not render with the Added state label.");
             }
         }
 
@@ -164,7 +168,7 @@ namespace DelegationStation.Tests.Pages
                 IEnumerable<string>? capturedGroupIds = null;
                 var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
                 {
-                    
+
                     // Initial page load returns nothing so search results are clearly distinguishable
                     GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
                         (groupIds, searchDevice, pageSize, currentPage) => Task.FromResult(new List<Device>()),
@@ -521,7 +525,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – admin: user's group == DefaultAdminGroupObjectId, so all tags are accessible
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("ADMIN USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "ADMIN USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -559,7 +563,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act – select a state in the State dropdown and click Search
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 cut.Find("#State").Change(DeviceStatus.Synced.ToString());
                 cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
 
@@ -577,7 +581,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange – admin with no state selected in the dropdown
                 Guid defaultId = Guid.NewGuid();
 
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("ADMIN USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "ADMIN USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -613,7 +617,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
                 // Act – click Search without selecting a state
-                var cut = RenderComponent<Devices>();
+                var cut = Render<Devices>();
                 cut.FindAll("button").First(b => b.TextContent.Trim() == "Search").Click();
 
                 // Assert – no status filter is forwarded when none is selected
@@ -657,7 +661,7 @@ namespace DelegationStation.Tests.Pages
                 GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 = (a, b, c, d) =>
                     Task.FromResult(devices),
                 // Stub for lazy loading: return a count matching the device list
-                GetDeviceSearchCountAsyncIEnumerableOfStringDevice = 
+                GetDeviceSearchCountAsyncIEnumerableOfStringDevice =
                 (groupIds, searchDevice) => Task.FromResult(devices.Count)
             };
 

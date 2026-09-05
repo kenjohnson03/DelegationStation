@@ -50,7 +50,7 @@ namespace DelegationStation.Pages
             { DeviceStatus.Added, "Device has been added to the system but not yet synced with corporate identifiers." },
             { DeviceStatus.Synced, "Device has been successfully synced with corporate identifiers." },
             { DeviceStatus.Deleting, "Device is in the process of being deleted from the system." },
-            { DeviceStatus.NotSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." },
+            { DeviceStatus.NonSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." },
             { DeviceStatus.Failed, "Device repeatedly failed to sync to Corporate Identifiers." }
         };
 
