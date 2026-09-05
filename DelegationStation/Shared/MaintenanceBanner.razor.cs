@@ -25,6 +25,14 @@ namespace DelegationStation.Shared
 
         private string? Message { get; set; }
 
+        private string? Color { get; set; }
+
+        private bool HasCustomColor => !string.IsNullOrEmpty(Color);
+
+        private string? BannerStyle => HasCustomColor
+            ? $"background-color:{Color};color:#fff;"
+            : null;
+
         private bool IsScrolling => !string.IsNullOrEmpty(Message) && Message.Length > ScrollThreshold;
 
         /// <summary>
@@ -35,20 +43,26 @@ namespace DelegationStation.Shared
 
         protected override void OnInitialized()
         {
-            Message = MaintenanceBannerService.GetMessage();
+            Apply(MaintenanceBannerService.GetBanner());
             _pollTimer = new Timer(_ => Poll(), null, PollInterval, PollInterval);
         }
 
         private void Poll()
         {
-            var current = MaintenanceBannerService.GetMessage();
-            if (current == Message)
+            var current = MaintenanceBannerService.GetBanner();
+            if (current?.Message == Message && current?.Color == Color)
             {
                 return;
             }
 
-            Message = current;
+            Apply(current);
             InvokeAsync(StateHasChanged);
+        }
+
+        private void Apply(MaintenanceBannerContent? banner)
+        {
+            Message = banner?.Message;
+            Color = banner?.Color;
         }
 
         public void Dispose()

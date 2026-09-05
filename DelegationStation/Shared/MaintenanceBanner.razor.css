@@ -1,10 +1,14 @@
 ﻿.maintenance-banner {
-    background-color: #fff3cd;
-    color: #664d03;
-    border-bottom: 1px solid #ffe69c;
     padding: 0.5rem 1rem;
     font-weight: 500;
     overflow: hidden;
+    text-align: center;
+}
+
+.maintenance-banner-default {
+    background-color: #fff3cd;
+    color: #664d03;
+    border-bottom: 1px solid #ffe69c;
 }
 
 .maintenance-banner-text {
