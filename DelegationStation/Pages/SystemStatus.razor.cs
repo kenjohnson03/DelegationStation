@@ -121,10 +121,12 @@ namespace DelegationStation.Pages
 
         private int GetMaxCorpIDsAllowed()
         {
-            string? maxCorpIDsString = Environment.GetEnvironmentVariable("MAX_CORPIDS_ALLOWED");
+            string? maxCorpIDsString = configuration["MAX_CORPIDS_ALLOWED"];
             if (!int.TryParse(maxCorpIDsString, out int max) || max <= 0)
             {
-                logger.LogWarning("MAX_CORPIDS_ALLOWED is not set or invalid. Using default value: {DefaultMax}.", DefaultMaxCorpIDsAllowed);
+                logger.LogWarning(
+                    "MAX_CORPIDS_ALLOWED configuration is not set or invalid. Using default value: {DefaultMax}.",
+                    DefaultMaxCorpIDsAllowed);
                 return DefaultMaxCorpIDsAllowed;
             }
 

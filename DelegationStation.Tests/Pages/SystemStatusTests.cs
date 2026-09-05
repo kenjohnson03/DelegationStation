@@ -9,15 +9,6 @@ namespace DelegationStation.Tests.Pages
     [TestClass]
     public class SystemStatusTests : Bunit.TestContext
     {
-        private const string MaxCorpIDsEnvVar = "MAX_CORPIDS_ALLOWED";
-
-        [TestCleanup]
-        public void Cleanup()
-        {
-            // Ensure the environment variable does not leak between tests.
-            Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, null);
-        }
-
         private static DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService CreateTagService(List<DeviceTag> deviceTags)
         {
             return new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
@@ -33,11 +24,12 @@ namespace DelegationStation.Tests.Pages
             };
         }
 
-        private static IConfiguration CreateConfiguration(Guid defaultId)
+        private static IConfiguration CreateConfiguration(Guid defaultId, int? maxCorpIDsAllowed = null)
         {
             var myConfiguration = new Dictionary<string, string?>
             {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()}
+                {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                {"MAX_CORPIDS_ALLOWED", maxCorpIDsAllowed?.ToString()}
             };
 
             return new ConfigurationBuilder()
@@ -51,7 +43,6 @@ namespace DelegationStation.Tests.Pages
             using (ShimsContext.Create())
             {
                 // Arrange
-                Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "10000");
                 Guid defaultId = Guid.NewGuid();
                 var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
@@ -71,7 +62,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
                 Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
                 Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
 
                 // Act
                 var cut = Render<SystemStatus>();
@@ -162,7 +153,6 @@ namespace DelegationStation.Tests.Pages
             using (ShimsContext.Create())
             {
                 // Arrange
-                Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "100");
                 Guid defaultId = Guid.NewGuid();
                 var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
@@ -182,7 +172,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
                 Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
                 Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 100));
 
                 // Act
                 var cut = Render<SystemStatus>();
@@ -201,7 +191,6 @@ namespace DelegationStation.Tests.Pages
             using (ShimsContext.Create())
             {
                 // Arrange
-                Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "10000");
                 Guid defaultId = Guid.NewGuid();
                 var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
@@ -230,7 +219,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
                 Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
                 Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
 
                 // Act
                 var cut = Render<SystemStatus>();
