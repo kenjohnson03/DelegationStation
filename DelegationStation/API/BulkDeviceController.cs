@@ -103,7 +103,10 @@ namespace DelegationStation.API
                         deviceOSstring = Enum.GetName(typeof(DeviceOS), device.OS) ?? "";
                     }
 
-                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},{deviceOSstring},{device.PreferredHostname},,{device.Status.ToString()},{device.AddedBy}");
+                    string deviceStatusString = device.Status == DeviceStatus.NonSyncing
+                        ? "Non-Syncing"
+                        : device.Status.ToString();
+                    sb.AppendLine($"{device.Make},{device.Model},{device.SerialNumber},{deviceOSstring},{device.PreferredHostname},,{deviceStatusString},{device.AddedBy}");
                 }
             }
 

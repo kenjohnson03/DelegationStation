@@ -45,8 +45,8 @@
                                             case DeviceStatus.Synced:
                                                 result = result + "<span class=\"badge rounded-pill bg-success\">" + status.Key.ToString() + "</span>" + ": " + status.Value.ToString() + "<div/>";
                                                 break;
-                                            case DeviceStatus.NotSyncing:
-                                                result = result + "<span class=\"badge rounded-pill bg-light text-dark\">" + "Added" + "</span>" + ": " + status.Value.ToString() + "<div/>";
+                                            case DeviceStatus.NonSyncing:
+                                                result = result + "<span class=\"badge rounded-pill bg-light text-dark\">" + "Non-Syncing" + "</span>" + ": " + status.Value.ToString() + "<div/>";
                                                 break;
                                             case DeviceStatus.Deleting:
                                                 result = result + "<span class=\"badge rounded-pill bg-dark\">" + status.Key.ToString() + "</span>" + ": " + status.Value.ToString() + "<div/>";
@@ -96,7 +96,15 @@
                                     <td>
                                         <input type="text" @bind="currentDeviceSearchTag" class="form-control" placeholder="Tag" />
                                     </td>
-                                    <td></td>
+                                    <td>
+                                        <select @bind="searchStatus" class="form-select" id="State">
+                                            <option value="">Select State</option>
+                                            @foreach (var status in Enum.GetValues(typeof(DeviceStatus)))
+                                            {
+                                                <option value=@status>@(status is DeviceStatus.NonSyncing ? "Non-Syncing" : status.ToString())</option>
+                                            }
+                                        </select>
+                                    </td>
                                     <td align="center">
                                         <button type="button" class="btn btn-primary" @onclick=@(() => GetDevicesSearch())>Search</button>
                                     </td>
@@ -142,9 +150,9 @@
                                 {
                                     <span class="badge rounded-pill bg-success" data-bas-toggle="tooltip" data-bs-placement="top" title="Last Sync: @device.LastCorpIdentitySync">@device.Status</span>
                                 }
-                                else if (@device.Status == @DeviceStatus.NotSyncing)
+                                else if (@device.Status == @DeviceStatus.NonSyncing)
                                 {
-                                    <span class="badge rounded-pill bg-light text-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Device in Tag Not Set to Sync. Last confirmed: @device.LastCorpIdentitySync">Added</span>
+                                    <span class="badge rounded-pill bg-light text-dark" data-bas-toggle="tooltip" data-bs-placement="top" title="Device in Tag Not Set to Sync. Last confirmed: @device.LastCorpIdentitySync">Non-Syncing</span>
                                 }
                                 else if (@device.Status == @DeviceStatus.Deleting)
                                 {
@@ -283,8 +291,6 @@
         <p>Not Authorized</p>
     </NotAuthorized>
 </AuthorizeView>
-
-
 
 
 

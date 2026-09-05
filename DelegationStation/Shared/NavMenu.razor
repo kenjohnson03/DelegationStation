@@ -38,6 +38,18 @@
         </div>
         </Authorized>
         </AuthorizeView>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="Help" Match="NavLinkMatch.Prefix">
+                <span style="position: relative; display: inline-block;">
+                    <span class="oi oi-info" aria-hidden="true"></span>
+                    @if (showUpdatesBadge)
+                    {
+                        <span class="bg-danger rounded-circle" aria-hidden="true" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px;"></span>
+                        <span class="visually-hidden">New updates available</span>
+                    }
+                </span> Help
+            </NavLink>
+        </div> 
     </nav>
 </div>
 

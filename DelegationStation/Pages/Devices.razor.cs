@@ -33,6 +33,8 @@ namespace DelegationStation.Pages
         private int TotalPages = 0;
         private Device searchDevice = new Device();
         private Device activeSearchDevice = new Device();
+        // Selected device state filter from the search dropdown (empty = no filter)
+        private string? searchStatus;
         // Tracks whether the user's last action was a search (true) or a default page load (false)
         private bool isSearchActive = false;
         private bool devicesLoading = true;
@@ -48,7 +50,7 @@ namespace DelegationStation.Pages
             { DeviceStatus.Added, "Device has been added to the system but not yet synced with corporate identifiers." },
             { DeviceStatus.Synced, "Device has been successfully synced with corporate identifiers." },
             { DeviceStatus.Deleting, "Device is in the process of being deleted from the system." },
-            { DeviceStatus.NotSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." },
+            { DeviceStatus.NonSyncing, "Device is not currently in a tag group configured to sync to corporate identifiers." },
             { DeviceStatus.Failed, "Device repeatedly failed to sync to Corporate Identifiers." }
         };
 
@@ -230,6 +232,15 @@ namespace DelegationStation.Pages
                 activeSearchDevice.Model = searchDevice.Model;
                 activeSearchDevice.PreferredHostname = searchDevice.PreferredHostname;
                 activeSearchDevice.Tags = searchDevice.Tags;
+                if (string.IsNullOrWhiteSpace(searchStatus) ||
+                    !Enum.TryParse<DeviceStatus>(searchStatus, ignoreCase: true, out var parsedStatus))
+                {
+                    activeSearchDevice.Status = null;
+                }
+                else
+                {
+                    activeSearchDevice.Status = parsedStatus;
+                }
                 // Fetch the total count of matching devices to compute pagination
                 TotalDevices = await deviceDBService.GetDeviceSearchCountAsync(
                     groups, activeSearchDevice);

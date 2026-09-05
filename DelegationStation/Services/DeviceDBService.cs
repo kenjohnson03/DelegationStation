@@ -1,4 +1,4 @@
-using Azure.Core;
+
 using Azure.Identity;
 using DelegationStation.Interfaces;
 using DelegationStationShared.Enums;
@@ -49,7 +49,7 @@ namespace DelegationStation.Services
             if (!string.IsNullOrEmpty(cosmosEndpoint))
             {
                 logger.LogInformation("Using Managed Identity to connect to CosmosDB");
-                TokenCredential credential = new ManagedIdentityCredential();
+                Azure.Core.TokenCredential credential = new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned);
                 client = new CosmosClient(cosmosEndpoint, credential);
             }
             else
@@ -166,6 +166,11 @@ namespace DelegationStation.Services
             {
                 deviceOSID = (int)searchDevice.OS;
             }
+            int? deviceStatusID = null;
+            if (searchDevice.Status != null)
+            {
+                deviceStatusID = (int)searchDevice.Status;
+            }
             if (groupIds.Contains(_DefaultGroup))
             {
                 sb.Append("SELECT * FROM d WHERE d.Type = \"Device\"");
@@ -185,7 +190,7 @@ namespace DelegationStation.Services
                 }
                 sb.Append(")");
             }
-            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
+            sb.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags, deviceStatusID));
 
             sb.Append(" ORDER BY d.ModifiedUTC DESC OFFSET @offset LIMIT @limit");
             
@@ -206,6 +211,7 @@ namespace DelegationStation.Services
             q.WithParameter("@serial", searchDevice.SerialNumber);
             q.WithParameter("@os", deviceOSID);
             q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            q.WithParameter("@status", deviceStatusID);
             if (searchDevice.Tags != null)
             {
                 for (int i = 0; i < searchDevice.Tags.Count; i++)
@@ -317,7 +323,12 @@ namespace DelegationStation.Services
             {
                 deviceOSID = (int)searchDevice.OS;
             }
-            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags));
+            int? deviceStatusID = null;
+            if (searchDevice.Status != null)
+            {
+                deviceStatusID = (int)searchDevice.Status;
+            }
+            queryBuilder.Append(BuildDeviceSearchWhereClause(searchDevice.Make, searchDevice.Model, searchDevice.SerialNumber, deviceOSID, searchDevice.PreferredHostname, searchDevice.Tags, deviceStatusID));
             q = new QueryDefinition(queryBuilder.ToString());
             argCount = 0;
             if (!groupIds.Contains(_DefaultGroup))
@@ -333,6 +344,7 @@ namespace DelegationStation.Services
             q.WithParameter("@serial", searchDevice.SerialNumber);
             q.WithParameter("@os", deviceOSID);
             q.WithParameter("@hostname", searchDevice.PreferredHostname);
+            q.WithParameter("@status", deviceStatusID);
             if (searchDevice.Tags != null)
             {
                 for (int i = 0; i < searchDevice.Tags.Count; i++)
@@ -356,9 +368,9 @@ namespace DelegationStation.Services
         /// Builds the SQL WHERE clause fragment for per-field device searches.
         /// Appends an AND condition for each non-empty/non-null filter value.
         /// The caller is responsible for binding the corresponding @make, @model,
-        /// @serial, @os, @hostname, and @searchTag{N} parameters on the QueryDefinition.
+        /// @serial, @os, @hostname, @searchTag{N}, and @status parameters on the QueryDefinition.
         /// </summary>
-        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname, List<string> tags)
+        private string BuildDeviceSearchWhereClause(string make, string model, string serialNumber, int? osID, string preferredHostname, List<string> tags, int? statusID = null)
         {
             var sb = new System.Text.StringBuilder();
 
@@ -376,6 +388,9 @@ namespace DelegationStation.Services
 
             if (!string.IsNullOrEmpty(preferredHostname.Trim()))
                 sb.Append(" AND CONTAINS(d.PreferredHostname, @hostname, true)");
+
+            if (statusID != null)
+                sb.Append(" AND d.Status=@status");
 
             if (tags != null && tags.Count > 0)
             {

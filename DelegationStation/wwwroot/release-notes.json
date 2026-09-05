@@ -1,0 +1,61 @@
+[
+  {
+    "version": "2.3",
+    "date": "July 2026",
+    "title": "CorpID Capacity Management Updates",
+    "changes": [
+      "Backend updates to prevent exceeding tenant limit of Corporate Identifiers.",
+      "Added a failed status to stop continuous retries on devices that repeatedly fail to sync.",
+      "Stopped allowing duplicate serial number entries for non-Windows devices. If you have duplicates, remove all and add back the correct entry.",
+      "Fixed a bug where preferred hostname regex validation wasn't executing in all cases.",
+      "Regular updates for security and hygiene."
+    ]
+  },
+  {
+    "version": "2.2.1",
+    "date": "March 2026",
+    "title": "Security Fix - Device Tag Access",
+    "changes": [
+      "Fixed a security issue on the Devices screen that could allow a user to view devices outside their tags. May also address issues where tag was not displayed in search results."
+    ]
+  },
+  {
+    "version": "2.2",
+    "date": "March 2026",
+    "title": "Duplicate Hostname Prevention",
+    "changes": [
+      "Added logic to prevent users from re-using the same preferred hostname across multiple devices. Past duplicates may still exist."
+    ]
+  },
+  {
+    "version": "2.1.1",
+    "date": "March 2026",
+    "title": "Logging & Telemetry Improvements",
+    "changes": [
+      "Improved logging and telemetry to capture more detailed information for troubleshooting and performance monitoring."
+    ]
+  },
+  {
+    "version": "2.1",
+    "date": "January 2026",
+    "title": "Implemented Preferred Hostname format validation by tag",
+    "changes": [
+      "Enhancing the system-wide Preferred Hostname validation requirement with tag-specific requirements.",
+      "Added Tag Search."
+    ]
+  },
+  {
+    "version": "2.0",
+    "date": "October 2025",
+    "title": "Intune Autopilot 2.0 Support",
+    "changes": [
+      "Added ability to enable syncing of devices to the Intune Corporate Identifiers list at tag level.",
+      "New state field related to CorpID sync status.",
+      "Added a new OS field to support future use of MacOS, iOS, and Android devices. (Currently experimental.)  All devices previously entered are processed will show an OS of Unknown, but will be treated as Windows devices.",
+      "Added new Preferred Hostname field to support device naming on enrollment in support of Intune Autopilot 2.0.",
+      "Improved the devices screen and search capabilities.",
+      "Regular updates for security and hygiene."
+    ]
+  }
+]
+
