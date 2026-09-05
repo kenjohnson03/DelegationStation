@@ -25,13 +25,9 @@ namespace DelegationStation.Shared
 
         private string? Message { get; set; }
 
-        private string? Color { get; set; }
+        private MaintenanceBannerTheme Theme { get; set; } = MaintenanceBannerTheme.Amber;
 
-        private bool HasCustomColor => !string.IsNullOrEmpty(Color);
-
-        private string? BannerStyle => HasCustomColor
-            ? $"background-color:{Color};color:#fff;"
-            : null;
+        private string ThemeCssClass => $"maintenance-banner-{Theme.ToString().ToLowerInvariant()}";
 
         private bool IsScrolling => !string.IsNullOrEmpty(Message) && Message.Length > ScrollThreshold;
 
@@ -50,7 +46,7 @@ namespace DelegationStation.Shared
         private void Poll()
         {
             var current = MaintenanceBannerService.GetBanner();
-            if (current?.Message == Message && current?.Color == Color)
+            if (current?.Message == Message && current?.Theme == Theme)
             {
                 return;
             }
@@ -62,7 +58,7 @@ namespace DelegationStation.Shared
         private void Apply(MaintenanceBannerContent? banner)
         {
             Message = banner?.Message;
-            Color = banner?.Color;
+            Theme = banner?.Theme ?? MaintenanceBannerTheme.Amber;
         }
 
         public void Dispose()

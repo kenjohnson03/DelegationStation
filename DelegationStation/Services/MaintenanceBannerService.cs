@@ -1,10 +1,24 @@
 namespace DelegationStation.Services
 {
     /// <summary>
-    /// The parsed contents of the maintenance banner file: the message to
-    /// display and an optional CSS color used to draw attention to it.
+    /// The recognized color themes for the maintenance banner. Each theme is a
+    /// light background paired with a matching dark text/border color, similar
+    /// to Bootstrap's alert styles, so custom colors stay readable and on-brand
+    /// instead of requiring callers to pick their own foreground/background pair.
     /// </summary>
-    public record MaintenanceBannerContent(string Message, string? Color);
+    public enum MaintenanceBannerTheme
+    {
+        Amber,
+        Red,
+        Green,
+        Blue
+    }
+
+    /// <summary>
+    /// The parsed contents of the maintenance banner file: the message to
+    /// display and the color theme used to draw attention to it.
+    /// </summary>
+    public record MaintenanceBannerContent(string Message, MaintenanceBannerTheme Theme);
 
     public interface IMaintenanceBannerService
     {
@@ -23,18 +37,15 @@ namespace DelegationStation.Services
     /// announce maintenance windows or other notices by adding the file and
     /// clear them by deleting it - no deployment or restart required.
     ///
-    /// The file's first line may optionally be a CSS color (e.g. "#ff0000" or
-    /// "red" or "rgb(255,0,0)") to draw attention to the banner; the remaining
-    /// lines are the message. If the first line is not recognized as a color,
-    /// the entire file is treated as the message and the default color is used.
+    /// The file's first line may optionally name a color theme ("red", "green",
+    /// or "blue", case-insensitive) to draw attention to the banner; the
+    /// remaining lines are the message. If the first line does not name a
+    /// recognized theme, the entire file is treated as the message and the
+    /// default amber theme is used.
     /// </summary>
     public class MaintenanceBannerService : IMaintenanceBannerService
     {
         private const string BannerFileName = "maintenance-banner.txt";
-
-        private static readonly System.Text.RegularExpressions.Regex ColorLineRegex = new(
-            @"^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]+|(rgb|rgba|hsl|hsla)\(.*\))$",
-            System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private readonly string _path;
         private readonly ILogger<MaintenanceBannerService> _logger;
@@ -66,18 +77,38 @@ namespace DelegationStation.Services
 
         public static MaintenanceBannerContent? Parse(string[] lines)
         {
-            string? color = null;
+            var theme = MaintenanceBannerTheme.Amber;
             var messageLines = lines;
 
-            if (lines.Length > 0 && ColorLineRegex.IsMatch(lines[0].Trim()))
+            if (lines.Length > 0 && TryParseTheme(lines[0].Trim(), out var parsedTheme))
             {
-                color = lines[0].Trim();
+                theme = parsedTheme;
                 messageLines = lines.Skip(1).ToArray();
             }
 
             var message = string.Join("\n", messageLines).Trim();
-            return string.IsNullOrEmpty(message) ? null : new MaintenanceBannerContent(message, color);
+            return string.IsNullOrEmpty(message) ? null : new MaintenanceBannerContent(message, theme);
+        }
+
+        private static bool TryParseTheme(string firstLine, out MaintenanceBannerTheme theme)
+        {
+            switch (firstLine.ToLowerInvariant())
+            {
+                case "red":
+                    theme = MaintenanceBannerTheme.Red;
+                    return true;
+                case "green":
+                    theme = MaintenanceBannerTheme.Green;
+                    return true;
+                case "blue":
+                    theme = MaintenanceBannerTheme.Blue;
+                    return true;
+                default:
+                    theme = MaintenanceBannerTheme.Amber;
+                    return false;
+            }
         }
     }
 }
+
 

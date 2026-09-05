@@ -2,7 +2,7 @@
 
 @if (!string.IsNullOrEmpty(Message))
 {
-    <div class="maintenance-banner @(HasCustomColor ? "" : "maintenance-banner-default")" style="@BannerStyle" role="alert">
+    <div class="maintenance-banner @ThemeCssClass" role="alert">
         @if (IsScrolling)
         {
             <div class="maintenance-banner-track">

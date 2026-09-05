@@ -5,10 +5,29 @@
     text-align: center;
 }
 
-.maintenance-banner-default {
+.maintenance-banner-default,
+.maintenance-banner-amber {
     background-color: #fff3cd;
     color: #664d03;
     border-bottom: 1px solid #ffe69c;
+}
+
+.maintenance-banner-red {
+    background-color: #f8d7da;
+    color: #58151c;
+    border-bottom: 1px solid #f1aeb5;
+}
+
+.maintenance-banner-green {
+    background-color: #d1e7dd;
+    color: #0a3622;
+    border-bottom: 1px solid #a3cfbb;
+}
+
+.maintenance-banner-blue {
+    background-color: #cfe2ff;
+    color: #052c65;
+    border-bottom: 1px solid #9ec5fe;
 }
 
 .maintenance-banner-text {
