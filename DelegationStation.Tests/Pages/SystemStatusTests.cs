@@ -53,7 +53,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "10000");
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -74,7 +74,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("10000"), $"Max allowed corporate identifiers should be rendered.\nActual:\n{cut.Markup}");
@@ -91,7 +91,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -112,7 +112,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("Corporate Identifier counter was not found in the database."),
@@ -127,7 +127,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -148,7 +148,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("Failed to load Corporate Identifier status."),
@@ -164,7 +164,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "100");
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -185,7 +185,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("text-danger"),
@@ -203,7 +203,7 @@ namespace DelegationStation.Tests.Pages
                 // Arrange
                 Environment.SetEnvironmentVariable(MaxCorpIDsEnvVar, "10000");
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -233,7 +233,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("testTag"), $"Tag name should be rendered.\nActual:\n{cut.Markup}");
@@ -249,7 +249,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -270,7 +270,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("No tags found."),
@@ -285,7 +285,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetAuthorized("TEST USER");
                 authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
                 authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
@@ -308,7 +308,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
@@ -324,7 +324,7 @@ namespace DelegationStation.Tests.Pages
             {
                 // Arrange
                 Guid defaultId = Guid.NewGuid();
-                var authContext = this.AddTestAuthorization();
+                var authContext = this.AddAuthorization();
                 authContext.SetNotAuthorized();
 
                 var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
@@ -343,7 +343,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
                 // Act
-                var cut = RenderComponent<SystemStatus>();
+                var cut = Render<SystemStatus>();
 
                 // Assert
                 Assert.IsTrue(cut.Markup.Contains("Not Authorized"),

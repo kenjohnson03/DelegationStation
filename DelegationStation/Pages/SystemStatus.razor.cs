@@ -16,6 +16,9 @@ namespace DelegationStation.Pages
         private List<string> groups = new List<string>();
         private List<DeviceTag> deviceTags = new List<DeviceTag>();
         private Dictionary<Guid, int> corpIDCounts = new Dictionary<Guid, int>();
+        private Dictionary<Guid, int> unsyncedCounts = new Dictionary<Guid, int>();
+        private string tagSearchName = string.Empty;
+        private string activeTagSearchName = string.Empty;
         private string userMessage = string.Empty;
         private bool tagsLoading = true;
         private int TotalTags = 0;
@@ -34,6 +37,8 @@ namespace DelegationStation.Pages
 
         // If the count exceeds the limit, display it as being at the limit.
         private int DisplayCount => Math.Min(CorpIDCount, MaxCorpIDsAllowed);
+
+        private int AvailableCorpIDSlots => Math.Max(MaxCorpIDsAllowed - CorpIDCount, 0);
 
         // Percentage of the max being utilized, capped at 100%.
         private double DisplayPercentage
@@ -108,6 +113,8 @@ namespace DelegationStation.Pages
 
             PageSize = deviceTagDBService.CurrentSearch.pageSize;
             PageNumber = deviceTagDBService.CurrentSearch.pageNumber;
+            tagSearchName = deviceTagDBService.CurrentSearch.name ?? string.Empty;
+            activeTagSearchName = tagSearchName;
             UpdateClaims();
             await GetTags();
         }
@@ -128,13 +135,18 @@ namespace DelegationStation.Pages
             Guid c = Guid.NewGuid();
             tagsLoading = true;
             corpIDCounts.Clear();
+            unsyncedCounts.Clear();
             userMessage = string.Empty;
             try
             {
-                TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups);
+                TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups, activeTagSearchName);
                 TotalPages = (int)Math.Ceiling((decimal)TotalTags / PageSize);
 
-                deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize);
+                deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(
+                    groups,
+                    PageNumber,
+                    PageSize,
+                    activeTagSearchName);
             }
             catch (Exception ex)
             {
@@ -154,6 +166,7 @@ namespace DelegationStation.Pages
                 try
                 {
                     corpIDCounts[deviceTag.Id] = 0;
+                    unsyncedCounts[deviceTag.Id] = 0;
 
                     List<Device> devices = await deviceDBService.GetDevicesByTagAsync(deviceTag.Id.ToString());
                     foreach (var device in devices)
@@ -162,6 +175,10 @@ namespace DelegationStation.Pages
                         {
                             corpIDCounts[deviceTag.Id]++;
                         }
+                        else
+                        {
+                            unsyncedCounts[deviceTag.Id]++;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -169,6 +186,7 @@ namespace DelegationStation.Pages
                     // Isolate per-tag failures so one bad tag doesn't leave the remaining tags stuck loading.
                     // -1 signals the UI to show "Unable to retrieve device count".
                     corpIDCounts[deviceTag.Id] = -1;
+                    unsyncedCounts[deviceTag.Id] = -1;
                     logger.LogError(ex, "Error retrieving synced devices count for tag {TagId}.", deviceTag.Id);
                     userMessage = "Error: retrieving synced devices counts.";
                 }
@@ -197,6 +215,28 @@ namespace DelegationStation.Pages
             return $"{percentage.ToString("0.##")}%";
         }
 
+        private string GetTagShareOfInUseDisplay(Guid tagId)
+        {
+            if (!corpIDCounts.ContainsKey(tagId))
+            {
+                return "Loading...";
+            }
+
+            int count = corpIDCounts[tagId];
+            if (count < 0)
+            {
+                return "N/A";
+            }
+
+            if (CorpIDCount <= 0)
+            {
+                return "0%";
+            }
+
+            double percentage = (double)count / CorpIDCount * 100;
+            return $"{percentage.ToString("0.##")}%";
+        }
+
         private void UpdateClaims()
         {
             groups = new List<string>();
@@ -215,6 +255,21 @@ namespace DelegationStation.Pages
             {
                 PageNumber++;
             }
+            await GetTags();
+        }
+
+        private async Task SearchTags()
+        {
+            activeTagSearchName = tagSearchName.Trim();
+            PageNumber = 1;
+            await GetTags();
+        }
+
+        private async Task ClearTagSearch()
+        {
+            tagSearchName = string.Empty;
+            activeTagSearchName = string.Empty;
+            PageNumber = 1;
             await GetTags();
         }
 
