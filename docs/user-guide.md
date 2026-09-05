@@ -36,7 +36,7 @@ The device table displays the following columns for each device:
 | 🔵 **Added** | Device has been added but not yet synced with corporate identifiers |
 | 🟢 **Synced** | Device has been successfully synced with corporate identifiers |
 | ⚫ **Deleting** | Device is marked for deletion and will be removed on the next sync |
-| ⚪ **Added** (white) | Device is in a tag that is not configured to sync corporate identifiers |
+| ⚪ **NonSyncing** | Device is in a tag that is not configured to sync corporate identifiers |
 
 ### Searching Devices
 

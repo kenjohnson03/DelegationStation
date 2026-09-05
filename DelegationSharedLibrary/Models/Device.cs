@@ -45,8 +45,8 @@ namespace DelegationStationShared.Models
         public string CorporateIdentity { get; set; }
         public DateTime LastCorpIdentitySync { get; set; }
         public string CorporateIdentityID { get; set; }
-        public int CorpIDFailureCount { get; set;  }
-        public DeviceStatus Status { get; set; }
+        public int CorpIDFailureCount { get; set; }
+        public DeviceStatus? Status { get; set; }
 
         [Required]
         public DeviceOS? OS { get; set; }

@@ -46,6 +46,7 @@ namespace DelegationStation.Tests.Pages
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
                 Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -93,6 +94,7 @@ Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be r
                 Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
                 Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -132,6 +134,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 Services.AddSingleton<IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
                 Services.AddSingleton<HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -173,6 +176,7 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 Services.AddSingleton<IConfiguration>(configuration);
                 Services.AddSingleton<IHttpContextAccessor>(httpContext);
                 Services.AddSingleton(updatesNotification);
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
                 Services.AddDataProtection();
                 Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
                 JSInterop.Mode = JSRuntimeMode.Loose;
@@ -187,6 +191,17 @@ Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not displ
                 Assert.AreEqual(0, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should not be displayed after updates have been viewed. Actual: {cut.Markup}");
                 Assert.AreEqual(0, cut.FindAll(".visually-hidden").Count, $"Accessible label for new updates should not be present after viewed. Actual: {cut.Markup}");
             }
+
+        }
+
+        private sealed class TestReleaseNotesService : IReleaseNotesService
+        {
+            public IReadOnlyList<ReleaseNote> ReleaseNotes { get; } = new List<ReleaseNote>
+            {
+                new ReleaseNote { Version = "test-version" }
+            };
+
+            public string CurrentVersion => ReleaseNotes[0].Version;
         }
     }
 }
