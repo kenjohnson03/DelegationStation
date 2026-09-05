@@ -84,6 +84,7 @@ builder.Services.AddServerSideBlazor()
 builder.Services.AddScoped<HelpNotificationService>();
 builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
 builder.Services.AddSingleton<IFaqService, FaqService>();
+builder.Services.AddSingleton<IMaintenanceBannerService, MaintenanceBannerService>();
 builder.Services.AddSingleton<IAuthorizationHandler, DeviceTagAuthorizationHandler>();
 builder.Services.AddSingleton<IDeviceTagDBService, DeviceTagDBService>();
 builder.Services.AddSingleton<IDeviceDBService, DeviceDBService>();
