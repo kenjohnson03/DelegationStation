@@ -24,15 +24,20 @@
                 <span class="oi oi-tags" aria-hidden="true"></span> Tags
             </NavLink>
         </div>
-        <AuthorizeView Policy="DelegationStationAdmin">
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Roles" Match="NavLinkMatch.Prefix">
-                        <span class="oi oi-shield" aria-hidden="true"></span> Roles
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+<AuthorizeView Policy="DelegationStationAdmin">
+    <Authorized>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="Roles" Match="NavLinkMatch.Prefix">
+                <span class="oi oi-shield" aria-hidden="true"></span> Roles
+            </NavLink>
+        </div>
+    </Authorized>
+</AuthorizeView>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="SystemStatus" Match="NavLinkMatch.Prefix">
+                <span class="oi oi-dashboard" aria-hidden="true"></span> System Status
+            </NavLink>
+        </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="Help" Match="NavLinkMatch.Prefix">
                 <span style="position: relative; display: inline-block;">
