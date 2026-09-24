@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using DelegationStationShared.Models;
 using DelegationStationShared;
 using DelegationStationShared.Extensions;
+using DelegationStationShared.Enums;
 using Microsoft.Azure.Functions.Worker;
 using UpdateDevices.Interfaces;
 
@@ -98,8 +99,6 @@ namespace UpdateDevices
                 return;
             }
 
-            List<DeviceUpdateAction> actions = new List<DeviceUpdateAction>();
-
             var defaultActionDisable = Environment.GetEnvironmentVariable("DefaultActionDisable", EnvironmentVariableTarget.Process);
 
             if (String.IsNullOrEmpty(defaultActionDisable))
@@ -126,11 +125,14 @@ namespace UpdateDevices
             }
             _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
+            bool allActionsSucceeded = true;
+            bool actionsWereApplied = false;
 
             string deviceObjectID = await _graphService.GetDeviceObjectID(device.AzureADDeviceId);
             if (String.IsNullOrEmpty(deviceObjectID))
             {
                 _logger.DSLogError("Failed to retrieve graph device ID using .\n", fullMethodName);
+                await CompleteDeviceProcessingAttemptAsync(d, false);
                 return;
             }
             _logger.DSLogInformation("Retrieved Entra Object ID '" + deviceObjectID + "' for device. DeviceID: '" + device.AzureADDeviceId + "', ManagedDeviceID: '" + device.Id + "'", fullMethodName);
@@ -141,6 +143,7 @@ namespace UpdateDevices
                 if (tag == null)
                 {
                     _logger.DSLogError("Device " + device.Id + " is assigned to tag " + tagId + " which does not exist. No updates applied.", fullMethodName);
+                    await CompleteDeviceProcessingAttemptAsync(d, false);
                     return;
                 }
 
@@ -159,6 +162,7 @@ namespace UpdateDevices
                             if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
                             {
                                 _logger.DSLogWarning("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " does not match Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
+                                await CompleteDeviceProcessingAttemptAsync(d, false);
                                 return;
                             }
                             _logger.DSLogInformation("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " matches Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
@@ -172,6 +176,7 @@ namespace UpdateDevices
                 catch (Exception ex)
                 {
                     _logger.DSLogException("UserPrincipalName " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " on " + tag.Id + " allowed user principal names " + tag.AllowedUserPrincipalName + ".", ex, fullMethodName);
+                    await CompleteDeviceProcessingAttemptAsync(d, false);
                     return;
                 }
 
@@ -207,12 +212,14 @@ namespace UpdateDevices
                         catch (ArgumentException ex)
                         {
                             renameDevice = false;
+                            allActionsSucceeded = false;
                             _logger.DSLogException("Device name regex " + tag.DeviceNameRegex + " for tag " + tag.Name + " is invalid. No rename applied for device " +
                                 device.Id + ".", ex, fullMethodName);
                         }
                         catch (RegexMatchTimeoutException ex)
                         {
                             renameDevice = false;
+                            allActionsSucceeded = false;
                             _logger.DSLogException("Regex match timed out while evaluating preferred hostname '" + d.PreferredHostname + "' against device name regex " +
                                 tag.DeviceNameRegex + " for tag " + tag.Name + ". No rename applied for device " + device.Id + ".", ex, fullMethodName);
                         }
@@ -222,15 +229,26 @@ namespace UpdateDevices
                     {
                         if (!String.IsNullOrEmpty(d.PreferredHostname))
                         {
-                            bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
-                            if (!result)
+                            actionsWereApplied = true;
+                            try
                             {
-                                _logger.DSLogError("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
-                                    " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                                bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
+                                if (!result)
+                                {
+                                    allActionsSucceeded = false;
+                                    _logger.DSLogError("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
+                                        " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                                }
+                                else
+                                {
+                                    _logger.DSLogInformation("Updated device name for: '" + device.Id + " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                                }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                _logger.DSLogInformation("Updated device name for: '" + device.Id + " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                                allActionsSucceeded = false;
+                                _logger.DSLogException("Unable to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
+                                    " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", ex, fullMethodName);
                             }
                         }
                         else
@@ -250,6 +268,7 @@ namespace UpdateDevices
                 if (tag.UpdateActions == null || tag.UpdateActions.Count < 1)
                 {
                     _logger.DSLogWarning("No update actions configured for " + tag.Name + ".  No updates applied for device " + device.Id + ".", fullMethodName);
+                    await CompleteDeviceProcessingAttemptAsync(d, false);
                     return;
                 }
 
@@ -264,10 +283,15 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await _graphService.AddDeviceToAzureAdministrativeUnit(device.Id, deviceObjectID, deviceUpdateAction);
+                        actionsWereApplied = true;
+                        if (!await _graphService.AddDeviceToAzureAdministrativeUnit(device.Id, deviceObjectID, deviceUpdateAction))
+                        {
+                            allActionsSucceeded = false;
+                        }
                     }
                     catch (Exception ex)
                     {
+                        allActionsSucceeded = false;
                         _logger.DSLogException("Unable to add Device " + device.Id + " (as " + deviceObjectID + ") to Administrative Unit: " + deviceUpdateAction.Name + " (" + deviceUpdateAction.Value + ").", ex, fullMethodName);
                     }
                 }
@@ -276,24 +300,53 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        await _graphService.AddDeviceToAzureADGroup(device.Id, deviceObjectID, deviceUpdateAction);
+                        actionsWereApplied = true;
+                        if (!await _graphService.AddDeviceToAzureADGroup(device.Id, deviceObjectID, deviceUpdateAction))
+                        {
+                            allActionsSucceeded = false;
+                        }
                     }
                     catch (Exception ex)
                     {
+                        allActionsSucceeded = false;
                         _logger.DSLogException("Unable to add device " + device.Id + " (as " + deviceObjectID + ") to Group: " + deviceUpdateAction.Name + " (" + deviceUpdateAction.Value + ").", ex, fullMethodName);
                     }
                 }
 
-                try
+                var attributeList = tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList();
+                if (attributeList.Count > 0)
                 {
-                    var attributeList = tag.UpdateActions.Where(t => t.ActionType == DeviceUpdateActionType.Attribute).ToList();
-                    await _graphService.UpdateAttributesOnDeviceAsync(device.Id, deviceObjectID, attributeList);
-                }
-                catch (Exception ex)
-                {
-                    _logger.DSLogException("Unable to update attributes for device " + device.Id + " (as " + deviceObjectID + ").", ex, fullMethodName);
+                    try
+                    {
+                        actionsWereApplied = true;
+                        if (!await _graphService.UpdateAttributesOnDeviceAsync(device.Id, deviceObjectID, attributeList))
+                        {
+                            allActionsSucceeded = false;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        allActionsSucceeded = false;
+                        _logger.DSLogException("Unable to update attributes for device " + device.Id + " (as " + deviceObjectID + ").", ex, fullMethodName);
+                    }
                 }
             }
+
+            await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded && actionsWereApplied);
+        }
+
+        private async Task CompleteDeviceProcessingAttemptAsync(DelegationStationShared.Models.Device device, bool successfullyProcessed)
+        {
+            DateTime processedAt = DateTime.UtcNow;
+            device.LastProcessingAttemptUTC = processedAt;
+
+            if (successfullyProcessed)
+            {
+                device.Status = DeviceStatus.Processed;
+                device.SuccessfullyProcessedUTC = processedAt;
+            }
+
+            await _dbService.UpdateDevice(device);
         }
 
 

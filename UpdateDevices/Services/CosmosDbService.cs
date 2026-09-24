@@ -116,6 +116,26 @@ namespace UpdateDevices.Services
       return device;
     }
 
+    public async Task UpdateDevice(Device device)
+    {
+      string methodName = ExtensionHelper.GetMethodName() ?? "";
+      string className = GetType().Name;
+      string fullMethodName = className + "." + methodName;
+
+      _logger.DSLogInformation($"Updating device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+
+      var options = string.IsNullOrEmpty(device.ETag)
+        ? null
+        : new ItemRequestOptions { IfMatchEtag = device.ETag };
+
+      ItemResponse<Device> response = await _container.ReplaceItemAsync(
+        device, device.Id.ToString(), new PartitionKey(device.PartitionKey), options);
+
+      device.ETag = response.ETag;
+
+      _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+    }
+
     public async Task<DeviceTag> GetDeviceTag(string tagId)
     {
       string methodName = ExtensionHelper.GetMethodName() ?? "";
