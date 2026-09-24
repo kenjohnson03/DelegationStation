@@ -35,7 +35,7 @@ namespace DelegationStationShared.Models
         [Required(AllowEmptyStrings = false)]
         public string Type { get; private set; }
 
-        // Note:  Because we don't allow modifications from GUI is really AddedUTC
+        // Note:  This field is used as CreatedDT - would need to migrate over if we allow mods
         public DateTime ModifiedUTC { get; set; }
 
         // GUID of user who created device in webapp
@@ -51,6 +51,13 @@ namespace DelegationStationShared.Models
         [Required]
         public DeviceOS? OS { get; set; }
         public DateTime? MarkedToDeleteUTC { get; set; }
+
+        public DateTime? SuccessfullyProcessedUTC { get; set; }
+        public DateTime? LastProcessingAttemptUTC { get; set; }
+        public DateTime? MarkedInactiveUTC { get; set; }
+        public string InactiveReason { get; set; } = string.Empty;
+
+
 
         /// <summary>
         /// Maps to Cosmos DB's native _etag system property for optimistic concurrency.
@@ -85,6 +92,12 @@ namespace DelegationStationShared.Models
             CorporateIdentityID = string.Empty;
 
             Status = DeviceStatus.Added;
+
+            SuccessfullyProcessedUTC = null;
+            LastProcessingAttemptUTC = null;
+            MarkedInactiveUTC = null;
+            InactiveReason = string.Empty;
+
 
         }
 
