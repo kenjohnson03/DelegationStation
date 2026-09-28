@@ -3,16 +3,12 @@ namespace DelegationStationShared.Enums
 {
     public enum DeviceStatus
     {
-        Added,
-        Synced,
-        Deleting,
-        NonSyncing,
-        Failed,
-        Processed,
-        Inactive,
-        CorpIDRemovalFailed,
-        Reprocessing,
-        ReprocessingFailed
-
+        Added = 0,
+        Synced = 1,
+        Deleting = 2,
+        NonSyncing = 3,
+        Failed = 4,
+        Inactive = 6,
+        CorpIDRemovalFailed = 7
     }
 }

@@ -116,24 +116,33 @@ namespace UpdateDevices.Services
       return device;
     }
 
-    public async Task UpdateDevice(Device device)
+    // Patches only the fields owned by UpdateDevices so concurrent CorporateIdentifierSync changes are not overwritten.
+    // Returns false when the device was deleted before the patch was applied.
+    public async Task<bool> UpdateDeviceProcessingState(Device device)
     {
       string methodName = ExtensionHelper.GetMethodName() ?? "";
       string className = GetType().Name;
       string fullMethodName = className + "." + methodName;
 
-      _logger.DSLogInformation($"Updating device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+      var operations = new List<PatchOperation>
+      {
+        PatchOperation.Set("/LastProcessingAttemptUTC", device.LastProcessingAttemptUTC),
+        PatchOperation.Set("/SuccessfullyProcessedUTC", device.SuccessfullyProcessedUTC),
+        PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus)
+      };
 
-      var options = string.IsNullOrEmpty(device.ETag)
-        ? null
-        : new ItemRequestOptions { IfMatchEtag = device.ETag };
-
-      ItemResponse<Device> response = await _container.ReplaceItemAsync(
-        device, device.Id.ToString(), new PartitionKey(device.PartitionKey), options);
-
-      device.ETag = response.ETag;
-
-      _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+      try
+      {
+        await _container.PatchItemAsync<Device>(
+          device.Id.ToString(), new PartitionKey(device.PartitionKey), operations);
+        _logger.DSLogInformation($"Updated processing state for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+        return true;
+      }
+      catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+      {
+        _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was deleted before its processing state could be updated.", fullMethodName);
+        return false;
+      }
     }
 
     public async Task<DeviceTag> GetDeviceTag(string tagId)

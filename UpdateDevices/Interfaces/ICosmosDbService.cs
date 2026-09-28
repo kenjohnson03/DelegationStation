@@ -13,7 +13,7 @@ namespace UpdateDevices.Interfaces
         Task UpdateFunctionSettings(DateTime thisRun);
 
         Task<Device> GetDevice(string make, string model, string serialNumber);
-        Task UpdateDevice(Device device);
+        Task<bool> UpdateDeviceProcessingState(Device device);
 
         Task<DeviceTag> GetDeviceTag(string tagId);
 

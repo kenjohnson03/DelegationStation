@@ -75,7 +75,14 @@ namespace UpdateDevices
             }
             foreach (Microsoft.Graph.Models.ManagedDevice device in devices)
             {
-                await RunDeviceUpdateActionsAsync(device);
+                try
+                {
+                    await RunDeviceUpdateActionsAsync(device);
+                }
+                catch (Exception ex)
+                {
+                    _logger.DSLogException("Unexpected error processing enrolled device '" + device.Id + "'. Continuing with remaining devices.", ex, fullMethodName);
+                }
             }
 
             await _dbService.UpdateFunctionSettings(thisRun);
@@ -125,8 +132,20 @@ namespace UpdateDevices
             }
             _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
+            if (d.Status == DeviceStatus.Deleting)
+            {
+                _logger.DSLogInformation("Device " + device.Id + " is marked for deletion. No updates applied.", fullMethodName);
+                return;
+            }
+
+            if (d.Tags == null || d.Tags.Count == 0)
+            {
+                _logger.DSLogError("Device " + device.Id + " has no tag assigned. No updates applied.", fullMethodName);
+                await CompleteDeviceProcessingAttemptAsync(d, false);
+                return;
+            }
+
             bool allActionsSucceeded = true;
-            bool actionsWereApplied = false;
 
             string deviceObjectID = await _graphService.GetDeviceObjectID(device.AzureADDeviceId);
             if (String.IsNullOrEmpty(deviceObjectID))
@@ -229,7 +248,6 @@ namespace UpdateDevices
                     {
                         if (!String.IsNullOrEmpty(d.PreferredHostname))
                         {
-                            actionsWereApplied = true;
                             try
                             {
                                 bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
@@ -267,8 +285,8 @@ namespace UpdateDevices
 
                 if (tag.UpdateActions == null || tag.UpdateActions.Count < 1)
                 {
-                    _logger.DSLogWarning("No update actions configured for " + tag.Name + ".  No updates applied for device " + device.Id + ".", fullMethodName);
-                    await CompleteDeviceProcessingAttemptAsync(d, false);
+                    _logger.DSLogInformation("No update actions configured for " + tag.Name + ".  No updates applied for device " + device.Id + ".", fullMethodName);
+                    await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded);
                     return;
                 }
 
@@ -283,7 +301,6 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        actionsWereApplied = true;
                         if (!await _graphService.AddDeviceToAzureAdministrativeUnit(device.Id, deviceObjectID, deviceUpdateAction))
                         {
                             allActionsSucceeded = false;
@@ -300,7 +317,6 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        actionsWereApplied = true;
                         if (!await _graphService.AddDeviceToAzureADGroup(device.Id, deviceObjectID, deviceUpdateAction))
                         {
                             allActionsSucceeded = false;
@@ -318,7 +334,6 @@ namespace UpdateDevices
                 {
                     try
                     {
-                        actionsWereApplied = true;
                         if (!await _graphService.UpdateAttributesOnDeviceAsync(device.Id, deviceObjectID, attributeList))
                         {
                             allActionsSucceeded = false;
@@ -332,7 +347,7 @@ namespace UpdateDevices
                 }
             }
 
-            await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded && actionsWereApplied);
+            await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded);
         }
 
         private async Task CompleteDeviceProcessingAttemptAsync(DelegationStationShared.Models.Device device, bool successfullyProcessed)
@@ -342,11 +357,11 @@ namespace UpdateDevices
 
             if (successfullyProcessed)
             {
-                device.Status = DeviceStatus.Processed;
+                device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
             }
 
-            await _dbService.UpdateDevice(device);
+            await _dbService.UpdateDeviceProcessingState(device);
         }
 
 
