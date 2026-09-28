@@ -231,14 +231,12 @@ namespace UpdateDevices
                         catch (ArgumentException ex)
                         {
                             renameDevice = false;
-                            allActionsSucceeded = false;
                             _logger.DSLogException("Device name regex " + tag.DeviceNameRegex + " for tag " + tag.Name + " is invalid. No rename applied for device " +
                                 device.Id + ".", ex, fullMethodName);
                         }
                         catch (RegexMatchTimeoutException ex)
                         {
                             renameDevice = false;
-                            allActionsSucceeded = false;
                             _logger.DSLogException("Regex match timed out while evaluating preferred hostname '" + d.PreferredHostname + "' against device name regex " +
                                 tag.DeviceNameRegex + " for tag " + tag.Name + ". No rename applied for device " + device.Id + ".", ex, fullMethodName);
                         }
@@ -253,7 +251,6 @@ namespace UpdateDevices
                                 bool result = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
                                 if (!result)
                                 {
-                                    allActionsSucceeded = false;
                                     _logger.DSLogError("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
                                         " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
                                 }
@@ -264,7 +261,6 @@ namespace UpdateDevices
                             }
                             catch (Exception ex)
                             {
-                                allActionsSucceeded = false;
                                 _logger.DSLogException("Unable to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
                                     " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", ex, fullMethodName);
                             }

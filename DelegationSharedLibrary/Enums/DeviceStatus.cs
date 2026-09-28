@@ -8,7 +8,7 @@ namespace DelegationStationShared.Enums
         Deleting = 2,
         NonSyncing = 3,
         Failed = 4,
-        Inactive = 6,
-        CorpIDRemovalFailed = 7
+        //Inactive = 6,
+        //CorpIDRemovalFailed = 7
     }
 }
