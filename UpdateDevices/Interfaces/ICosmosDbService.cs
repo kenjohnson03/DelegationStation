@@ -25,7 +25,7 @@ namespace UpdateDevices.Interfaces
 
         Task<List<Straggler>> GetStragglersProcessedByUD(int minCount);
 
-
+        Task<bool> UpdateDeviceProcessingState(Device device);
 
     }
 }

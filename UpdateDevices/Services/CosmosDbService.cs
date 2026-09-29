@@ -3,6 +3,7 @@ using Azure.Identity;
 using DelegationStationShared;
 using DelegationStationShared.Extensions;
 using DelegationStationShared.Models;
+using DelegationStationShared.Enums;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using System;
@@ -314,6 +315,34 @@ namespace UpdateDevices.Services
             }
 
             return results;
+        }
+
+        // Patches only the fields owned by UpdateDevices so concurrent CorporateIdentifierSync changes are not overwritten.
+        // Returns false when the device was deleted before the patch was applied.
+        public async Task<bool> UpdateDeviceProcessingState(Device device)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+            var operations = new List<PatchOperation>
+            {
+                PatchOperation.Set("/LastProcessingAttemptUTC", device.LastProcessingAttemptUTC),
+                PatchOperation.Set("/SuccessfullyProcessedUTC", device.SuccessfullyProcessedUTC),
+                PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus)
+             };
+
+            try
+            {
+                await _container.PatchItemAsync<Device>(
+                  device.Id.ToString(), new PartitionKey(device.PartitionKey), operations);
+                _logger.DSLogInformation($"Updated processing state for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                return true;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was deleted before its processing state could be updated.", fullMethodName);
+                return false;
+            }
         }
 
     }
