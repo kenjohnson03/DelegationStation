@@ -1,8 +1,5 @@
 ﻿using DelegationStationShared.Models;
 using Microsoft.Graph.Models;
-using System.Collections.Generic;
-using System;
-using System.Threading.Tasks;
 
 namespace UpdateDevices.Interfaces
 {

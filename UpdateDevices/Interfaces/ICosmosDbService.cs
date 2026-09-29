@@ -1,9 +1,6 @@
 ﻿using ManagedDevice = Microsoft.Graph.Models.ManagedDevice;
 using UpdateDevices.Models;
-using System.Threading.Tasks;
 using DelegationStationShared.Models;
-using System.Collections.Generic;
-using System;
 
 namespace UpdateDevices.Interfaces
 {
