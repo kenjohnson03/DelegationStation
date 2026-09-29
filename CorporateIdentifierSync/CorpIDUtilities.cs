@@ -1,5 +1,6 @@
 ﻿using DelegationStationShared.Enums;
 using Microsoft.Graph.Beta.Models;
+using Device = DelegationStationShared.Models.Device;
 
 namespace CorporateIdentifierSync
 {
@@ -21,6 +22,22 @@ namespace CorporateIdentifierSync
                     // We are in trouble if we get here....
                     throw new ArgumentException($"Unsupported OS type: {os}");
             }
+        }
+
+        /// <summary>
+        /// Copies the fields owned by CorporateIdentifierSync from the in-memory device onto a freshly read copy.
+        /// Used to retry an update after a PreconditionFailed caused by another writer (e.g. UpdateDevices
+        /// patching processing fields) changing the ETag without changing Status. The fresh copy keeps its
+        /// ETag and all fields written by other functions.
+        /// </summary>
+        public static void ApplyCorpIdFields(Device source, Device target)
+        {
+            target.Status = source.Status;
+            target.CorporateIdentityID = source.CorporateIdentityID;
+            target.CorporateIdentity = source.CorporateIdentity;
+            target.LastCorpIdentitySync = source.LastCorpIdentitySync;
+            target.CorpIDFailureCount = source.CorpIDFailureCount;
+            target.OS = source.OS;
         }
 
     }

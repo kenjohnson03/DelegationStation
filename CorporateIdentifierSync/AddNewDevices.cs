@@ -243,6 +243,8 @@ namespace CorporateIdentifierSync
             int totalDevices = devicesToMigrate.Count;
             foreach (Device device in devicesToMigrate)
             {
+                // Captured before we modify the device so a PreconditionFailed can tell whether Status changed underneath us
+                DeviceStatus? originalStatus = device.Status;
 
                 // Set OS as Unknown if not set
                 // For backwards compatibility Unknown is handled like Windows
@@ -367,6 +369,46 @@ namespace CorporateIdentifierSync
                             {
                                 _logger.DSLogInformation($"Rolled back Corp ID {device.CorporateIdentityID}.", fullMethodName);
                                 devicesSynced--;
+                            }
+                        }
+                    }
+                    else if (currentDevice.Status == originalStatus)
+                    {
+                        // Status is unchanged, so the conflict came from a writer that doesn't own sync state
+                        // (e.g. UpdateDevices patching processing fields). Reapply our changes to the fresh copy and retry once.
+                        _logger.DSLogInformation(
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} status unchanged ('{currentDevice.Status}') after PreconditionFailed. " +
+                            $"Reapplying Corporate Identifier changes and retrying update.",
+                            fullMethodName);
+
+                        CorpIDUtilities.ApplyCorpIdFields(device, currentDevice);
+                        try
+                        {
+                            await _dbService.UpdateDevice(currentDevice);
+                            _logger.DSLogInformation($"Retry update succeeded for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                        }
+                        catch (Exception retryEx)
+                        {
+                            _logger.DSLogException(
+                                $"Retry update failed for device {device.Make} {device.Model} {device.SerialNumber}. " +
+                                $"Device remains in state '{originalStatus}' and will be retried next run.",
+                                retryEx, fullMethodName);
+
+                            // Roll back so the next run's re-add doesn't leave an orphaned Corp ID or double-count capacity
+                            if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                            {
+                                var rollbackResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                                if (rollbackResult == DeleteCorpIdResult.Error)
+                                {
+                                    _logger.DSLogError(
+                                        $"Failed to roll back Corp ID {device.CorporateIdentityID}. Manual cleanup may be required.",
+                                        fullMethodName);
+                                }
+                                else
+                                {
+                                    _logger.DSLogInformation($"Rolled back Corp ID {device.CorporateIdentityID}.", fullMethodName);
+                                    devicesSynced--;
+                                }
                             }
                         }
                     }
