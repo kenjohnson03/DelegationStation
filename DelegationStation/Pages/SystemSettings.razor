@@ -1,0 +1,24 @@
+@page "/SystemSettings"
+@using Microsoft.AspNetCore.Components.Authorization
+
+@attribute [Authorize]
+
+<h3>System Settings</h3>
+
+<AuthorizeView Policy="DelegationStationAdmin">
+    <Authorized>
+        <div class="card mb-3">
+            <div class="card-header fw-bold">
+                System Settings
+            </div>
+            <div class="card-body">
+                <p>Manage application-wide system settings here.</p>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-danger" role="alert">
+            You are not authorized to view this page.
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
