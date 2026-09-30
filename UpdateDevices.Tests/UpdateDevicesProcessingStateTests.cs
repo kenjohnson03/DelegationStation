@@ -1,6 +1,7 @@
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
@@ -21,7 +22,8 @@ public class UpdateDevicesProcessingStateTests
         string SerialNumber,
         ProcessingStatus? ProcessingStatus,
         DateTime? LastProcessingAttemptUTC,
-        DateTime? SuccessfullyProcessedUTC);
+        DateTime? SuccessfullyProcessedUTC,
+        DateTime? LastSeenEnrollmentUTC);
 
     private sealed class FakeDbService : ICosmosDbService
     {
@@ -48,7 +50,8 @@ public class UpdateDevicesProcessingStateTests
         {
             ProcessingUpdates.Add(new ProcessingStateSnapshot(
                 device.SerialNumber,
-                device.ProcessingStatus, device.LastProcessingAttemptUTC, device.SuccessfullyProcessedUTC));
+                device.ProcessingStatus, device.LastProcessingAttemptUTC, device.SuccessfullyProcessedUTC,
+                device.LastSeenEnrollmentUTC));
             return Task.FromResult(true);
         }
 
@@ -129,6 +132,7 @@ public class UpdateDevicesProcessingStateTests
         public FakeDbService Db { get; } = new();
         public FakeGraphService Graph { get; } = new();
         public FakeGraphBetaService GraphBeta { get; } = new();
+        public CapturingLoggerFactory Logs { get; } = new();
 
         public TestContext(DeviceTag tag)
         {
@@ -139,9 +143,31 @@ public class UpdateDevicesProcessingStateTests
 
         public Task RunAsync()
         {
-            var sut = new global::UpdateDevices.UpdateDevices(NullLoggerFactory.Instance, Db, Graph, GraphBeta);
+            var sut = new global::UpdateDevices.UpdateDevices(Logs, Db, Graph, GraphBeta);
             var timer = new TimerInfo { ScheduleStatus = new ScheduleStatus { Next = DateTime.UtcNow.AddHours(1) } };
             return sut.Run(timer);
+        }
+    }
+
+    private sealed class CapturingLoggerFactory : ILoggerFactory
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Entries);
+        public void AddProvider(ILoggerProvider provider) { }
+        public void Dispose() { }
+
+        private sealed class CapturingLogger : ILogger
+        {
+            private readonly List<(LogLevel, string)> _entries;
+            public CapturingLogger(List<(LogLevel, string)> entries) => _entries = entries;
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+                Func<TState, Exception?, string> formatter) =>
+                _entries.Add((logLevel, formatter(state, exception)));
         }
     }
 
@@ -155,6 +181,8 @@ public class UpdateDevicesProcessingStateTests
         OS = DeviceOS.Windows,
     };
 
+    private static readonly DateTimeOffset BaselineEnrollment = new(2026, 1, 15, 8, 0, 0, TimeSpan.Zero);
+
     private static ManagedDevice CreateManagedDevice(string id, string serialNumber) => new ManagedDevice
     {
         Id = id,
@@ -163,6 +191,7 @@ public class UpdateDevicesProcessingStateTests
         SerialNumber = serialNumber,
         AzureADDeviceId = "33333333-3333-3333-3333-333333333333",
         DeviceName = "DESKTOP-OLD",
+        EnrolledDateTime = BaselineEnrollment,
     };
 
     private static DeviceTag CreateTag(params DeviceUpdateAction[] actions) => new DeviceTag
@@ -360,5 +389,104 @@ public class UpdateDevicesProcessingStateTests
         Assert.Equal(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.Single(context.Graph.GroupsAdded);
         Assert.NotNull(context.Db.SavedLastRun);
+    }
+
+    // ─── retry vs. re-enrollment tracking ───────────────────────────────────
+
+    [Fact]
+    public async Task Run_FirstTimeDeviceIsSeen_RecordsEnrollmentTimestamp()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+
+        await context.RunAsync();
+
+        ProcessingStateSnapshot update = Assert.Single(context.Db.ProcessingUpdates);
+        Assert.Equal(BaselineEnrollment.UtcDateTime, update.LastSeenEnrollmentUTC);
+    }
+
+    [Fact]
+    public async Task Run_SameEnrollmentSeenAcrossRuns_KeepsSameEnrollmentTimestamp()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        context.Graph.GroupResult = _ => false;
+
+        await context.RunAsync();
+        await context.RunAsync();
+        await context.RunAsync();
+
+        Assert.Equal(3, context.Db.ProcessingUpdates.Count);
+        Assert.All(context.Db.ProcessingUpdates, u => Assert.Equal(BaselineEnrollment.UtcDateTime, u.LastSeenEnrollmentUTC));
+    }
+
+    [Fact]
+    public async Task Run_EnrollmentTimestampChanged_ClearsPriorSuccessAndRecordsNewEnrollment()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+
+        await context.RunAsync();
+        AssertMarkedProcessed(context.Db);
+
+        // Same physical device re-enrolls: Intune reports a new managed device record with a newer
+        // enrolledDateTime. Only the timestamp difference is what marks this as a new enrollment.
+        const string reEnrolledManagedDeviceId = "55555555-5555-5555-5555-555555555555";
+        context.Graph.ManagedDevices.Clear();
+        ManagedDevice reEnrolled = CreateManagedDevice(reEnrolledManagedDeviceId, "SN123");
+        reEnrolled.EnrolledDateTime = BaselineEnrollment.AddDays(45);
+        context.Graph.ManagedDevices.Add(reEnrolled);
+        context.Graph.GroupResult = _ => false;
+
+        await context.RunAsync();
+
+        ProcessingStateSnapshot update = context.Db.ProcessingUpdates.Last();
+        Assert.Equal(BaselineEnrollment.AddDays(45).UtcDateTime, update.LastSeenEnrollmentUTC);
+
+        // The success recorded against the previous enrollment must not survive.
+        Assert.Null(update.SuccessfullyProcessedUTC);
+        Assert.Null(update.ProcessingStatus);
+    }
+
+    [Fact]
+    public async Task Run_FailedAttempt_StillRecordsEnrollmentTimestamp()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        context.Graph.GroupResult = _ => false;
+
+        await context.RunAsync();
+
+        // The enrollment is recorded on every attempt, not only on success.
+        ProcessingStateSnapshot update = Assert.Single(context.Db.ProcessingUpdates);
+        Assert.Null(update.SuccessfullyProcessedUTC);
+        Assert.Equal(BaselineEnrollment.UtcDateTime, update.LastSeenEnrollmentUTC);
+    }
+
+    [Fact]
+    public async Task Run_ManagedDeviceWithoutEnrollmentTimestamp_LogsErrorAndSkipsDevice()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        context.Graph.ManagedDevices[0].EnrolledDateTime = null;
+
+        await context.RunAsync();
+
+        // Devices are queried by enrolledDateTime, so a missing value is a Graph data error that
+        // must be reported rather than silently skipped.
+        (LogLevel Level, string Message) error = Assert.Single(
+            context.Logs.Entries.Where(e => e.Level == LogLevel.Error));
+        Assert.Contains("enrolledDateTime", error.Message);
+        Assert.Contains(ManagedDeviceId, error.Message);
+
+        // No processing state is written for a device we cannot classify.
+        Assert.Empty(context.Db.ProcessingUpdates);
+    }
+
+    [Fact]
+    public async Task Run_EarlyExitWithoutTags_StillRecordsEnrollmentTimestamp()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        context.Db.Device!.Tags = new List<string>();
+
+        await context.RunAsync();
+
+        ProcessingStateSnapshot update = Assert.Single(context.Db.ProcessingUpdates);
+        Assert.Equal(BaselineEnrollment.UtcDateTime, update.LastSeenEnrollmentUTC);
     }
 }

@@ -128,6 +128,23 @@ namespace UpdateDevices
             }
             _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
+            if (device.EnrolledDateTime == null)
+            {
+                _logger.DSLogError("Managed device '" + device.Id + "' has no enrolledDateTime. Devices are queried by enrolledDateTime, so this indicates a Graph data error. No updates applied.", fullMethodName);
+                return;
+            }
+            DateTime enrolledUtc = device.EnrolledDateTime.Value.UtcDateTime;
+
+            if (d.LastSeenEnrollmentUTC != null && enrolledUtc != d.LastSeenEnrollmentUTC)
+            {
+                _logger.DSLogInformation("Device " + device.Id + " has re-enrolled since it was last seen. Previously seen enrollment at " +
+                    d.LastSeenEnrollmentUTC + ", now enrolled at " + device.EnrolledDateTime + ". Restarting processing for the new enrollment.", fullMethodName);
+
+                // A result recorded against the previous enrollment says nothing about this one.
+                d.SuccessfullyProcessedUTC = null;
+                d.ProcessingStatus = null;
+            }
+
             if (d.Status == DeviceStatus.Deleting)
             {
                 _logger.DSLogInformation("Device " + device.Id + " is marked for deletion. No updates applied.", fullMethodName);
@@ -136,7 +153,7 @@ namespace UpdateDevices
             if (d.Tags == null || d.Tags.Count == 0)
             {
                 _logger.DSLogError("Device " + device.Id + " has no tag assigned. No updates applied.", fullMethodName);
-                await CompleteDeviceProcessingAttemptAsync(d, false);
+                await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, false);
                 return;
             }
 
@@ -147,7 +164,7 @@ namespace UpdateDevices
             if (String.IsNullOrEmpty(deviceObjectID))
             {
                 _logger.DSLogError("Failed to retrieve graph device ID using .\n", fullMethodName);
-                await CompleteDeviceProcessingAttemptAsync(d, false);
+                await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, false);
                 return;
             }
             _logger.DSLogInformation("Retrieved Entra Object ID '" + deviceObjectID + "' for device. DeviceID: '" + device.AzureADDeviceId + "', ManagedDeviceID: '" + device.Id + "'", fullMethodName);
@@ -158,7 +175,7 @@ namespace UpdateDevices
                 if (tag == null)
                 {
                     _logger.DSLogError("Device " + device.Id + " is assigned to tag " + tagId + " which does not exist. No updates applied.", fullMethodName);
-                    await CompleteDeviceProcessingAttemptAsync(d, false);
+                    await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, false);
                     return;
                 }
 
@@ -177,7 +194,7 @@ namespace UpdateDevices
                             if (!Regex.IsMatch(device.UserPrincipalName, tag.AllowedUserPrincipalName))
                             {
                                 _logger.DSLogWarning("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " does not match Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
-                                await CompleteDeviceProcessingAttemptAsync(d, false);
+                                await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, false);
                                 return;
                             }
                             _logger.DSLogInformation("Primary user " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " matches Tag " + tag.Name + " allowed user principal names regex '" + tag.AllowedUserPrincipalName + "'.", fullMethodName);
@@ -191,7 +208,7 @@ namespace UpdateDevices
                 catch (Exception ex)
                 {
                     _logger.DSLogException("UserPrincipalName " + device.UserPrincipalName + " on ManagedDevice Id " + device.Id + " on " + tag.Id + " allowed user principal names " + tag.AllowedUserPrincipalName + ".", ex, fullMethodName);
-                    await CompleteDeviceProcessingAttemptAsync(d, false);
+                    await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, false);
                     return;
                 }
 
@@ -277,7 +294,7 @@ namespace UpdateDevices
                 if (tag.UpdateActions == null || tag.UpdateActions.Count < 1)
                 {
                     _logger.DSLogInformation("No update actions configured for " + tag.Name + ".  No updates applied for device " + device.Id + ".", fullMethodName);
-                    await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded);
+                    await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, allActionsSucceeded);
                     return;
                 }
 
@@ -337,18 +354,30 @@ namespace UpdateDevices
                     }
                 }
             }
-            await CompleteDeviceProcessingAttemptAsync(d, allActionsSucceeded);
+            await CompleteDeviceProcessingAttemptAsync(d, enrolledUtc, allActionsSucceeded);
         }
 
-        private async Task CompleteDeviceProcessingAttemptAsync(DelegationStationShared.Models.Device device, bool successfullyProcessed)
+        /// <summary>
+        /// Records the outcome of this processing attempt, including the enrollment that was acted on.
+        /// </summary>
+        private async Task CompleteDeviceProcessingAttemptAsync(
+            DelegationStationShared.Models.Device device,
+            DateTime enrolledUtc,
+            bool successfullyProcessed)
         {
             DateTime processedAt = DateTime.UtcNow;
             device.LastProcessingAttemptUTC = processedAt;
+
+            // Always record the enrollment we saw, including on failure, so the next run recognises
+            // this as a retry of the same enrollment rather than repeating the re-enrollment reset.
+            device.LastSeenEnrollmentUTC = enrolledUtc;
+
             if (successfullyProcessed)
             {
                 device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
             }
+
             await _dbService.UpdateDeviceProcessingState(device);
         }
 

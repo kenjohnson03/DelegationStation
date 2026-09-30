@@ -62,6 +62,7 @@ public class CorpIDUtilitiesTests
             ProcessingStatus = ProcessingStatus.Processing,
             LastProcessingAttemptUTC = null,
             SuccessfullyProcessedUTC = null,
+            LastSeenEnrollmentUTC = null,
         };
         source.Tags.Add("src-tag");
 
@@ -83,6 +84,7 @@ public class CorpIDUtilitiesTests
             ProcessingStatus = ProcessingStatus.Processed,
             LastProcessingAttemptUTC = processedAt,
             SuccessfullyProcessedUTC = processedAt,
+            LastSeenEnrollmentUTC = processedAt,
             MarkedToDeleteUTC = markedToDelete,
         };
         target.Tags.Add("target-tag");
@@ -112,6 +114,7 @@ public class CorpIDUtilitiesTests
         Assert.Equal(ProcessingStatus.Processed, target.ProcessingStatus);
         Assert.Equal(processedAt, target.LastProcessingAttemptUTC);
         Assert.Equal(processedAt, target.SuccessfullyProcessedUTC);
+        Assert.Equal(processedAt, target.LastSeenEnrollmentUTC);
         Assert.Equal(markedToDelete, target.MarkedToDeleteUTC);
     }
 }

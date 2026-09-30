@@ -323,7 +323,8 @@ namespace UpdateDevices.Services
             {
                 PatchOperation.Set("/LastProcessingAttemptUTC", device.LastProcessingAttemptUTC),
                 PatchOperation.Set("/SuccessfullyProcessedUTC", device.SuccessfullyProcessedUTC),
-                PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus)
+                PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus),
+                PatchOperation.Set("/LastSeenEnrollmentUTC", device.LastSeenEnrollmentUTC)
              };
 
             try
