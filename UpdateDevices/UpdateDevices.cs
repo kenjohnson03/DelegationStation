@@ -358,7 +358,7 @@ namespace UpdateDevices
         }
 
         /// <summary>
-        /// Records the outcome of this processing attempt, including the enrollment that was acted on.
+        /// Records the outcome of this processing attempt in DB device record
         /// </summary>
         private async Task CompleteDeviceProcessingAttemptAsync(
             DelegationStationShared.Models.Device device,
