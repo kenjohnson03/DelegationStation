@@ -140,7 +140,7 @@ namespace UpdateDevices
                 _logger.DSLogInformation("Device " + device.Id + " has re-enrolled since it was last seen. Previously seen enrollment at " +
                     d.LastSeenEnrollmentUTC + ", now enrolled at " + device.EnrolledDateTime + ". Restarting processing for the new enrollment.", fullMethodName);
 
-                // A result recorded against the previous enrollment says nothing about this one.
+                // Clear out past success fields for re-enrolled device
                 d.SuccessfullyProcessedUTC = null;
                 d.ProcessingStatus = null;
             }
