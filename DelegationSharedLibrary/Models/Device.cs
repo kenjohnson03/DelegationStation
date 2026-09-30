@@ -56,8 +56,6 @@ namespace DelegationStationShared.Models
         public DateTime? LastProcessingAttemptUTC { get; set; }
         public ProcessingStatus? ProcessingStatus { get; set; }
 
-        // enrolledDateTime of the Intune managed device last seen for this device. A change here means
-        // the device re-enrolled, so any prior processing result no longer applies.
         public DateTime? LastSeenEnrollmentUTC { get; set; }
         //public DateTime? MarkedInactiveUTC { get; set; }
         //public string InactiveReason { get; set; } = string.Empty;

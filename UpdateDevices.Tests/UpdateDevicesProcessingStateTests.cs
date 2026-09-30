@@ -470,7 +470,7 @@ public class UpdateDevicesProcessingStateTests
         // Devices are queried by enrolledDateTime, so a missing value is a Graph data error that
         // must be reported rather than silently skipped.
         (LogLevel Level, string Message) error = Assert.Single(
-            context.Logs.Entries.Where(e => e.Level == LogLevel.Error));
+            context.Logs.Entries, e => e.Level == LogLevel.Error);
         Assert.Contains("enrolledDateTime", error.Message);
         Assert.Contains(ManagedDeviceId, error.Message);
 
