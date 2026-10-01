@@ -148,6 +148,9 @@ namespace CorporateIdentifierSync
             //
             // Build this run's batch: previously failed devices (capped share), then new devices.
             //
+            // retryLimit is the max number of previously-failed devices (retries) to include in this
+            // batch, NOT a per-device retry count limit (see _MaxExpirationRetries for that).
+            // The rest of the batch is filled with new expirations.
             int retryLimit = Math.Max(1, _BatchSize * RetryBatchPercent / 100);
             List<Device> retryDevices = new List<Device>();
             try
