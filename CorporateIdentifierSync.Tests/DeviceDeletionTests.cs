@@ -655,6 +655,8 @@ public class DeviceDeletionTests
         public Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
         public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
+        public Task<DelegationSharedLibrary.Models.SystemSettings?> GetSystemSettings() => throw new NotImplementedException();
+        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC) => throw new NotImplementedException();
     }
 
 

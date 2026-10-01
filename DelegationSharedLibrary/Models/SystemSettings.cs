@@ -11,9 +11,9 @@ namespace DelegationSharedLibrary.Models
         public string PartitionKey { get; set; } = "SystemSettings";
 
         // System Settings Values
-        int MaxCorporateIdentifiers { get; set; } = 10000;
-        int InactiveProcessedDevicesDays { get; set; } = 180;
-        int InactiveUnprocessedDevicesDays { get; set; } = 180;
+        public int MaxCorporateIdentifiers { get; set; } = 10000;
+        public int InactiveProcessedDevicesDays { get; set; } = 180;
+        public int InactiveUnprocessedDevicesDays { get; set; } = 180;
 
 
         public override string ToString()

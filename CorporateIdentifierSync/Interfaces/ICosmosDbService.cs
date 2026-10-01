@@ -1,4 +1,5 @@
 ﻿using DelegationStationShared.Models;
+using SystemSettings = DelegationSharedLibrary.Models.SystemSettings;
 
 namespace CorporateIdentifierSync.Interfaces
 {
@@ -30,5 +31,8 @@ namespace CorporateIdentifierSync.Interfaces
         Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize);
 
         Task<int> GetSyncedDeviceCountAsync();
+
+        Task<SystemSettings?> GetSystemSettings();
+        Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC);
     }
 }

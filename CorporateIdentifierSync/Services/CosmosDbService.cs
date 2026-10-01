@@ -8,6 +8,7 @@ using DelegationStationShared.Models;
 using Azure.Core;
 using Azure.Identity;
 using DelegationStationShared.Enums;
+using SystemSettings = DelegationSharedLibrary.Models.SystemSettings;
 
 namespace CorporateIdentifierSync.Services
 {
@@ -583,6 +584,57 @@ namespace CorporateIdentifierSync.Services
                 _logger.DSLogException("Failed to query Cosmos DB for synced device count.", ex, fullMethodName);
                 return 0;
             }
+        }
+
+        public async Task<SystemSettings?> GetSystemSettings()
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            var defaults = new SystemSettings();
+            try
+            {
+                var response = await _container.ReadItemAsync<SystemSettings>(defaults.Id, new PartitionKey(defaults.PartitionKey));
+                _logger.DSLogInformation($"SystemSettings found: {response.Resource}", fullMethodName);
+                return response.Resource;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.DSLogWarning("SystemSettings document not found in Cosmos DB.", fullMethodName);
+                return null;
+            }
+        }
+
+        public async Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            // Devices already Expired or being deleted are excluded.
+            // ExpirationFailed devices are included so they are retried.
+            QueryDefinition query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.Type = \"Device\" " +
+                "AND c.ProcessingStatus = @processed " +
+                "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
+                "AND c.SuccessfullyProcessedUTC < @cutoff " +
+                "AND (NOT IS_DEFINED(c.Status) OR IS_NULL(c.Status) OR NOT (c.Status IN (@expired, @deleting)))");
+            query.WithParameter("@processed", ProcessingStatus.Processed);
+            query.WithParameter("@cutoff", processedBeforeUTC);
+            query.WithParameter("@expired", DeviceStatus.Expired);
+            query.WithParameter("@deleting", DeviceStatus.Deleting);
+
+            var queryIterator = _container.GetItemQueryIterator<Device>(query);
+            List<Device> devices = new List<Device>();
+            while (queryIterator.HasMoreResults)
+            {
+                var response = await queryIterator.ReadNextAsync();
+                devices.AddRange(response.ToList());
+            }
+
+            _logger.DSLogInformation($"Found {devices.Count} processed devices last successfully processed before {processedBeforeUTC:o}.", fullMethodName);
+            return devices;
         }
 
     }

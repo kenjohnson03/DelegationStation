@@ -54,8 +54,12 @@ namespace DelegationStationShared.Models
 
         public DateTime? SuccessfullyProcessedUTC { get; set; }
         public DateTime? LastProcessingAttemptUTC { get; set; }
-        public DateTime? MarkedInactiveUTC { get; set; }
-        public string InactiveReason { get; set; } = string.Empty;
+        public ProcessingStatus? ProcessingStatus { get; set; }
+
+        // Expiration related
+        public DateTime? MarkedForExpirationUTC { get; set; }
+        public DateTime? ExpirationUTC { get; set; }
+        public string ExpiredReason { get; set; } = string.Empty;
 
 
 
@@ -95,8 +99,10 @@ namespace DelegationStationShared.Models
 
             SuccessfullyProcessedUTC = null;
             LastProcessingAttemptUTC = null;
-            MarkedInactiveUTC = null;
-            InactiveReason = string.Empty;
+            ProcessingStatus = null;
+            MarkedForExpirationUTC = null;
+            ExpirationUTC = null;
+            ExpiredReason = string.Empty;
 
 
         }
