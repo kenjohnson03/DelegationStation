@@ -191,21 +191,12 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"-----Expiring device {deviceDesc}.-----", fullMethodName);
 
                 //
-                // Mark device for expiration (retries are already marked; keep original timestamp)
+                // Mark device for expiration (retries are already marked; keep original timestamp).
+                // Persisted with the outcome update below to avoid an extra DB write.
                 //
                 if (device.MarkedForExpirationUTC is null)
                 {
-                    try
-                    {
-                        device.MarkedForExpirationUTC = DateTime.UtcNow;
-                        await _dbService.UpdateDevice(device);
-                    }
-                    catch (Exception ex)
-                    {
-                        failedDeviceCount++;
-                        _logger.DSLogException($"Failed to mark device {deviceDesc} for expiration. Skipping; will retry on next run.", ex, fullMethodName);
-                        continue;
-                    }
+                    device.MarkedForExpirationUTC = DateTime.UtcNow;
                 }
                 else
                 {

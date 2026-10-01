@@ -103,24 +103,25 @@ public class DeviceExpirationTests
         Assert.Equal(DeviceStatus.Expired, device.Status);
         Assert.Equal($"Device was expired since it was processed over {DeviceExpiration.TempProcessedDevicesExpiredAfterDays} days ago.", device.ExpiredReason);
         Assert.Equal(string.Empty, device.CorporateIdentityID);
-        Assert.Equal(2, dbService.UpdateDeviceCallCount);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.Equal(4, dbService.Counter.CorpIDCount);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_MarksForExpirationBeforeDeletingCorpID()
+    public async Task ExpireProcessedDevices_PersistsMarkAndExpirationInSingleUpdateAfterDeletingCorpID()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
         dbService.DevicesToReturn.Add(device);
         var graph = new FakeGraphBetaService();
-        graph.OnDelete = () => Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        graph.OnDelete = () => Assert.Equal(0, dbService.UpdateDeviceCallCount);
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
         await sut.ExpireProcessedDevices();
 
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.NotNull(dbService.FirstUpdateMarkedForExpirationUTC);
-        Assert.Null(dbService.FirstUpdateExpiredUTC);
+        Assert.NotNull(dbService.FirstUpdateExpiredUTC);
     }
 
     [Fact]
@@ -174,7 +175,7 @@ public class DeviceExpirationTests
         Assert.Equal(string.Empty, device.ExpiredReason);
         Assert.Equal("corp-id-1", device.CorporateIdentityID);
         Assert.Equal(1, device.ExpirationFailureCount);
-        Assert.Equal(2, dbService.UpdateDeviceCallCount);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
@@ -327,24 +328,26 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WhenMarkUpdateFails_SkipsCorpIDDeletion()
+    public async Task ExpireProcessedDevices_NewDevice_DoesNotUpdateDbBeforeDeletingCorpID()
     {
-        var dbService = new FakeDbService { UpdateDeviceException = new Exception("412") };
+        var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
         dbService.DevicesToReturn.Add(device);
+        int updatesBeforeDelete = -1;
         var graph = new FakeGraphBetaService();
+        graph.OnDelete = () => updatesBeforeDelete = dbService.UpdateDeviceCallCount;
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
         await sut.ExpireProcessedDevices();
 
-        Assert.Equal(0, graph.DeleteCallCount);
-        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        Assert.Equal(1, graph.DeleteCallCount);
+        Assert.Equal(0, updatesBeforeDelete);
     }
 
     [Fact]
     public async Task ExpireProcessedDevices_WhenFinalUpdateFails_StillReleasesDeletedCorpIDs()
     {
-        var dbService = new FakeDbService { Counter = new CorpIDCounter(5), FailUpdateOnCall = 2 };
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5), FailUpdateOnCall = 1 };
         dbService.DevicesToReturn.Add(CreateProcessedDevice());
         var sut = CreateSut(dbService: dbService);
 

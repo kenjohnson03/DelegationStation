@@ -13,10 +13,8 @@ flowchart TD
 
         RT{"MarkedForExpirationUTC<br/>already set?"}
         RT -- "Yes (retry)" --> H
-        RT -- "No" --> MK["MarkedForExpirationUTC = UtcNow<br/>Update device"]
-        MK --> MK1{"Update<br/>succeeded?"}
-        MK1 -- "No" --> SKIP["Skip device.<br/>Will retry on next run."]
-        MK1 -- "Yes" --> H{"Does device have CorporateIdentityID?"}
+        RT -- "No" --> MK["MarkedForExpirationUTC = UtcNow<br/>(in memory; saved with outcome update)"]
+        MK --> H{"Does device have CorporateIdentityID?"}
 
         H -- "No" --> N["corpIDRemoved = true"]
         H -- "Yes" --> I["Delete CorpID"]
@@ -39,7 +37,6 @@ flowchart TD
         P --> Z["End of For Loop"]
         Q --> Z
         QF --> Z
-        SKIP --> Z
     end
 
     Z --> AA{"corpIDsDeletedCount > 0?"}
