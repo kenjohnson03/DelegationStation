@@ -31,6 +31,7 @@ public class StragglerHandlerProcessingStateTests
         public int DeletedStragglerCount { get; private set; }
         public int UpdatedStragglerErrorCount { get; private set; }
         public int GetDeviceTagCallCount { get; private set; }
+        public Func<Device, bool>? OnUpdateDeviceProcessingState { get; set; }
 
         public Task<FunctionSettings> GetFunctionSettings() => throw new NotImplementedException();
         public Task UpdateFunctionSettings(DateTime thisRun) => throw new NotImplementedException();
@@ -64,6 +65,11 @@ public class StragglerHandlerProcessingStateTests
 
         public Task<bool> UpdateDeviceProcessingState(Device device)
         {
+            if (OnUpdateDeviceProcessingState != null && !OnUpdateDeviceProcessingState(device))
+            {
+                return Task.FromResult(false);
+            }
+
             ProcessingUpdates.Add(new ProcessingStateSnapshot(
                 device.ProcessingStatus,
                 device.LastProcessingAttemptUTC,
@@ -372,6 +378,67 @@ public class StragglerHandlerProcessingStateTests
         Assert.Null(update.SuccessfullyProcessedUTC);
         Assert.Equal(BaselineEnrollment.AddDays(45).UtcDateTime, update.LastSeenEnrollmentUTC);
         Assert.NotNull(update.LastProcessingAttemptUTC);
+    }
+
+    [Fact]
+    public async Task Run_OlderEnrollmentThanStored_RemovesStragglerWithoutUpdatingDevice()
+    {
+        DeviceTag tag = CreateTag(Group("Group A"), AdminUnit("AU A"), Attribute("ExtensionAttribute1", "value-1"));
+        tag.DeviceRenameEnabled = true;
+        var context = new TestContext(tag);
+        Device storedDevice = context.Db.Device!;
+        DateTime newerEnrollment = BaselineEnrollment.AddHours(4).UtcDateTime;
+        DateTime lastAttempt = newerEnrollment.AddMinutes(1);
+        DateTime successfulProcessing = newerEnrollment.AddMinutes(2);
+        storedDevice.LastSeenEnrollmentUTC = newerEnrollment;
+        storedDevice.LastProcessingAttemptUTC = lastAttempt;
+        storedDevice.SuccessfullyProcessedUTC = successfulProcessing;
+        storedDevice.ProcessingStatus = ProcessingStatus.Processed;
+
+        await context.RunAsync();
+
+        Assert.Empty(context.Db.Stragglers);
+        Assert.Equal(1, context.Db.DeletedStragglerCount);
+        Assert.Equal(0, context.Db.UpdatedStragglerErrorCount);
+        Assert.Empty(context.Db.ProcessingUpdates);
+        Assert.Equal(newerEnrollment, storedDevice.LastSeenEnrollmentUTC);
+        Assert.Equal(lastAttempt, storedDevice.LastProcessingAttemptUTC);
+        Assert.Equal(successfulProcessing, storedDevice.SuccessfullyProcessedUTC);
+        Assert.Equal(ProcessingStatus.Processed, storedDevice.ProcessingStatus);
+        Assert.Equal(0, context.Graph.GetDeviceObjectIdCallCount);
+        Assert.Equal(0, context.Db.GetDeviceTagCallCount);
+        Assert.Empty(context.Graph.GroupsAdded);
+        Assert.Empty(context.Graph.AdminUnitsAdded);
+        Assert.Empty(context.Graph.AttributeUpdates);
+        Assert.Empty(context.GraphBeta.Renames);
+    }
+
+    [Fact]
+    public async Task Run_NewerEnrollmentSavedDuringAttempt_DoesNotTreatRejectedStateWriteAsSuccess()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        DateTime newerEnrollment = BaselineEnrollment.AddHours(4).UtcDateTime;
+        context.Db.OnUpdateDeviceProcessingState = device =>
+        {
+            context.Db.Device!.LastSeenEnrollmentUTC = newerEnrollment;
+            return false;
+        };
+
+        await context.RunAsync();
+
+        Assert.Empty(context.Db.ProcessingUpdates);
+        Assert.Single(context.Db.Stragglers);
+        Assert.Equal(0, context.Db.DeletedStragglerCount);
+        Assert.Equal(1, context.Db.UpdatedStragglerErrorCount);
+        Assert.Equal(newerEnrollment, context.Db.Device!.LastSeenEnrollmentUTC);
+
+        await context.RunAsync();
+
+        Assert.Empty(context.Db.ProcessingUpdates);
+        Assert.Empty(context.Db.Stragglers);
+        Assert.Equal(1, context.Db.DeletedStragglerCount);
+        Assert.Equal(1, context.Db.UpdatedStragglerErrorCount);
+        Assert.Single(context.Graph.GroupsAdded);
     }
 
     [Fact]

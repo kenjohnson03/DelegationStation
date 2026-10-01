@@ -22,6 +22,7 @@ namespace UpdateDevices.Interfaces
 
         Task<List<Straggler>> GetStragglersProcessedByUD(int minCount);
 
+        // Returns false if the device is gone or a newer enrollment has already been recorded.
         Task<bool> UpdateDeviceProcessingState(Device device);
 
     }

@@ -199,6 +199,14 @@ namespace UpdateDevices
 
             _logger.DSLogInformation("Found matching device in DB for: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber + "'.", fullMethodName);
 
+            if (d.LastSeenEnrollmentUTC > enrolledUtc)
+            {
+                _logger.DSLogInformation("Managed device " + device.Id + " belongs to an older enrollment (" + enrolledUtc +
+                    "); the current enrollment is " + d.LastSeenEnrollmentUTC + ". Removing obsolete straggler without applying updates.", fullMethodName);
+                // Returning true signals calling code to delete entry
+                return true;
+            }
+
             if (d.LastSeenEnrollmentUTC != null && enrolledUtc != d.LastSeenEnrollmentUTC)
             {
                 _logger.DSLogInformation("Device " + device.Id + " has re-enrolled since it was last seen. Previously seen enrollment at " +
@@ -435,8 +443,8 @@ namespace UpdateDevices
                 device.SuccessfullyProcessedUTC = processedAt;
             }
 
-            await _dbService.UpdateDeviceProcessingState(device);
-            return successfullyProcessed;
+            bool stateUpdated = await _dbService.UpdateDeviceProcessingState(device);
+            return successfullyProcessed && stateUpdated;
         }
     }
 }
