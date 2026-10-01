@@ -4,8 +4,8 @@ flowchart TD
     A["Timer Trigger Fires"] --> S["Get SystemSettings"]
     S --> S1{"Found?"}
     S1 -- "Exception" --> END(["End"])
-    S1 -- "No" --> S2["Use default<br/>InactiveProcessedDevicesDays"]
-    S1 -- "Yes" --> S3{"InactiveProcessedDevicesDays > 0?"}
+    S1 -- "No" --> S2["Use default<br/>ProcessedDevicesExpiredAfterDays"]
+    S1 -- "Yes" --> S3{"ProcessedDevicesExpiredAfterDays > 0?"}
     S2 --> S3
     S3 -- "No" --> END
     S3 -- "Yes" --> D["Get devices where<br/>ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND Status not Expired/Deleting"]

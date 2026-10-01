@@ -12,16 +12,16 @@ namespace DelegationSharedLibrary.Models
 
         // System Settings Values
         public int MaxCorporateIdentifiers { get; set; } = 10000;
-        public int InactiveProcessedDevicesDays { get; set; } = 180;
-        public int InactiveUnprocessedDevicesDays { get; set; } = 180;
+        public int ProcessedDevicesExpiredAfterDays { get; set; } = 180;
+        public int UnprocessedDevicesExpiredAfterDays { get; set; } = 180;
 
 
         public override string ToString()
         {
             string output = $"Delegation Station System Settings:\n " +
                 $"MaxCorporateIdentifiers: {MaxCorporateIdentifiers}\n " +
-                $"InactiveProcessedDevicesDays: {InactiveProcessedDevicesDays}\n " +
-                $"InactiveUnprocessedDevicesDays: {InactiveUnprocessedDevicesDays}";
+                $"ProcessedDevicesExpiredAfterDays: {ProcessedDevicesExpiredAfterDays}\n " +
+                $"UnprocessedDevicesExpiredAfterDays: {UnprocessedDevicesExpiredAfterDays}";
             return output;
         }
     }

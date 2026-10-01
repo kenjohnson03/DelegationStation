@@ -11,7 +11,7 @@ using SystemSettings = DelegationSharedLibrary.Models.SystemSettings;
 namespace CorporateIdentifierSync
 {
     /// <summary>
-    /// Expires devices that were successfully processed more than InactiveProcessedDevicesDays ago
+    /// Expires devices that were successfully processed more than ProcessedDevicesExpiredAfterDays ago
     /// by removing their Corporate Identifier and marking them as Expired.
     /// </summary>
     public class DeviceExpiration
@@ -35,8 +35,8 @@ namespace CorporateIdentifierSync
             _singletonLock = singletonLock;
         }
 
-        public static string GetExpiredReason(int inactiveProcessedDevicesDays)
-            => $"Device was expired since it was processed over {inactiveProcessedDevicesDays} days ago.";
+        public static string GetExpiredReason(int ProcessedDevicesExpiredAfterDays)
+            => $"Device was expired since it was processed over {ProcessedDevicesExpiredAfterDays} days ago.";
 
         public void GetEnvironmentVariables()
         {
@@ -83,7 +83,7 @@ namespace CorporateIdentifierSync
 
         /// <summary>
         /// Finds devices with ProcessingStatus == Processed whose SuccessfullyProcessedUTC is older than
-        /// InactiveProcessedDevicesDays, removes their Corporate Identifier, and marks them Expired.
+        /// ProcessedDevicesExpiredAfterDays, removes their Corporate Identifier, and marks them Expired.
         /// </summary>
         public async Task ExpireProcessedDevices()
         {
@@ -108,18 +108,18 @@ namespace CorporateIdentifierSync
             if (settings is null)
             {
                 settings = new SystemSettings();
-                _logger.DSLogWarning($"SystemSettings not found. Using default InactiveProcessedDevicesDays: {settings.InactiveProcessedDevicesDays}.", fullMethodName);
+                _logger.DSLogWarning($"SystemSettings not found. Using default ProcessedDevicesExpiredAfterDays: {settings.ProcessedDevicesExpiredAfterDays}.", fullMethodName);
             }
 
-            int inactiveDays = settings.InactiveProcessedDevicesDays;
-            if (inactiveDays <= 0)
+            int expiredAfterDays = settings.ProcessedDevicesExpiredAfterDays;
+            if (expiredAfterDays <= 0)
             {
-                _logger.DSLogError($"InactiveProcessedDevicesDays is invalid ({inactiveDays}). Must be greater than 0. Exiting function.", fullMethodName);
+                _logger.DSLogError($"ProcessedDevicesExpiredAfterDays is invalid ({expiredAfterDays}). Must be greater than 0. Exiting function.", fullMethodName);
                 return;
             }
 
-            DateTime cutoff = DateTime.UtcNow.AddDays(-inactiveDays);
-            string expiredReason = GetExpiredReason(inactiveDays);
+            DateTime cutoff = DateTime.UtcNow.AddDays(-expiredAfterDays);
+            string expiredReason = GetExpiredReason(expiredAfterDays);
 
             //
             // Get all devices eligible for expiration
@@ -135,7 +135,7 @@ namespace CorporateIdentifierSync
                 return;
             }
 
-            _logger.DSLogInformation($"Found {devicesToExpire.Count} devices processed over {inactiveDays} days ago (before {cutoff:o}).", fullMethodName);
+            _logger.DSLogInformation($"Found {devicesToExpire.Count} devices processed over {expiredAfterDays} days ago (before {cutoff:o}).", fullMethodName);
             if (devicesToExpire.Count == 0)
             {
                 return;

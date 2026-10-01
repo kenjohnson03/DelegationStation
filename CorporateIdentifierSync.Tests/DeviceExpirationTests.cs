@@ -56,9 +56,9 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_UsesInactiveProcessedDevicesDaysForCutoff()
+    public async Task ExpireProcessedDevices_UsesProcessedDevicesExpiredAfterDaysForCutoff()
     {
-        var dbService = new FakeDbService { Settings = new SystemSettings { InactiveProcessedDevicesDays = 30 } };
+        var dbService = new FakeDbService { Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = 30 } };
         var sut = CreateSut(dbService: dbService);
 
         DateTime before = DateTime.UtcNow.AddDays(-30);
@@ -89,7 +89,7 @@ public class DeviceExpirationTests
     [InlineData(-5)]
     public async Task ExpireProcessedDevices_WhenDaysInvalid_ExitsWithoutQueryingDevices(int days)
     {
-        var dbService = new FakeDbService { Settings = new SystemSettings { InactiveProcessedDevicesDays = days } };
+        var dbService = new FakeDbService { Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = days } };
         var sut = CreateSut(dbService: dbService);
 
         await sut.ExpireProcessedDevices();
@@ -126,7 +126,7 @@ public class DeviceExpirationTests
     {
         var dbService = new FakeDbService
         {
-            Settings = new SystemSettings { InactiveProcessedDevicesDays = 90 },
+            Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = 90 },
             Counter = new CorpIDCounter(5)
         };
         var device = CreateProcessedDevice();
