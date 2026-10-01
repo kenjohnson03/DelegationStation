@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Graph.Beta.Models;
 using Device = DelegationStationShared.Models.Device;
 using DeviceTag = DelegationStationShared.Models.DeviceTag;
-using SystemSettings = DelegationSharedLibrary.Models.SystemSettings;
 
 namespace CorporateIdentifierSync.Tests.DeviceExpirationTests;
 
@@ -51,61 +50,22 @@ public class DeviceExpirationTests
 
         await sut.Run(new TimerInfo());
 
-        Assert.Equal(0, dbService.GetSystemSettingsCallCount);
         Assert.Equal(0, dbService.GetDevicesCallCount);
     }
 
     [Fact]
     public async Task ExpireProcessedDevices_UsesProcessedDevicesExpiredAfterDaysForCutoff()
     {
-        var dbService = new FakeDbService { Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = 30 } };
+        var dbService = new FakeDbService();
         var sut = CreateSut(dbService: dbService);
+        int days = DeviceExpiration.TempProcessedDevicesExpiredAfterDays;
 
-        DateTime before = DateTime.UtcNow.AddDays(-30);
+        DateTime before = DateTime.UtcNow.AddDays(-days);
         await sut.ExpireProcessedDevices();
-        DateTime after = DateTime.UtcNow.AddDays(-30);
+        DateTime after = DateTime.UtcNow.AddDays(-days);
 
         Assert.Equal(1, dbService.GetDevicesCallCount);
         Assert.InRange(dbService.LastCutoff!.Value, before, after);
-    }
-
-    [Fact]
-    public async Task ExpireProcessedDevices_WhenSettingsMissing_UsesDefaultDays()
-    {
-        var dbService = new FakeDbService { Settings = null };
-        var device = CreateProcessedDevice();
-        dbService.DevicesToReturn.Add(device);
-        var sut = CreateSut(dbService: dbService);
-
-        DateTime before = DateTime.UtcNow.AddDays(-180);
-        await sut.ExpireProcessedDevices();
-
-        Assert.True(dbService.LastCutoff >= before);
-        Assert.Equal(DeviceExpiration.GetExpiredReason(180), device.ExpiredReason);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-5)]
-    public async Task ExpireProcessedDevices_WhenDaysInvalid_ExitsWithoutQueryingDevices(int days)
-    {
-        var dbService = new FakeDbService { Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = days } };
-        var sut = CreateSut(dbService: dbService);
-
-        await sut.ExpireProcessedDevices();
-
-        Assert.Equal(0, dbService.GetDevicesCallCount);
-    }
-
-    [Fact]
-    public async Task ExpireProcessedDevices_WhenSettingsThrow_ExitsWithoutQueryingDevices()
-    {
-        var dbService = new FakeDbService { GetSystemSettingsException = new Exception("boom") };
-        var sut = CreateSut(dbService: dbService);
-
-        await sut.ExpireProcessedDevices();
-
-        Assert.Equal(0, dbService.GetDevicesCallCount);
     }
 
     [Fact]
@@ -126,7 +86,6 @@ public class DeviceExpirationTests
     {
         var dbService = new FakeDbService
         {
-            Settings = new SystemSettings { ProcessedDevicesExpiredAfterDays = 90 },
             Counter = new CorpIDCounter(5)
         };
         var device = CreateProcessedDevice();
@@ -141,7 +100,7 @@ public class DeviceExpirationTests
         Assert.NotNull(device.ExpiredUTC);
         Assert.True(device.ExpiredUTC >= device.MarkedForExpirationUTC);
         Assert.Equal(DeviceStatus.Expired, device.Status);
-        Assert.Equal("Device was expired since it was processed over 90 days ago.", device.ExpiredReason);
+        Assert.Equal($"Device was expired since it was processed over {DeviceExpiration.TempProcessedDevicesExpiredAfterDays} days ago.", device.ExpiredReason);
         Assert.Equal(string.Empty, device.CorporateIdentityID);
         Assert.Equal(2, dbService.UpdateDeviceCallCount);
         Assert.Equal(4, dbService.Counter.CorpIDCount);
@@ -323,28 +282,18 @@ public class DeviceExpirationTests
 
     private sealed class FakeDbService : ICosmosDbService
     {
-        public SystemSettings? Settings { get; set; } = new SystemSettings();
-        public Exception? GetSystemSettingsException { get; set; }
         public List<Device> DevicesToReturn { get; set; } = new();
         public Exception? GetDevicesException { get; set; }
         public Exception? UpdateDeviceException { get; set; }
         public int? FailUpdateOnCall { get; set; }
         public CorpIDCounter Counter { get; set; } = new CorpIDCounter(0);
 
-        public int GetSystemSettingsCallCount { get; private set; }
         public int GetDevicesCallCount { get; private set; }
         public int UpdateDeviceCallCount { get; private set; }
         public int TrySetCorpIDCounterCallCount { get; private set; }
         public DateTime? LastCutoff { get; private set; }
         public DateTime? FirstUpdateMarkedForExpirationUTC { get; private set; }
         public DateTime? FirstUpdateExpiredUTC { get; private set; }
-
-        public Task<SystemSettings?> GetSystemSettings()
-        {
-            GetSystemSettingsCallCount++;
-            if (GetSystemSettingsException is not null) throw GetSystemSettingsException;
-            return Task.FromResult(Settings);
-        }
 
         public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC)
         {

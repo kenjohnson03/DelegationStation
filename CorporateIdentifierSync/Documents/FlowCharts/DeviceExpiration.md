@@ -1,14 +1,8 @@
 ```mermaid
 
 flowchart TD
-    A["Timer Trigger Fires"] --> S["Get SystemSettings"]
-    S --> S1{"Found?"}
-    S1 -- "Exception" --> END(["End"])
-    S1 -- "No" --> S2["Use default<br/>ProcessedDevicesExpiredAfterDays"]
-    S1 -- "Yes" --> S3{"ProcessedDevicesExpiredAfterDays > 0?"}
-    S2 --> S3
-    S3 -- "No" --> END
-    S3 -- "Yes" --> D["Get devices where<br/>ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND Status not Expired/Deleting"]
+    A["Timer Trigger Fires"] --> S["X = ProcessedDevicesExpiredAfterDays<br/>(temporarily a static value of 180)"]
+    S --> D["Get devices where<br/>ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND Status not Expired/Deleting"]
     D --> LOOP
 
     subgraph LOOP ["For Each Device"]

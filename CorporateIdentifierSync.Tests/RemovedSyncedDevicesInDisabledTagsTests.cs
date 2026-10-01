@@ -873,7 +873,6 @@ public class RemoveSyncedDevicesInDisabledTagsTests
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
         public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
-        public Task<DelegationSharedLibrary.Models.SystemSettings?> GetSystemSettings() => throw new NotImplementedException();
         public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC) => throw new NotImplementedException();
     }
 }

@@ -6,7 +6,6 @@ using DelegationStationShared.Extensions;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Device = DelegationStationShared.Models.Device;
-using SystemSettings = DelegationSharedLibrary.Models.SystemSettings;
 
 namespace CorporateIdentifierSync
 {
@@ -22,6 +21,9 @@ namespace CorporateIdentifierSync
         private readonly IFunctionSingletonLock _singletonLock;
 
         private int _MaxCorpIDsAllowed;
+
+        // TODO: Temporary static value until SystemSettings is read from the DB.
+        internal const int TempProcessedDevicesExpiredAfterDays = 180;
 
         public DeviceExpiration(
             ILogger<DeviceExpiration> logger,
@@ -91,32 +93,10 @@ namespace CorporateIdentifierSync
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            //
-            // Get the inactivity threshold from System Settings
-            //
-            SystemSettings? settings;
-            try
-            {
-                settings = await _dbService.GetSystemSettings();
-            }
-            catch (Exception ex)
-            {
-                _logger.DSLogException("Failed to retrieve SystemSettings. Exiting function.", ex, fullMethodName);
-                return;
-            }
-
-            if (settings is null)
-            {
-                settings = new SystemSettings();
-                _logger.DSLogWarning($"SystemSettings not found. Using default ProcessedDevicesExpiredAfterDays: {settings.ProcessedDevicesExpiredAfterDays}.", fullMethodName);
-            }
-
-            int expiredAfterDays = settings.ProcessedDevicesExpiredAfterDays;
-            if (expiredAfterDays <= 0)
-            {
-                _logger.DSLogError($"ProcessedDevicesExpiredAfterDays is invalid ({expiredAfterDays}). Must be greater than 0. Exiting function.", fullMethodName);
-                return;
-            }
+            // TODO: Temporary workaround. Replace with SystemSettings.ProcessedDevicesExpiredAfterDays
+            // once the SystemSettings DB access code is available.
+            int expiredAfterDays = TempProcessedDevicesExpiredAfterDays;
+            _logger.DSLogInformation($"Using ProcessedDevicesExpiredAfterDays: {expiredAfterDays}.", fullMethodName);
 
             DateTime cutoff = DateTime.UtcNow.AddDays(-expiredAfterDays);
             string expiredReason = GetExpiredReason(expiredAfterDays);
