@@ -54,7 +54,9 @@ namespace CorporateIdentifierSync
         }
 
         public static string GetExpiredReason(int ProcessedDevicesExpiredAfterDays)
-            => $"Device was expired since it was processed over {ProcessedDevicesExpiredAfterDays} days ago.";
+        {
+            return $"Device was expired since it was processed over {ProcessedDevicesExpiredAfterDays} days ago.";
+        }
 
         public void GetEnvironmentVariables()
         {
