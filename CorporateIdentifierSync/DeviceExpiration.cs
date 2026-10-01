@@ -58,6 +58,8 @@ namespace CorporateIdentifierSync
             return $"Device was expired since it was processed over {ProcessedDevicesExpiredAfterDays} days ago.";
         }
 
+        // TODO: Move all of these settings (MAX_CORPIDS_ALLOWED, ExpireDevicesBatchSize,
+        // MAX_EXPIRATION_RETRIES) into SystemSettings in the DB once that code is available.
         public void GetEnvironmentVariables()
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
