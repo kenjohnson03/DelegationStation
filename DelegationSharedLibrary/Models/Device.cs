@@ -60,6 +60,7 @@ namespace DelegationStationShared.Models
         public DateTime? MarkedForExpirationUTC { get; set; }
         public DateTime? ExpiredUTC { get; set; }
         public string ExpiredReason { get; set; } = string.Empty;
+        public int ExpirationFailureCount { get; set; }
 
 
 

@@ -21,6 +21,18 @@ namespace CorporateIdentifierSync
         private readonly IFunctionSingletonLock _singletonLock;
 
         private int _MaxCorpIDsAllowed;
+        private int _BatchSize = DefaultBatchSize;
+        private int _MaxExpirationRetries = DefaultMaxExpirationRetries;
+
+        internal const int DefaultBatchSize = 1000;
+        internal const int DefaultMaxExpirationRetries = 10;
+
+        internal int BatchSize => _BatchSize;
+        internal int MaxExpirationRetries => _MaxExpirationRetries;
+
+        // Share of each batch available to retries so new devices always get most of the batch
+        // and retries are never starved.
+        internal const int RetryBatchPercent = 20;
 
         // TODO: Temporary static value until SystemSettings is read from the DB.
         internal const int TempProcessedDevicesExpiredAfterDays = 180;
@@ -56,6 +68,30 @@ namespace CorporateIdentifierSync
             {
                 _MaxCorpIDsAllowed = max;
                 _logger.DSLogInformation($"Maximum allowed Corporate Identifiers for the tenant is set to: {_MaxCorpIDsAllowed}.", fullMethodName);
+            }
+
+            _BatchSize = DefaultBatchSize;
+            string? batchSizeString = Environment.GetEnvironmentVariable("ExpireDevicesBatchSize");
+            if (!int.TryParse(batchSizeString, out int bs) || bs <= 0)
+            {
+                _logger.DSLogWarning($"ExpireDevicesBatchSize is not set or invalid. Using default value: {_BatchSize}.", fullMethodName);
+            }
+            else
+            {
+                _BatchSize = bs;
+                _logger.DSLogInformation($"Using ExpireDevicesBatchSize: {_BatchSize}.", fullMethodName);
+            }
+
+            _MaxExpirationRetries = DefaultMaxExpirationRetries;
+            string? maxRetriesString = Environment.GetEnvironmentVariable("MAX_EXPIRATION_RETRIES");
+            if (!int.TryParse(maxRetriesString, out int mr) || mr < 0)
+            {
+                _logger.DSLogWarning($"MAX_EXPIRATION_RETRIES is not set or invalid. Using default value: {_MaxExpirationRetries}.", fullMethodName);
+            }
+            else
+            {
+                _MaxExpirationRetries = mr;
+                _logger.DSLogInformation($"Using MAX_EXPIRATION_RETRIES: {_MaxExpirationRetries}.", fullMethodName);
             }
         }
 
@@ -102,20 +138,33 @@ namespace CorporateIdentifierSync
             string expiredReason = GetExpiredReason(expiredAfterDays);
 
             //
-            // Get all devices eligible for expiration
+            // Build this run's batch: previously failed devices (capped share), then new devices.
             //
-            List<Device> devicesToExpire;
+            int retryLimit = Math.Max(1, _BatchSize * RetryBatchPercent / 100);
+            List<Device> retryDevices = new List<Device>();
             try
             {
-                devicesToExpire = await _dbService.GetProcessedDevicesToExpire(cutoff);
+                retryDevices = await _dbService.GetProcessedDevicesToRetryExpiration(cutoff, retryLimit);
             }
             catch (Exception ex)
             {
-                _logger.DSLogException("Failed to retrieve processed devices to expire. Exiting function.", ex, fullMethodName);
-                return;
+                _logger.DSLogException("Failed to retrieve devices pending expiration retry. Continuing with new devices.", ex, fullMethodName);
             }
 
-            _logger.DSLogInformation($"Found {devicesToExpire.Count} devices processed over {expiredAfterDays} days ago (before {cutoff:o}).", fullMethodName);
+            int newLimit = _BatchSize - retryDevices.Count;
+            List<Device> newDevices = new List<Device>();
+            try
+            {
+                newDevices = await _dbService.GetProcessedDevicesToExpire(cutoff, newLimit);
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException("Failed to retrieve processed devices to expire.", ex, fullMethodName);
+            }
+
+            _logger.DSLogInformation($"Batch size {_BatchSize}: {newDevices.Count} new and {retryDevices.Count} retry devices processed over {expiredAfterDays} days ago (before {cutoff:o}).", fullMethodName);
+
+            List<Device> devicesToExpire = retryDevices.Concat(newDevices).ToList();
             if (devicesToExpire.Count == 0)
             {
                 return;
@@ -123,6 +172,7 @@ namespace CorporateIdentifierSync
 
             int expiredDeviceCount = 0;
             int failedDeviceCount = 0;
+            int expirationFailedCount = 0;
             int corpIDsDeletedCount = 0;
             foreach (Device device in devicesToExpire)
             {
@@ -130,18 +180,25 @@ namespace CorporateIdentifierSync
                 _logger.DSLogInformation($"-----Expiring device {deviceDesc}.-----", fullMethodName);
 
                 //
-                // Mark device for expiration (preserve original mark on retries)
+                // Mark device for expiration (retries are already marked; keep original timestamp)
                 //
-                try
+                if (device.MarkedForExpirationUTC is null)
                 {
-                    device.MarkedForExpirationUTC ??= DateTime.UtcNow;
-                    await _dbService.UpdateDevice(device);
+                    try
+                    {
+                        device.MarkedForExpirationUTC = DateTime.UtcNow;
+                        await _dbService.UpdateDevice(device);
+                    }
+                    catch (Exception ex)
+                    {
+                        failedDeviceCount++;
+                        _logger.DSLogException($"Failed to mark device {deviceDesc} for expiration. Skipping; will retry on next run.", ex, fullMethodName);
+                        continue;
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    failedDeviceCount++;
-                    _logger.DSLogException($"Failed to mark device {deviceDesc} for expiration. Skipping; will retry on next run.", ex, fullMethodName);
-                    continue;
+                    _logger.DSLogInformation($"Retrying expiration for device {deviceDesc} (previous failures: {device.ExpirationFailureCount}).", fullMethodName);
                 }
 
                 //
@@ -178,13 +235,36 @@ namespace CorporateIdentifierSync
                 }
 
                 //
-                // Record outcome on the device. If removal failed, leave the device Synced
-                // (with MarkedForExpirationUTC set) so it is retried on the next run.
+                // If removal failed, leave the device Synced (with MarkedForExpirationUTC set) so it is
+                // retried, until it exceeds MAX_EXPIRATION_RETRIES and is moved to ExpirationFailed.
                 //
                 if (!corpIDRemoved)
                 {
                     failedDeviceCount++;
-                    _logger.DSLogWarning($"Corporate Identifier removal failed for device {deviceDesc}. Leaving device Synced; will retry on next run.", fullMethodName);
+                    device.ExpirationFailureCount++;
+                    bool retriesExhausted = device.ExpirationFailureCount > _MaxExpirationRetries;
+                    if (retriesExhausted)
+                    {
+                        device.Status = DeviceStatus.ExpirationFailed;
+                    }
+
+                    try
+                    {
+                        await _dbService.UpdateDevice(device);
+                        if (retriesExhausted)
+                        {
+                            expirationFailedCount++;
+                            _logger.DSLogError($"Device {deviceDesc} exceeded max expiration retries ({_MaxExpirationRetries}). Marked as ExpirationFailed. Corporate Identifier {device.CorporateIdentityID} requires manual cleanup.", fullMethodName);
+                        }
+                        else
+                        {
+                            _logger.DSLogWarning($"Corporate Identifier removal failed for device {deviceDesc} ({device.ExpirationFailureCount} failures). Leaving device Synced; will retry on next run.", fullMethodName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogException($"Failed to record expiration failure for device {deviceDesc}. Will retry on next run.", ex, fullMethodName);
+                    }
                     continue;
                 }
 
@@ -208,7 +288,7 @@ namespace CorporateIdentifierSync
                 }
             }
 
-            _logger.DSLogInformation($"Expired {expiredDeviceCount} devices. {failedDeviceCount} devices failed expiration.", fullMethodName);
+            _logger.DSLogInformation($"Expired {expiredDeviceCount} devices. {failedDeviceCount} devices failed expiration, {expirationFailedCount} of which exceeded max retries and were marked ExpirationFailed.", fullMethodName);
 
             if (corpIDsDeletedCount > 0)
             {

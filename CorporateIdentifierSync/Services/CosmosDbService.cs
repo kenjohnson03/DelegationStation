@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
 using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared.Extensions;
@@ -585,23 +585,45 @@ namespace CorporateIdentifierSync.Services
             }
         }
 
-        public async Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC)
+        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize)
+        {
+            // New candidates: not yet marked for expiration.
+            return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
+                "(NOT IS_DEFINED(c.MarkedForExpirationUTC) OR IS_NULL(c.MarkedForExpirationUTC))");
+        }
+
+        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
+        {
+            // Retries: CorpID removal failed previously; device remains Synced with MarkedForExpirationUTC set.
+            return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
+                "IS_DEFINED(c.MarkedForExpirationUTC) AND NOT IS_NULL(c.MarkedForExpirationUTC)");
+        }
+
+        private async Task<List<Device>> QueryProcessedDevicesForExpiration(DateTime processedBeforeUTC, int batchSize, string markedFilter)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            // Only Synced devices have a CorpID assigned. Devices whose CorpID removal failed
-            // remain Synced (with MarkedForExpirationUTC set) so they are retried here.
+            if (batchSize <= 0)
+            {
+                return new List<Device>();
+            }
+
+            // Only Synced devices have a CorpID assigned.
             QueryDefinition query = new QueryDefinition(
                 "SELECT * FROM c WHERE c.Type = \"Device\" " +
                 "AND c.Status = @synced " +
                 "AND c.ProcessingStatus = @processed " +
                 "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
-                "AND c.SuccessfullyProcessedUTC < @cutoff");
+                "AND c.SuccessfullyProcessedUTC < @cutoff " +
+                "AND " + markedFilter + " " +
+                "ORDER BY c.SuccessfullyProcessedUTC ASC " +
+                "OFFSET 0 LIMIT @batchSize");
             query.WithParameter("@synced", DeviceStatus.Synced);
             query.WithParameter("@processed", ProcessingStatus.Processed);
             query.WithParameter("@cutoff", processedBeforeUTC);
+            query.WithParameter("@batchSize", batchSize);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();
@@ -611,9 +633,8 @@ namespace CorporateIdentifierSync.Services
                 devices.AddRange(response.ToList());
             }
 
-            _logger.DSLogInformation($"Found {devices.Count} processed devices last successfully processed before {processedBeforeUTC:o}.", fullMethodName);
+            _logger.DSLogInformation($"Found {devices.Count} processed devices (limit {batchSize}) last successfully processed before {processedBeforeUTC:o} matching {markedFilter}.", fullMethodName);
             return devices;
         }
-
     }
 }

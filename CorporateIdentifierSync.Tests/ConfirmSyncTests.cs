@@ -137,7 +137,8 @@ public class ConfirmSyncTests
         public Task<List<Device>> GetSyncedDevicesInTags(List<string> tagIds, int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
         public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC) => throw new NotImplementedException();
+        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
+        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
     }
 
     private sealed class RecordingLogger : ILogger<ConfirmSync>

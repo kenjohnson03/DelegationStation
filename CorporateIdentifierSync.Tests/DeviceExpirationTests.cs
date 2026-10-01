@@ -51,6 +51,7 @@ public class DeviceExpirationTests
         await sut.Run(new TimerInfo());
 
         Assert.Equal(0, dbService.GetDevicesCallCount);
+        Assert.Equal(0, dbService.GetRetryDevicesCallCount);
     }
 
     [Fact]
@@ -172,7 +173,8 @@ public class DeviceExpirationTests
         Assert.Null(device.ExpiredUTC);
         Assert.Equal(string.Empty, device.ExpiredReason);
         Assert.Equal("corp-id-1", device.CorporateIdentityID);
-        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        Assert.Equal(1, device.ExpirationFailureCount);
+        Assert.Equal(2, dbService.UpdateDeviceCallCount);
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
@@ -183,13 +185,145 @@ public class DeviceExpirationTests
         var device = CreateProcessedDevice();
         DateTime originalMark = DateTime.UtcNow.AddDays(-2);
         device.MarkedForExpirationUTC = originalMark;
-        dbService.DevicesToReturn.Add(device);
+        dbService.RetryDevicesToReturn.Add(device);
         var sut = CreateSut(dbService: dbService);
 
         await sut.ExpireProcessedDevices();
 
         Assert.Equal(originalMark, device.MarkedForExpirationUTC);
         Assert.Equal(DeviceStatus.Expired, device.Status);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+    }
+
+    [Fact]
+    public async Task ExpireProcessedDevices_OnRetryFailureBelowMax_IncrementsCountAndStaysSynced()
+    {
+        var dbService = new FakeDbService();
+        var device = CreateProcessedDevice();
+        device.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+        device.ExpirationFailureCount = DeviceExpiration.DefaultMaxExpirationRetries - 1;
+        dbService.RetryDevicesToReturn.Add(device);
+        var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireProcessedDevices();
+
+        Assert.Equal(DeviceExpiration.DefaultMaxExpirationRetries, device.ExpirationFailureCount);
+        Assert.Equal(DeviceStatus.Synced, device.Status);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+    }
+
+    [Fact]
+    public async Task ExpireProcessedDevices_WhenRetriesExceedMax_MarksExpirationFailed()
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var device = CreateProcessedDevice();
+        device.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+        device.ExpirationFailureCount = DeviceExpiration.DefaultMaxExpirationRetries;
+        dbService.RetryDevicesToReturn.Add(device);
+        var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireProcessedDevices();
+
+        Assert.Equal(DeviceExpiration.DefaultMaxExpirationRetries + 1, device.ExpirationFailureCount);
+        Assert.Equal(DeviceStatus.ExpirationFailed, device.Status);
+        Assert.Null(device.ExpiredUTC);
+        Assert.Equal("corp-id-1", device.CorporateIdentityID);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireProcessedDevices_UsesBatchSizeSplitBetweenRetryAndNewDevices()
+    {
+        var dbService = new FakeDbService();
+        for (int i = 0; i < 3; i++)
+        {
+            var retry = CreateProcessedDevice($"retry-{i}");
+            retry.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+            dbService.RetryDevicesToReturn.Add(retry);
+        }
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireProcessedDevices();
+
+        int expectedRetryLimit = DeviceExpiration.DefaultBatchSize * DeviceExpiration.RetryBatchPercent / 100;
+        Assert.Equal(expectedRetryLimit, dbService.LastRetryBatchSize);
+        Assert.Equal(DeviceExpiration.DefaultBatchSize - 3, dbService.LastNewBatchSize);
+    }
+
+    [Fact]
+    public async Task ExpireProcessedDevices_RespectsBatchSizeFromEnvironment()
+    {
+        Environment.SetEnvironmentVariable("ExpireDevicesBatchSize", "10");
+        try
+        {
+            var dbService = new FakeDbService();
+            for (int i = 0; i < 5; i++)
+            {
+                var retry = CreateProcessedDevice($"retry-{i}");
+                retry.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+                dbService.RetryDevicesToReturn.Add(retry);
+            }
+            for (int i = 0; i < 20; i++)
+            {
+                dbService.DevicesToReturn.Add(CreateProcessedDevice($"new-{i}"));
+            }
+            var graph = new FakeGraphBetaService();
+            var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+            sut.GetEnvironmentVariables();
+
+            await sut.ExpireProcessedDevices();
+
+            // 20% of 10 = 2 retries, remaining 8 new devices.
+            Assert.Equal(2, dbService.LastRetryBatchSize);
+            Assert.Equal(8, dbService.LastNewBatchSize);
+            Assert.Equal(10, graph.DeleteCallCount);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ExpireDevicesBatchSize", null);
+        }
+    }
+
+    [Fact]
+    public async Task ExpireProcessedDevices_WhenRetryQueryThrows_StillProcessesNewDevices()
+    {
+        var dbService = new FakeDbService { GetRetryDevicesException = new Exception("boom") };
+        var device = CreateProcessedDevice();
+        dbService.DevicesToReturn.Add(device);
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireProcessedDevices();
+
+        Assert.Equal(DeviceStatus.Expired, device.Status);
+        Assert.Equal(DeviceExpiration.DefaultBatchSize, dbService.LastNewBatchSize);
+    }
+
+    [Theory]
+    [InlineData(null, null, DeviceExpiration.DefaultBatchSize, DeviceExpiration.DefaultMaxExpirationRetries)]
+    [InlineData("abc", "xyz", DeviceExpiration.DefaultBatchSize, DeviceExpiration.DefaultMaxExpirationRetries)]
+    [InlineData("0", "-1", DeviceExpiration.DefaultBatchSize, DeviceExpiration.DefaultMaxExpirationRetries)]
+    [InlineData("250", "3", 250, 3)]
+    [InlineData("250", "0", 250, 0)]
+    public void GetEnvironmentVariables_ParsesBatchSizeAndMaxRetries(string? batch, string? retries, int expectedBatch, int expectedRetries)
+    {
+        Environment.SetEnvironmentVariable("ExpireDevicesBatchSize", batch);
+        Environment.SetEnvironmentVariable("MAX_EXPIRATION_RETRIES", retries);
+        try
+        {
+            var sut = CreateSut();
+            sut.GetEnvironmentVariables();
+
+            Assert.Equal(expectedBatch, sut.BatchSize);
+            Assert.Equal(expectedRetries, sut.MaxExpirationRetries);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ExpireDevicesBatchSize", null);
+            Environment.SetEnvironmentVariable("MAX_EXPIRATION_RETRIES", null);
+        }
     }
 
     [Fact]
@@ -282,24 +416,38 @@ public class DeviceExpirationTests
     private sealed class FakeDbService : ICosmosDbService
     {
         public List<Device> DevicesToReturn { get; set; } = new();
+        public List<Device> RetryDevicesToReturn { get; set; } = new();
         public Exception? GetDevicesException { get; set; }
+        public Exception? GetRetryDevicesException { get; set; }
         public Exception? UpdateDeviceException { get; set; }
         public int? FailUpdateOnCall { get; set; }
         public CorpIDCounter Counter { get; set; } = new CorpIDCounter(0);
 
         public int GetDevicesCallCount { get; private set; }
+        public int GetRetryDevicesCallCount { get; private set; }
+        public int? LastNewBatchSize { get; private set; }
+        public int? LastRetryBatchSize { get; private set; }
         public int UpdateDeviceCallCount { get; private set; }
         public int TrySetCorpIDCounterCallCount { get; private set; }
         public DateTime? LastCutoff { get; private set; }
         public DateTime? FirstUpdateMarkedForExpirationUTC { get; private set; }
         public DateTime? FirstUpdateExpiredUTC { get; private set; }
 
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC)
+        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize)
         {
             GetDevicesCallCount++;
             LastCutoff = processedBeforeUTC;
+            LastNewBatchSize = batchSize;
             if (GetDevicesException is not null) throw GetDevicesException;
-            return Task.FromResult(DevicesToReturn);
+            return Task.FromResult(DevicesToReturn.Take(Math.Max(0, batchSize)).ToList());
+        }
+
+        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
+        {
+            GetRetryDevicesCallCount++;
+            LastRetryBatchSize = batchSize;
+            if (GetRetryDevicesException is not null) throw GetRetryDevicesException;
+            return Task.FromResult(RetryDevicesToReturn.Take(Math.Max(0, batchSize)).ToList());
         }
 
         public Task UpdateDevice(Device device)

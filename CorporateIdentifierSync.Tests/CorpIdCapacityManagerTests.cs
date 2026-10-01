@@ -41,7 +41,8 @@ namespace CorporateIdentifierSync.Tests.CorpIdCapacityManagerTests
         public Task<List<Device>> GetNotSyncingDevices(int batchSize) => throw new NotImplementedException();
         public Task<Device?> GetDevice(Guid id, string partitionKey) => throw new NotImplementedException();
         public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC) => throw new NotImplementedException();
+        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
+        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
     }
 
     public class CorpIdCapacityManagerTests

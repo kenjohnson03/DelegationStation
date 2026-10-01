@@ -17,6 +17,8 @@
     "SyncIntervalHours":  "24",
     "AddDeviceBatchSize": "5000",
     "ReconcileSyncBatchSize": "1000",
+    "ExpireDevicesBatchSize": "1000",
+    "MAX_EXPIRATION_RETRIES": "10",
     "MAX_CORPIDS_ALLOWED": "10000",
     "MAX_CORPID_RETRIES": "10",
     "CertificateDistinguishedName": "",

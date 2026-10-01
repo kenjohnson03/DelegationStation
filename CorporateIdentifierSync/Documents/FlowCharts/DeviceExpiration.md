@@ -1,14 +1,19 @@
 ```mermaid
 
 flowchart TD
-    A["Timer Trigger Fires"] --> S["X = ProcessedDevicesExpiredAfterDays<br/>(temporarily a static value of 180)"]
-    S --> D["Get devices where<br/>Status == Synced<br/>AND ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days"]
+    A["Timer Trigger Fires"] --> L{"Acquire singleton<br/>blob lease?"}
+    L -- "No" --> END
+    L -- "Yes" --> S["X = ProcessedDevicesExpiredAfterDays<br/>(temporarily a static value of 180)<br/>B = ExpireDevicesBatchSize (default 1000)<br/>R = MAX_EXPIRATION_RETRIES (default 10)"]
+    S --> DR["Get up to 20% of B retry devices where<br/>Status == Synced AND ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND MarkedForExpirationUTC is set<br/>ORDER BY SuccessfullyProcessedUTC"]
+    DR --> D["Get up to (B - retry count) new devices<br/>(same criteria, MarkedForExpirationUTC not set)<br/>ORDER BY SuccessfullyProcessedUTC"]
     D --> LOOP
 
     subgraph LOOP ["For Each Device"]
         direction TB
 
-        MK["MarkedForExpirationUTC = UtcNow<br/>(if not already set)<br/>Update device"]
+        RT{"MarkedForExpirationUTC<br/>already set?"}
+        RT -- "Yes (retry)" --> H
+        RT -- "No" --> MK["MarkedForExpirationUTC = UtcNow<br/>Update device"]
         MK --> MK1{"Update<br/>succeeded?"}
         MK1 -- "No" --> SKIP["Skip device.<br/>Will retry on next run."]
         MK1 -- "Yes" --> H{"Does device have CorporateIdentityID?"}
@@ -26,10 +31,14 @@ flowchart TD
         N --> O
 
         O -- "Yes" --> P["ExpiredUTC = UtcNow<br/>Status = Expired<br/>ExpiredReason = 'Device was expired since it was<br/>processed over X days ago.'<br/>Clear CorporateIdentityID / CorporateIdentity<br/>Update device"]
-        O -- "No" --> Q["Leave device Synced<br/>(MarkedForExpirationUTC set)<br/>Will retry on next run."]
+        O -- "No" --> FC["ExpirationFailureCount++"]
+        FC --> FR{"ExpirationFailureCount > R?"}
+        FR -- "No" --> Q["Leave device Synced<br/>(MarkedForExpirationUTC set)<br/>Update device<br/>Will retry on next run."]
+        FR -- "Yes" --> QF["Status = ExpirationFailed<br/>Update device<br/>(CorpID requires manual cleanup)"]
 
         P --> Z["End of For Loop"]
         Q --> Z
+        QF --> Z
         SKIP --> Z
     end
 
