@@ -5,14 +5,57 @@
 
 <h3>System Settings</h3>
 
-<AuthorizeView Policy="DelegationStationAdmin">
+<AuthorizeView Policy="DelegationStationAdmin" Context="authContext">
     <Authorized>
         <div class="card mb-3">
             <div class="card-header fw-bold">
                 System Settings
             </div>
             <div class="card-body">
-                <p>Manage application-wide system settings here.</p>
+                <EditForm Model="@model" OnValidSubmit="Save">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label" for="MaxCorpIdsAllowed">Max Corporate Identifiers Allowed</label>
+                        <InputText id="MaxCorpIdsAllowed"
+                                   inputmode="numeric"
+                                   class="form-control"
+                                   @bind-Value="model.MaxCorpIdsAllowed" />
+                        <ValidationMessage For="@(() => model.MaxCorpIdsAllowed)" class="text-danger" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="CorpIdWarningThresholdPercent">Corporate Identifier Warning Threshold (%)</label>
+                        <InputText id="CorpIdWarningThresholdPercent"
+                                   inputmode="numeric"
+                                   class="form-control"
+                                   @bind-Value="model.CorpIdWarningThresholdPercent" />
+                        <ValidationMessage For="@(() => model.CorpIdWarningThresholdPercent)" class="text-danger" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="ExpireProcessedAfterDays">Expire Processed After (days)</label>
+                        <InputText id="ExpireProcessedAfterDays"
+                                   inputmode="numeric"
+                                   class="form-control"
+                                   @bind-Value="model.ExpireProcessedAfterDays" />
+                        <ValidationMessage For="@(() => model.ExpireProcessedAfterDays)" class="text-danger" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="ExpireUnprocessedAfterDays">Expire Unprocessed After (days)</label>
+                        <InputText id="ExpireUnprocessedAfterDays"
+                                   inputmode="numeric"
+                                   class="form-control"
+                                   @bind-Value="model.ExpireUnprocessedAfterDays" />
+                        <ValidationMessage For="@(() => model.ExpireUnprocessedAfterDays)" class="text-danger" />
+                    </div>
+
+                    <div class="mt-4">
+                        <button class="btn btn-secondary me-2" type="button" @onclick="Cancel">Cancel</button>
+                        <button class="btn btn-success" type="submit">Save</button>
+                    </div>
+                </EditForm>
             </div>
         </div>
     </Authorized>
