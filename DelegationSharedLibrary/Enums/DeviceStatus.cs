@@ -9,8 +9,8 @@ namespace DelegationStationShared.Enums
         NonSyncing,
         Failed,
         Processed,
-        Inactive,
-        CorpIDRemovalFailed,
+        Expired,
+        ExpirationFailed,
         Reprocessing,
         ReprocessingFailed
 
