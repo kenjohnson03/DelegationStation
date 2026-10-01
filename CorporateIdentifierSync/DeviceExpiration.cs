@@ -210,7 +210,7 @@ namespace CorporateIdentifierSync
                 if (string.IsNullOrEmpty(device.CorporateIdentityID))
                 {
                     corpIDRemoved = true;
-                    _logger.DSLogInformation($"Device {deviceDesc} has no Corporate Identifier to remove.", fullMethodName);
+                    _logger.DSLogWarning($"Device {deviceDesc} is Synced but has no Corporate Identifier stored in DB. This is unexpected; treating as removed.", fullMethodName);
                 }
                 else
                 {
