@@ -368,8 +368,6 @@ namespace UpdateDevices
             DateTime processedAt = DateTime.UtcNow;
             device.LastProcessingAttemptUTC = processedAt;
 
-            // Always record the enrollment we saw, including on failure, so the next run recognises
-            // this as a retry of the same enrollment rather than repeating the re-enrollment reset.
             device.LastSeenEnrollmentUTC = enrolledUtc;
 
             if (successfullyProcessed)
