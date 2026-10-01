@@ -202,7 +202,7 @@ namespace CorporateIdentifierSync
                 //
                 if (corpIDRemoved)
                 {
-                    device.ExpirationUTC = DateTime.UtcNow;
+                    device.ExpiredUTC = DateTime.UtcNow;
                     device.Status = DeviceStatus.Expired;
                     device.ExpiredReason = expiredReason;
                     device.CorporateIdentityID = string.Empty;

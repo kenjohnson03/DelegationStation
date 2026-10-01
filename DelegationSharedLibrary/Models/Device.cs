@@ -58,7 +58,7 @@ namespace DelegationStationShared.Models
 
         // Expiration related
         public DateTime? MarkedForExpirationUTC { get; set; }
-        public DateTime? ExpirationUTC { get; set; }
+        public DateTime? ExpiredUTC { get; set; }
         public string ExpiredReason { get; set; } = string.Empty;
 
 
@@ -101,7 +101,7 @@ namespace DelegationStationShared.Models
             LastProcessingAttemptUTC = null;
             ProcessingStatus = null;
             MarkedForExpirationUTC = null;
-            ExpirationUTC = null;
+            ExpiredUTC = null;
             ExpiredReason = string.Empty;
 
 

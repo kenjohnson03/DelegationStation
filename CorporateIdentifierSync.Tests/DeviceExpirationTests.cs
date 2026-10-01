@@ -138,8 +138,8 @@ public class DeviceExpirationTests
 
         Assert.Equal(1, graph.DeleteCallCount);
         Assert.NotNull(device.MarkedForExpirationUTC);
-        Assert.NotNull(device.ExpirationUTC);
-        Assert.True(device.ExpirationUTC >= device.MarkedForExpirationUTC);
+        Assert.NotNull(device.ExpiredUTC);
+        Assert.True(device.ExpiredUTC >= device.MarkedForExpirationUTC);
         Assert.Equal(DeviceStatus.Expired, device.Status);
         Assert.Equal("Device was expired since it was processed over 90 days ago.", device.ExpiredReason);
         Assert.Equal(string.Empty, device.CorporateIdentityID);
@@ -160,7 +160,7 @@ public class DeviceExpirationTests
         await sut.ExpireProcessedDevices();
 
         Assert.NotNull(dbService.FirstUpdateMarkedForExpirationUTC);
-        Assert.Null(dbService.FirstUpdateExpirationUTC);
+        Assert.Null(dbService.FirstUpdateExpiredUTC);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class DeviceExpirationTests
         await sut.ExpireProcessedDevices();
 
         Assert.Equal(DeviceStatus.Expired, device.Status);
-        Assert.NotNull(device.ExpirationUTC);
+        Assert.NotNull(device.ExpiredUTC);
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
         Assert.Equal(5, dbService.Counter.CorpIDCount);
     }
@@ -193,7 +193,7 @@ public class DeviceExpirationTests
 
         Assert.Equal(0, graph.DeleteCallCount);
         Assert.Equal(DeviceStatus.Expired, device.Status);
-        Assert.NotNull(device.ExpirationUTC);
+        Assert.NotNull(device.ExpiredUTC);
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
@@ -210,7 +210,7 @@ public class DeviceExpirationTests
 
         Assert.Equal(DeviceStatus.ExpirationFailed, device.Status);
         Assert.NotNull(device.MarkedForExpirationUTC);
-        Assert.Null(device.ExpirationUTC);
+        Assert.Null(device.ExpiredUTC);
         Assert.Equal(string.Empty, device.ExpiredReason);
         Assert.Equal("corp-id-1", device.CorporateIdentityID);
         Assert.Equal(2, dbService.UpdateDeviceCallCount);
@@ -337,7 +337,7 @@ public class DeviceExpirationTests
         public int TrySetCorpIDCounterCallCount { get; private set; }
         public DateTime? LastCutoff { get; private set; }
         public DateTime? FirstUpdateMarkedForExpirationUTC { get; private set; }
-        public DateTime? FirstUpdateExpirationUTC { get; private set; }
+        public DateTime? FirstUpdateExpiredUTC { get; private set; }
 
         public Task<SystemSettings?> GetSystemSettings()
         {
@@ -360,7 +360,7 @@ public class DeviceExpirationTests
             if (UpdateDeviceCallCount == 1)
             {
                 FirstUpdateMarkedForExpirationUTC = device.MarkedForExpirationUTC;
-                FirstUpdateExpirationUTC = device.ExpirationUTC;
+                FirstUpdateExpiredUTC = device.ExpiredUTC;
             }
             if (UpdateDeviceException is not null) throw UpdateDeviceException;
             if (FailUpdateOnCall == UpdateDeviceCallCount) throw new Exception("Simulated update failure");

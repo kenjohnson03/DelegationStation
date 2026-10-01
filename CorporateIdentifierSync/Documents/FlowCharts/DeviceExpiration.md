@@ -31,7 +31,7 @@ flowchart TD
         MM --> O
         N --> O
 
-        O -- "Yes" --> P["ExpirationUTC = UtcNow<br/>Status = Expired<br/>ExpiredReason = 'Device was expired since it was<br/>processed over X days ago.'<br/>Clear CorporateIdentityID / CorporateIdentity<br/>Update device"]
+        O -- "Yes" --> P["ExpiredUTC = UtcNow<br/>Status = Expired<br/>ExpiredReason = 'Device was expired since it was<br/>processed over X days ago.'<br/>Clear CorporateIdentityID / CorporateIdentity<br/>Update device"]
         O -- "No" --> Q["Status = ExpirationFailed<br/>Update device<br/>Will retry on next run."]
 
         P --> Z["End of For Loop"]
