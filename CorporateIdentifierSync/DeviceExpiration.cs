@@ -21,6 +21,10 @@ namespace CorporateIdentifierSync
         private readonly IFunctionSingletonLock _singletonLock;
 
         private int _MaxCorpIDsAllowed;
+
+        // TODO: Move BatchSize (ExpireDevicesBatchSize), MaxExpirationRetries (MAX_EXPIRATION_RETRIES)
+        // and RetryBatchPercent into SystemSettings once the SystemSettings DB code is available.
+        // They are currently read from environment variables / constants.
         private int _BatchSize = DefaultBatchSize;
         private int _MaxExpirationRetries = DefaultMaxExpirationRetries;
 
