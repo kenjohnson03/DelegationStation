@@ -55,6 +55,8 @@ namespace DelegationStationShared.Models
         public DateTime? SuccessfullyProcessedUTC { get; set; }
         public DateTime? LastProcessingAttemptUTC { get; set; }
         public ProcessingStatus? ProcessingStatus { get; set; }
+
+        public DateTime? LastSeenEnrollmentUTC { get; set; }
         //public DateTime? MarkedInactiveUTC { get; set; }
         //public string InactiveReason { get; set; } = string.Empty;
 
@@ -96,6 +98,7 @@ namespace DelegationStationShared.Models
 
             SuccessfullyProcessedUTC = null;
             LastProcessingAttemptUTC = null;
+            LastSeenEnrollmentUTC = null;
             //MarkedInactiveUTC = null;
             //InactiveReason = string.Empty;
 
