@@ -591,18 +591,17 @@ namespace CorporateIdentifierSync.Services
             string className = GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            // Devices already Expired or being deleted are excluded.
-            // ExpirationFailed devices are included so they are retried.
+            // Only Synced devices have a CorpID assigned. Devices whose CorpID removal failed
+            // remain Synced (with MarkedForExpirationUTC set) so they are retried here.
             QueryDefinition query = new QueryDefinition(
                 "SELECT * FROM c WHERE c.Type = \"Device\" " +
+                "AND c.Status = @synced " +
                 "AND c.ProcessingStatus = @processed " +
                 "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
-                "AND c.SuccessfullyProcessedUTC < @cutoff " +
-                "AND (NOT IS_DEFINED(c.Status) OR IS_NULL(c.Status) OR NOT (c.Status IN (@expired, @deleting)))");
+                "AND c.SuccessfullyProcessedUTC < @cutoff");
+            query.WithParameter("@synced", DeviceStatus.Synced);
             query.WithParameter("@processed", ProcessingStatus.Processed);
             query.WithParameter("@cutoff", processedBeforeUTC);
-            query.WithParameter("@expired", DeviceStatus.Expired);
-            query.WithParameter("@deleting", DeviceStatus.Deleting);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
             List<Device> devices = new List<Device>();

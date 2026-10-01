@@ -157,7 +157,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnCorpIDDeleteError_MarksExpirationFailed()
+    public async Task ExpireProcessedDevices_OnCorpIDDeleteError_LeavesDeviceSyncedForRetry()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
         var device = CreateProcessedDevice();
@@ -167,12 +167,12 @@ public class DeviceExpirationTests
 
         await sut.ExpireProcessedDevices();
 
-        Assert.Equal(DeviceStatus.ExpirationFailed, device.Status);
+        Assert.Equal(DeviceStatus.Synced, device.Status);
         Assert.NotNull(device.MarkedForExpirationUTC);
         Assert.Null(device.ExpiredUTC);
         Assert.Equal(string.Empty, device.ExpiredReason);
         Assert.Equal("corp-id-1", device.CorporateIdentityID);
-        Assert.Equal(2, dbService.UpdateDeviceCallCount);
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
@@ -183,7 +183,6 @@ public class DeviceExpirationTests
         var device = CreateProcessedDevice();
         DateTime originalMark = DateTime.UtcNow.AddDays(-2);
         device.MarkedForExpirationUTC = originalMark;
-        device.Status = DeviceStatus.ExpirationFailed;
         dbService.DevicesToReturn.Add(device);
         var sut = CreateSut(dbService: dbService);
 
@@ -237,7 +236,7 @@ public class DeviceExpirationTests
         await sut.ExpireProcessedDevices();
 
         Assert.Equal(DeviceStatus.Expired, ok1.Status);
-        Assert.Equal(DeviceStatus.ExpirationFailed, bad.Status);
+        Assert.Equal(DeviceStatus.Synced, bad.Status);
         Assert.Equal(DeviceStatus.Expired, ok2.Status);
         Assert.Equal(1, dbService.TrySetCorpIDCounterCallCount);
         Assert.Equal(8, dbService.Counter.CorpIDCount);

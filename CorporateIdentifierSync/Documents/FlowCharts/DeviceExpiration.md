@@ -2,7 +2,7 @@
 
 flowchart TD
     A["Timer Trigger Fires"] --> S["X = ProcessedDevicesExpiredAfterDays<br/>(temporarily a static value of 180)"]
-    S --> D["Get devices where<br/>ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND Status not Expired/Deleting"]
+    S --> D["Get devices where<br/>Status == Synced<br/>AND ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days"]
     D --> LOOP
 
     subgraph LOOP ["For Each Device"]
@@ -26,7 +26,7 @@ flowchart TD
         N --> O
 
         O -- "Yes" --> P["ExpiredUTC = UtcNow<br/>Status = Expired<br/>ExpiredReason = 'Device was expired since it was<br/>processed over X days ago.'<br/>Clear CorporateIdentityID / CorporateIdentity<br/>Update device"]
-        O -- "No" --> Q["Status = ExpirationFailed<br/>Update device<br/>Will retry on next run."]
+        O -- "No" --> Q["Leave device Synced<br/>(MarkedForExpirationUTC set)<br/>Will retry on next run."]
 
         P --> Z["End of For Loop"]
         Q --> Z

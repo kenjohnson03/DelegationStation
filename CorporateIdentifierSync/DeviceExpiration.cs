@@ -178,34 +178,27 @@ namespace CorporateIdentifierSync
                 }
 
                 //
-                // Record outcome on the device
+                // Record outcome on the device. If removal failed, leave the device Synced
+                // (with MarkedForExpirationUTC set) so it is retried on the next run.
                 //
-                if (corpIDRemoved)
+                if (!corpIDRemoved)
                 {
-                    device.ExpiredUTC = DateTime.UtcNow;
-                    device.Status = DeviceStatus.Expired;
-                    device.ExpiredReason = expiredReason;
-                    device.CorporateIdentityID = string.Empty;
-                    device.CorporateIdentity = string.Empty;
+                    failedDeviceCount++;
+                    _logger.DSLogWarning($"Corporate Identifier removal failed for device {deviceDesc}. Leaving device Synced; will retry on next run.", fullMethodName);
+                    continue;
                 }
-                else
-                {
-                    device.Status = DeviceStatus.ExpirationFailed;
-                }
+
+                device.ExpiredUTC = DateTime.UtcNow;
+                device.Status = DeviceStatus.Expired;
+                device.ExpiredReason = expiredReason;
+                device.CorporateIdentityID = string.Empty;
+                device.CorporateIdentity = string.Empty;
 
                 try
                 {
                     await _dbService.UpdateDevice(device);
-                    if (corpIDRemoved)
-                    {
-                        expiredDeviceCount++;
-                        _logger.DSLogInformation($"Device {deviceDesc} marked as Expired.", fullMethodName);
-                    }
-                    else
-                    {
-                        failedDeviceCount++;
-                        _logger.DSLogWarning($"Device {deviceDesc} marked as ExpirationFailed. Will retry on next run.", fullMethodName);
-                    }
+                    expiredDeviceCount++;
+                    _logger.DSLogInformation($"Device {deviceDesc} marked as Expired.", fullMethodName);
                 }
                 catch (Exception ex)
                 {
