@@ -1,4 +1,5 @@
 using DelegationStationShared.Models;
+using DelegationStation.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -17,8 +18,15 @@ namespace DelegationStation.Pages
         [Inject]
         private NavigationManager nav { get; set; } = default!;
 
+        [Inject]
+        private ISystemSettingsDBService systemSettingsDBService { get; set; } = default!;
+
+        [Inject]
+        private ILogger<SystemSettings> logger { get; set; } = default!;
+
         private DelegationStationShared.Models.SystemSettings settings = new DelegationStationShared.Models.SystemSettings();
         private SystemSettingsModel model = new SystemSettingsModel();
+        private string userMessage = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
@@ -30,17 +38,43 @@ namespace DelegationStation.Pages
                 userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
             }
 
+            Guid c = Guid.NewGuid();
+            try
+            {
+                settings = await systemSettingsDBService.GetSystemSettingsAsync() ?? new DelegationStationShared.Models.SystemSettings();
+            }
+            catch (Exception ex)
+            {
+                string message = $"Correlation Id: {c.ToString()}\nError retrieving system settings.";
+                logger.LogError(ex, $"{message}\nUser: {userName} {userId}");
+                userMessage = message;
+            }
+
             model = SystemSettingsModel.FromSettings(settings);
         }
 
-        private void Save()
+        private async Task Save()
         {
+            Guid c = Guid.NewGuid();
             model.ApplyTo(settings);
+            try
+            {
+                settings = await systemSettingsDBService.AddOrUpdateSystemSettingsAsync(settings);
+                model = SystemSettingsModel.FromSettings(settings);
+                userMessage = "System settings saved.";
+            }
+            catch (Exception ex)
+            {
+                string message = $"Correlation Id: {c.ToString()}\nError saving system settings.";
+                logger.LogError(ex, $"{message}\nUser: {userName} {userId}");
+                userMessage = message;
+            }
         }
 
         private void Cancel()
         {
             model = SystemSettingsModel.FromSettings(settings);
+            userMessage = string.Empty;
         }
 
         private const string PositiveIntegerPattern = "^[1-9][0-9]*$";
