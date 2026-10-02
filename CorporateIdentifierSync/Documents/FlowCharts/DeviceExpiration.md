@@ -45,6 +45,7 @@ flowchart TD
 
 `UpdateDevices` and `StragglerHandler` set `MarkedForExpirationUTC` on successful
 processing to `SuccessfullyProcessedUTC + ProcessedDevicesExpiredAfterDays`.
-They clear that schedule when resetting processing for a new enrollment.
+They preserve any existing schedule when resetting processing for a new enrollment;
+successful processing assigns a new schedule.
 Expiration preserves this timestamp; eligibility still uses the processing-date
 cutoff and the current timeframe, not the scheduled timestamp.

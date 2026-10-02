@@ -226,7 +226,7 @@ public class UpdateDevicesProcessingStateTests
         Assert.NotEqual(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
-        Assert.Null(update.MarkedForExpirationUTC);
+        Assert.Equal(db.Device!.MarkedForExpirationUTC, update.MarkedForExpirationUTC);
     }
 
     // ─── tests ──────────────────────────────────────────────────────────────
@@ -442,6 +442,7 @@ public class UpdateDevicesProcessingStateTests
 
         await context.RunAsync();
         AssertMarkedProcessed(context.Db);
+        DateTime? scheduledExpiration = context.Db.ProcessingUpdates.Single().MarkedForExpirationUTC;
 
         // Same physical device re-enrolls: Intune reports a new managed device record with a newer
         // enrolledDateTime. Only the timestamp difference is what marks this as a new enrollment.
@@ -460,7 +461,7 @@ public class UpdateDevicesProcessingStateTests
         // The success recorded against the previous enrollment must not survive.
         Assert.Null(update.SuccessfullyProcessedUTC);
         Assert.Null(update.ProcessingStatus);
-        Assert.Null(update.MarkedForExpirationUTC);
+        Assert.Equal(scheduledExpiration, update.MarkedForExpirationUTC);
     }
 
     [Fact]

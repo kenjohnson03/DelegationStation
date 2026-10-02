@@ -209,7 +209,6 @@ namespace UpdateDevices
                     d.LastSeenEnrollmentUTC + ", now enrolled at " + enrolledUtc + ". Restarting processing for the new enrollment.", fullMethodName);
                 d.SuccessfullyProcessedUTC = null;
                 d.ProcessingStatus = null;
-                d.MarkedForExpirationUTC = null;
             }
 
             if (d.Status == DeviceStatus.Deleting)

@@ -210,7 +210,7 @@ public class StragglerHandlerProcessingStateTests
         Assert.NotEqual(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
-        Assert.Null(update.MarkedForExpirationUTC);
+        Assert.Equal(db.Device!.MarkedForExpirationUTC, update.MarkedForExpirationUTC);
     }
 
     public enum FailingAction
@@ -371,7 +371,8 @@ public class StragglerHandlerProcessingStateTests
         var context = new TestContext(CreateTag(Group("Group A")));
         context.Db.Device!.ProcessingStatus = ProcessingStatus.Processed;
         context.Db.Device.SuccessfullyProcessedUTC = DateTime.UtcNow.AddDays(-1);
-        context.Db.Device.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(179);
+        DateTime scheduledExpiration = DateTime.UtcNow.AddDays(179);
+        context.Db.Device.MarkedForExpirationUTC = scheduledExpiration;
         context.Db.Device.LastSeenEnrollmentUTC = BaselineEnrollment.UtcDateTime;
         context.Graph.ManagedDevice.EnrolledDateTime = BaselineEnrollment.AddDays(45);
         context.Graph.GroupResult = _ => false;
@@ -380,7 +381,7 @@ public class StragglerHandlerProcessingStateTests
 
         ProcessingStateSnapshot update = Assert.Single(context.Db.ProcessingUpdates);
         Assert.Null(update.ProcessingStatus);
-        Assert.Null(update.MarkedForExpirationUTC);
+        Assert.Equal(scheduledExpiration, update.MarkedForExpirationUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
         Assert.Equal(BaselineEnrollment.AddDays(45).UtcDateTime, update.LastSeenEnrollmentUTC);
         Assert.NotNull(update.LastProcessingAttemptUTC);

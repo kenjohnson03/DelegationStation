@@ -143,7 +143,6 @@ namespace UpdateDevices
                 // Clear out past success fields for re-enrolled device
                 d.SuccessfullyProcessedUTC = null;
                 d.ProcessingStatus = null;
-                d.MarkedForExpirationUTC = null;
             }
 
             if (d.Status == DeviceStatus.Deleting)
