@@ -36,6 +36,7 @@ public class DeviceExpirationTests
             Status = DeviceStatus.Synced,
             ProcessingStatus = ProcessingStatus.Processed,
             SuccessfullyProcessedUTC = DateTime.UtcNow.AddDays(-400),
+            MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-220),
             CorporateIdentity = "Make,Model,SN",
             CorporateIdentityID = corpIdentityID
         };
@@ -108,12 +109,13 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_PersistsMarkAndExpirationInSingleUpdateAfterDeletingCorpID()
+    public async Task ExpireProcessedDevices_PreservesScheduledExpirationInSingleUpdateAfterDeletingCorpID()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
         dbService.DevicesToReturn.Add(device);
         var graph = new FakeGraphBetaService();
+        DateTime? scheduledExpiration = device.MarkedForExpirationUTC;
         graph.OnDelete = () => Assert.Equal(0, dbService.UpdateDeviceCallCount);
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
@@ -121,6 +123,7 @@ public class DeviceExpirationTests
 
         Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.NotNull(dbService.FirstUpdateMarkedForExpirationUTC);
+        Assert.Equal(scheduledExpiration, dbService.FirstUpdateMarkedForExpirationUTC);
         Assert.NotNull(dbService.FirstUpdateExpiredUTC);
     }
 
@@ -180,12 +183,29 @@ public class DeviceExpirationTests
     }
 
     [Fact]
+    public async Task ExpireProcessedDevices_LegacyDeviceWithoutScheduledExpiration_StillExpires()
+    {
+        var dbService = new FakeDbService();
+        var device = CreateProcessedDevice();
+        device.MarkedForExpirationUTC = null;
+        dbService.DevicesToReturn.Add(device);
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireProcessedDevices();
+
+        Assert.Equal(DeviceStatus.Expired, device.Status);
+        Assert.Null(device.MarkedForExpirationUTC);
+        Assert.NotNull(device.ExpiredUTC);
+    }
+
+    [Fact]
     public async Task ExpireProcessedDevices_OnRetry_PreservesOriginalMarkedForExpirationUTC()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
         DateTime originalMark = DateTime.UtcNow.AddDays(-2);
         device.MarkedForExpirationUTC = originalMark;
+        device.ExpirationFailureCount = 1;
         dbService.RetryDevicesToReturn.Add(device);
         var sut = CreateSut(dbService: dbService);
 
@@ -243,6 +263,7 @@ public class DeviceExpirationTests
         {
             var retry = CreateProcessedDevice($"retry-{i}");
             retry.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+            retry.ExpirationFailureCount = 1;
             dbService.RetryDevicesToReturn.Add(retry);
         }
         var sut = CreateSut(dbService: dbService);
@@ -265,6 +286,7 @@ public class DeviceExpirationTests
             {
                 var retry = CreateProcessedDevice($"retry-{i}");
                 retry.MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-1);
+                retry.ExpirationFailureCount = 1;
                 dbService.RetryDevicesToReturn.Add(retry);
             }
             for (int i = 0; i < 20; i++)
@@ -442,7 +464,7 @@ public class DeviceExpirationTests
             LastCutoff = processedBeforeUTC;
             LastNewBatchSize = batchSize;
             if (GetDevicesException is not null) throw GetDevicesException;
-            return Task.FromResult(DevicesToReturn.Take(Math.Max(0, batchSize)).ToList());
+            return Task.FromResult(DevicesToReturn.Where(d => d.ExpirationFailureCount == 0).Take(Math.Max(0, batchSize)).ToList());
         }
 
         public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
@@ -450,7 +472,7 @@ public class DeviceExpirationTests
             GetRetryDevicesCallCount++;
             LastRetryBatchSize = batchSize;
             if (GetRetryDevicesException is not null) throw GetRetryDevicesException;
-            return Task.FromResult(RetryDevicesToReturn.Take(Math.Max(0, batchSize)).ToList());
+            return Task.FromResult(RetryDevicesToReturn.Where(d => d.ExpirationFailureCount > 0).Take(Math.Max(0, batchSize)).ToList());
         }
 
         public Task UpdateDevice(Device device)

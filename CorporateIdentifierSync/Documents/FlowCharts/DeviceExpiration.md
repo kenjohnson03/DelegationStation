@@ -4,17 +4,14 @@ flowchart TD
     A["Timer Trigger Fires"] --> L{"Acquire singleton<br/>blob lease?"}
     L -- "No" --> END
     L -- "Yes" --> S["X = ProcessedDevicesExpiredAfterDays<br/>(temporarily a static value of 180)<br/>B = ExpireDevicesBatchSize (default 1000)<br/>R = MAX_EXPIRATION_RETRIES (default 10)"]
-    S --> DR["Get up to 20% of B retry devices where<br/>Status == Synced AND ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND MarkedForExpirationUTC is set<br/>ORDER BY SuccessfullyProcessedUTC"]
-    DR --> D["Get up to (B - retry count) new devices<br/>(same criteria, MarkedForExpirationUTC not set)<br/>ORDER BY SuccessfullyProcessedUTC"]
+    S --> DR["Get up to 20% of B retry devices where<br/>Status == Synced AND ProcessingStatus == Processed<br/>AND SuccessfullyProcessedUTC < UtcNow - X days<br/>AND ExpirationFailureCount > 0<br/>ORDER BY SuccessfullyProcessedUTC"]
+    DR --> D["Get up to (B - retry count) new devices<br/>(same criteria, ExpirationFailureCount zero or missing)<br/>ORDER BY SuccessfullyProcessedUTC"]
     D --> LOOP
 
     subgraph LOOP ["For Each Device"]
         direction TB
 
-        RT{"MarkedForExpirationUTC<br/>already set?"}
-        RT -- "Yes (retry)" --> H
-        RT -- "No" --> MK["MarkedForExpirationUTC = UtcNow<br/>(in memory; saved with outcome update)"]
-        MK --> H{"Does device have CorporateIdentityID?"}
+        H{"Does device have CorporateIdentityID?"}
 
         H -- "No" --> N["corpIDRemoved = true"]
         H -- "Yes" --> I["Delete CorpID"]
@@ -45,3 +42,9 @@ flowchart TD
     AC --> END
 
 ```
+
+`UpdateDevices` and `StragglerHandler` set `MarkedForExpirationUTC` on successful
+processing to `SuccessfullyProcessedUTC + ProcessedDevicesExpiredAfterDays`.
+They clear that schedule when resetting processing for a new enrollment.
+Expiration preserves this timestamp; eligibility still uses the processing-date
+cutoff and the current timeframe, not the scheduled timestamp.

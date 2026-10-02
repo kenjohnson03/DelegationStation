@@ -22,7 +22,8 @@ public class UpdateDevicesProcessingStateTests
         ProcessingStatus? ProcessingStatus,
         DateTime? LastProcessingAttemptUTC,
         DateTime? SuccessfullyProcessedUTC,
-        DateTime? LastSeenEnrollmentUTC);
+        DateTime? LastSeenEnrollmentUTC,
+        DateTime? MarkedForExpirationUTC);
 
     private sealed class FakeDbService : ICosmosDbService
     {
@@ -50,7 +51,7 @@ public class UpdateDevicesProcessingStateTests
             ProcessingUpdates.Add(new ProcessingStateSnapshot(
                 device.SerialNumber,
                 device.ProcessingStatus, device.LastProcessingAttemptUTC, device.SuccessfullyProcessedUTC,
-                device.LastSeenEnrollmentUTC));
+                device.LastSeenEnrollmentUTC, device.MarkedForExpirationUTC));
             return Task.FromResult(true);
         }
 
@@ -215,6 +216,8 @@ public class UpdateDevicesProcessingStateTests
         Assert.Equal(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Equal(update.LastProcessingAttemptUTC, update.SuccessfullyProcessedUTC);
+        Assert.Equal(update.SuccessfullyProcessedUTC!.Value.AddDays(
+            DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays), update.MarkedForExpirationUTC);
     }
 
     private static void AssertAttemptRecordedButNotProcessed(FakeDbService db)
@@ -223,9 +226,24 @@ public class UpdateDevicesProcessingStateTests
         Assert.NotEqual(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
+        Assert.Null(update.MarkedForExpirationUTC);
     }
 
     // ─── tests ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Run_FailedAttemptForSameEnrollment_PreservesScheduledExpiration()
+    {
+        var context = new TestContext(CreateTag(Group("Group A")));
+        await context.RunAsync();
+        DateTime? scheduledExpiration = context.Db.ProcessingUpdates.Single().MarkedForExpirationUTC;
+        context.Graph.GroupResult = _ => false;
+
+        await context.RunAsync();
+
+        Assert.NotNull(scheduledExpiration);
+        Assert.Equal(scheduledExpiration, context.Db.ProcessingUpdates.Last().MarkedForExpirationUTC);
+    }
 
     [Fact]
     public async Task Run_AllConfiguredActionsSucceed_MarksDeviceProcessed()
@@ -442,6 +460,7 @@ public class UpdateDevicesProcessingStateTests
         // The success recorded against the previous enrollment must not survive.
         Assert.Null(update.SuccessfullyProcessedUTC);
         Assert.Null(update.ProcessingStatus);
+        Assert.Null(update.MarkedForExpirationUTC);
     }
 
     [Fact]

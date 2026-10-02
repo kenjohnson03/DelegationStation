@@ -331,6 +331,7 @@ namespace UpdateDevices.Services
                 PatchOperation.Set("/LastProcessingAttemptUTC", device.LastProcessingAttemptUTC),
                 PatchOperation.Set("/SuccessfullyProcessedUTC", device.SuccessfullyProcessedUTC),
                 PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus),
+                PatchOperation.Set("/MarkedForExpirationUTC", device.MarkedForExpirationUTC),
                 PatchOperation.Set("/LastSeenEnrollmentUTC", device.LastSeenEnrollmentUTC)
              };
 

@@ -209,6 +209,7 @@ namespace UpdateDevices
                     d.LastSeenEnrollmentUTC + ", now enrolled at " + enrolledUtc + ". Restarting processing for the new enrollment.", fullMethodName);
                 d.SuccessfullyProcessedUTC = null;
                 d.ProcessingStatus = null;
+                d.MarkedForExpirationUTC = null;
             }
 
             if (d.Status == DeviceStatus.Deleting)
@@ -441,6 +442,9 @@ namespace UpdateDevices
             {
                 device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
+                // TODO: Read ProcessedDevicesExpiredAfterDays from SystemSettings in the DB.
+                device.MarkedForExpirationUTC = processedAt.AddDays(
+                    DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays);
                 _logger.DSLogInformation("Successfully processed device " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
             }
             else

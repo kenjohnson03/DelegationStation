@@ -587,19 +587,19 @@ namespace CorporateIdentifierSync.Services
 
         public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize)
         {
-            // New candidates: not yet marked for expiration.
+            // Missing counters on older records are equivalent to zero failures.
             return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
-                "(NOT IS_DEFINED(c.MarkedForExpirationUTC) OR IS_NULL(c.MarkedForExpirationUTC))");
+                "(NOT IS_DEFINED(c.ExpirationFailureCount) OR IS_NULL(c.ExpirationFailureCount) OR c.ExpirationFailureCount = 0)");
         }
 
         public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
         {
-            // Retries: CorpID removal failed previously; device remains Synced with MarkedForExpirationUTC set.
+            // Retries: CorpID removal failed previously; device remains Synced.
             return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
-                "IS_DEFINED(c.MarkedForExpirationUTC) AND NOT IS_NULL(c.MarkedForExpirationUTC)");
+                "c.ExpirationFailureCount > 0");
         }
 
-        private async Task<List<Device>> QueryProcessedDevicesForExpiration(DateTime processedBeforeUTC, int batchSize, string markedFilter)
+        private async Task<List<Device>> QueryProcessedDevicesForExpiration(DateTime processedBeforeUTC, int batchSize, string failureFilter)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
@@ -617,7 +617,7 @@ namespace CorporateIdentifierSync.Services
                 "AND c.ProcessingStatus = @processed " +
                 "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
                 "AND c.SuccessfullyProcessedUTC < @cutoff " +
-                "AND " + markedFilter + " " +
+                "AND " + failureFilter + " " +
                 "ORDER BY c.SuccessfullyProcessedUTC ASC " +
                 "OFFSET 0 LIMIT @batchSize");
             query.WithParameter("@synced", DeviceStatus.Synced);
@@ -633,7 +633,7 @@ namespace CorporateIdentifierSync.Services
                 devices.AddRange(response.ToList());
             }
 
-            _logger.DSLogInformation($"Found {devices.Count} processed devices (limit {batchSize}) last successfully processed before {processedBeforeUTC:o} matching {markedFilter}.", fullMethodName);
+            _logger.DSLogInformation($"Found {devices.Count} processed devices (limit {batchSize}) last successfully processed before {processedBeforeUTC:o} matching {failureFilter}.", fullMethodName);
             return devices;
         }
     }

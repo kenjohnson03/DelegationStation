@@ -39,7 +39,8 @@ namespace CorporateIdentifierSync
         internal const int RetryBatchPercent = 20;
 
         // TODO: Temporary static value until SystemSettings is read from the DB.
-        internal const int TempProcessedDevicesExpiredAfterDays = 180;
+        internal const int TempProcessedDevicesExpiredAfterDays =
+            DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays;
 
         public DeviceExpiration(
             ILogger<DeviceExpiration> logger,
@@ -190,15 +191,7 @@ namespace CorporateIdentifierSync
                 string deviceDesc = $"{device.Make} {device.Model} {device.SerialNumber}";
                 _logger.DSLogInformation($"-----Expiring device {deviceDesc}.-----", fullMethodName);
 
-                //
-                // Mark device for expiration (retries are already marked; keep original timestamp).
-                // Persisted with the outcome update below to avoid an extra DB write.
-                //
-                if (device.MarkedForExpirationUTC is null)
-                {
-                    device.MarkedForExpirationUTC = DateTime.UtcNow;
-                }
-                else
+                if (device.ExpirationFailureCount > 0)
                 {
                     _logger.DSLogInformation($"Retrying expiration for device {deviceDesc} (previous failures: {device.ExpirationFailureCount}).", fullMethodName);
                 }
@@ -237,7 +230,7 @@ namespace CorporateIdentifierSync
                 }
 
                 //
-                // If removal failed, leave the device Synced (with MarkedForExpirationUTC set) so it is
+                // If removal failed, leave the device Synced with an incremented failure count so it is
                 // retried, until it exceeds MAX_EXPIRATION_RETRIES and is moved to ExpirationFailed.
                 //
                 if (!corpIDRemoved)
