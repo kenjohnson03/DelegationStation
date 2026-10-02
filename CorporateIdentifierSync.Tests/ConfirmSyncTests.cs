@@ -1196,7 +1196,7 @@ public class ConfirmSyncTests
     /// <summary>
     /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
     /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
-    /// is in an unexpected state (<see cref="DeviceStatus.Synced"/>), no rollback is performed
+    /// is in an unexpected state (<see cref="DeviceStatus.Added"/>), no rollback is performed
     /// and a warning is logged.
     /// </summary>
     [Fact]
@@ -1212,7 +1212,7 @@ public class ConfirmSyncTests
             OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "ue-corp-id", ImportedDeviceIdentifier = "ident" }),
         };
         db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
-        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Synced });
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Added });
         var sut = CreateSut(loggerFactory: logFactory, db: db, graph: graph);
 
         try
@@ -1316,6 +1316,268 @@ public class ConfirmSyncTests
 
             // Assert – no rollback since add failed (nothing to roll back)
             Assert.Null(graph.LastDeletedId);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Run – PreconditionFailed with Status unchanged (e.g. UpdateDevices patched processing fields)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static Device MakeFreshCopy(Device original, out DateTime processedAt)
+    {
+        processedAt = DateTime.UtcNow.AddMinutes(-1);
+        var fresh = MakeDevice(corpId: original.CorporateIdentityID, status: DeviceStatus.Synced);
+        fresh.Id = original.Id;
+        fresh.PartitionKey = original.PartitionKey;
+        fresh.ETag = "fresh-etag";
+        fresh.LastProcessingAttemptUTC = processedAt;
+        fresh.SuccessfullyProcessedUTC = processedAt;
+        fresh.ProcessingStatus = ProcessingStatus.Processed;
+        return fresh;
+    }
+
+    /// <summary>
+    /// Re-add succeeds, first update gets PreconditionFailed, fresh device is still Synced.
+    /// Expects: Corp ID fields reapplied to the fresh copy and saved; other writer's fields and
+    /// ETag preserved; no rollback.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAdded_PreconditionFailed_StatusUnchanged_RetrySucceeds_SavesNewCorpId()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        var graph = new StubGraphBetaService
+        {
+            OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "readd-id", ImportedDeviceIdentifier = "readd-ident" }),
+        };
+        var fresh = MakeFreshCopy(device, out DateTime processedAt);
+        db.OnUpdateDevice = d => ReferenceEquals(d, fresh)
+            ? Task.CompletedTask
+            : throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(fresh);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Equal(2, db.UpdatedDevices.Count);
+            Device saved = db.UpdatedDevices[1];
+            Assert.Same(fresh, saved);
+            Assert.Equal(DeviceStatus.Synced, saved.Status);
+            Assert.Equal("readd-id", saved.CorporateIdentityID);
+            Assert.Equal("readd-ident", saved.CorporateIdentity);
+            Assert.Equal("fresh-etag", saved.ETag);
+            Assert.Equal(ProcessingStatus.Processed, saved.ProcessingStatus);
+            Assert.Equal(processedAt, saved.LastProcessingAttemptUTC);
+            Assert.Equal(processedAt, saved.SuccessfullyProcessedUTC);
+            Assert.Null(graph.LastDeletedId);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
+    /// Re-add succeeds, fresh device is still Synced, but the retry also fails.
+    /// Expects: no rollback (Corp ID left in Graph for downstream reconciliation) and a warning logged.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAdded_PreconditionFailed_StatusUnchanged_RetryFails_LeavesCorpIdInGraph()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var logFactory = new RecordingLoggerFactory();
+        var device = MakeDevice(corpId: "");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        var graph = new StubGraphBetaService
+        {
+            OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "readd-id", ImportedDeviceIdentifier = "readd-ident" }),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(MakeFreshCopy(device, out _));
+        var sut = CreateSut(loggerFactory: logFactory, db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Equal(2, db.UpdatedDevices.Count);
+            Assert.Null(graph.LastDeletedId);
+            var warnings = logFactory.Logger.Logs
+                .Where(l => l.Level == LogLevel.Warning)
+                .Select(l => l.Message)
+                .ToList();
+            Assert.Contains(warnings, m => m.Contains("Leaving re-added Corp ID"));
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
+    /// Corp ID missing and re-add fails; first update gets PreconditionFailed but fresh device is still Synced.
+    /// Expects: device reset to Added (Corp ID cleared, failure count incremented) is saved onto the fresh copy,
+    /// and the slot is released this run.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_PreconditionFailed_StatusUnchanged_RetrySucceeds_ReleasesSlot()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "missing-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        var fresh = MakeFreshCopy(device, out DateTime processedAt);
+        db.OnUpdateDevice = d => ReferenceEquals(d, fresh)
+            ? Task.CompletedTask
+            : throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(fresh);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Equal(2, db.UpdatedDevices.Count);
+            Assert.Same(fresh, db.UpdatedDevices[1]);
+            Assert.Equal(DeviceStatus.Added, fresh.Status);
+            Assert.Equal(string.Empty, fresh.CorporateIdentityID);
+            Assert.Equal(1, fresh.CorpIDFailureCount);
+            Assert.Equal(ProcessingStatus.Processed, fresh.ProcessingStatus);
+            Assert.Equal(processedAt, fresh.SuccessfullyProcessedUTC);
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(4, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
+    /// Corp ID missing and re-add fails; fresh device is still Synced but the retry also fails.
+    /// Expects: device left as found and no slot released.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_PreconditionFailed_StatusUnchanged_RetryFails_NoCounterChange()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "missing-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(MakeFreshCopy(device, out _));
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Equal(2, db.UpdatedDevices.Count);
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
+    /// Corp ID missing and re-add fails; first update gets PreconditionFailed and the re-read of the device throws.
+    /// Expects: no retry, device left as found, and no slot released.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_PreconditionFailed_GetDeviceThrows_NoRetryAndNoCounterChange()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "missing-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => throw new InvalidOperationException("fetch failed");
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Single(db.UpdatedDevices);
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
+    /// Corp ID missing and re-add fails; first update gets PreconditionFailed and the re-read returns no device (deleted).
+    /// Expects: no retry and no slot released.
+    /// </summary>
+    [Fact]
+    public async Task Run_CorpIDReAddFailed_PreconditionFailed_FreshDeviceNull_NoRetryAndNoCounterChange()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "missing-id");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        db.Counter = new CorpIDCounter(5);
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(null);
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Single(db.UpdatedDevices);
+            Assert.Null(graph.LastDeletedId);
+            Assert.Equal(5, db.Counter.CorpIDCount);
         }
         finally
         {
@@ -1653,6 +1915,7 @@ public class ConfirmSyncTests
             OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
         };
         db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(MakeDevice(status: DeviceStatus.Deleting));
         var sut = CreateSut(db: db, graph: graph);
 
         try
@@ -1695,6 +1958,7 @@ public class ConfirmSyncTests
             OnAdd = (_, _) => throw new InvalidOperationException("add failed"),
         };
         db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(MakeDevice(status: DeviceStatus.NonSyncing));
         var sut = CreateSut(db: db, graph: graph);
 
         try

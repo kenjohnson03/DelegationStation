@@ -153,6 +153,9 @@ namespace CorporateIdentifierSync
             {
                 _logger.DSLogInformation($"-----Confirming corporate identifier for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
+                // Captured before we modify the device so a PreconditionFailed can tell whether Status changed underneath us
+                DeviceStatus? originalStatus = device.Status;
+
                 // Boolean used to keep track of scenarios
                 bool corpIDFound = false;
                 bool corpIDReAdded = false;
@@ -276,7 +279,35 @@ namespace CorporateIdentifierSync
                     }
                     else if (corpIDReAddFailed)
                     {
-                        countCorpIDsReAddFailed--;
+                        _logger.DSLogWarning(
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently after failed Corp ID re-add. " +
+                            $"Reading fresh state to determine whether to retry.",
+                            fullMethodName);
+
+                        Device? freshDevice = null;
+                        try
+                        {
+                            freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                        }
+                        catch (Exception readEx)
+                        {
+                            _logger.DSLogException(
+                                $"Could not read fresh device {device.Make} {device.Model} {device.SerialNumber} after PreconditionFailed. " +
+                                $"Device left as found; next ConfirmSync run will retry.",
+                                readEx, fullMethodName);
+                        }
+
+                        // Only keep the slot release if the device now reflects our reset to Added
+                        bool retrySucceeded = false;
+                        if (freshDevice != null && freshDevice.Status == originalStatus)
+                        {
+                            retrySucceeded = await TryRetryUpdateAsync(device, freshDevice);
+                        }
+
+                        if (!retrySucceeded)
+                        {
+                            countCorpIDsReAddFailed--;
+                        }
                     }
                     else if (corpIDReAdded)
                     {
@@ -310,6 +341,19 @@ namespace CorporateIdentifierSync
                                 fullMethodName);
                             await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
                             countCorpIDsReAdded--;
+                        }
+                        else if (freshDevice.Status == originalStatus)
+                        {
+                            // Status is unchanged, so the conflict came from a writer that doesn't own sync state
+                            // (e.g. UpdateDevices patching processing fields). Save our re-added Corp ID onto the fresh copy.
+                            bool retrySucceeded = await TryRetryUpdateAsync(device, freshDevice);
+                            if (!retrySucceeded)
+                            {
+                                _logger.DSLogWarning(
+                                    $"Leaving re-added Corp ID {device.CorporateIdentityID} for device {device.Make} {device.Model} {device.SerialNumber} " +
+                                    $"in Graph for downstream reconciliation.",
+                                    fullMethodName);
+                            }
                         }
                         else
                         {
@@ -374,6 +418,37 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogException($"Failed to release {countCorpIDsReAddFailed} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Reapplies our Corp ID changes to a freshly read device (keeping its ETag and other writers' fields)
+        /// and retries the update once. Returns true if the retry succeeded.
+        /// </summary>
+        private async Task<bool> TryRetryUpdateAsync(Device device, Device freshDevice)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
+            _logger.DSLogInformation(
+                $"Device {device.Make} {device.Model} {device.SerialNumber} status unchanged ('{freshDevice.Status}') after PreconditionFailed. " +
+                $"Reapplying Corporate Identifier changes and retrying update.",
+                fullMethodName);
+
+            CorpIDUtilities.ApplyCorpIdFields(device, freshDevice);
+            try
+            {
+                await _dbService.UpdateDevice(freshDevice);
+                _logger.DSLogInformation($"Retry update succeeded for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                return true;
+            }
+            catch (Exception retryEx)
+            {
+                _logger.DSLogException(
+                    $"Retry update failed for device {device.Make} {device.Model} {device.SerialNumber}.",
+                    retryEx, fullMethodName);
+                return false;
             }
         }
 

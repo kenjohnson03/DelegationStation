@@ -5,10 +5,8 @@ using DelegationStationShared.Extensions;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Newtonsoft.Json;
+using System.Globalization;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
 
@@ -314,6 +312,57 @@ namespace UpdateDevices.Services
             }
 
             return results;
+        }
+
+        // Patches only processing fields, without overwriting a newer enrollment or other writers' fields.
+        // Returns false when the device was deleted or its enrollment is newer than this attempt.
+        public async Task<bool> UpdateDeviceProcessingState(Device device)
+        {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = GetType().Name;
+            string fullMethodName = className + "." + methodName;
+            if (device.LastSeenEnrollmentUTC == null)
+            {
+                throw new ArgumentException("A processing attempt must include the enrollment time.", nameof(device));
+            }
+
+            var operations = new List<PatchOperation>
+            {
+                PatchOperation.Set("/LastProcessingAttemptUTC", device.LastProcessingAttemptUTC),
+                PatchOperation.Set("/SuccessfullyProcessedUTC", device.SuccessfullyProcessedUTC),
+                PatchOperation.Set("/ProcessingStatus", device.ProcessingStatus),
+                PatchOperation.Set("/LastSeenEnrollmentUTC", device.LastSeenEnrollmentUTC)
+             };
+
+            var options = new PatchItemRequestOptions
+            {
+                FilterPredicate = ProcessingStateFilterPredicate(device.LastSeenEnrollmentUTC.Value)
+            };
+
+            try
+            {
+                await _container.PatchItemAsync<Device>(
+                    device.Id.ToString(), new PartitionKey(device.PartitionKey), operations, options);
+                _logger.DSLogInformation($"Updated processing state for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                return true;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was deleted before its processing state could be updated.", fullMethodName);
+                return false;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+            {
+                _logger.DSLogWarning($"Processing state for device {device.Make} {device.Model} {device.SerialNumber} was not updated because its stored enrollment is newer or invalid.", fullMethodName);
+                return false;
+            }
+        }
+
+        internal static string ProcessingStateFilterPredicate(DateTime enrolledUtc)
+        {
+            string incoming = enrolledUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            return $"FROM c WHERE NOT IS_DEFINED(c.LastSeenEnrollmentUTC) OR IS_NULL(c.LastSeenEnrollmentUTC) " +
+                $"OR DATETIMETOTICKS(c.LastSeenEnrollmentUTC) <= DATETIMETOTICKS({JsonConvert.ToString(incoming)})";
         }
 
     }
