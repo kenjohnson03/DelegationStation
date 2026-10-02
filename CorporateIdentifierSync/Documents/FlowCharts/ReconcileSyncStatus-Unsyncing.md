@@ -29,7 +29,7 @@ subgraph LOOP["For each Synced device in disabled tags"]
     P -- Exception --> PFAIL["Defer to next run.<br/>ConfirmSync will reconcile."]
     PFAIL --> END
     P --> RR{"Fresh device status?"}
-    RR -- "null, Deleting,<br/>or NonSyncing" --> RD["Already in target state.<br/>If deletedCorpID:<br/>corpIDsRemoved++"]
+    RR -- "null, Deleting,<br/>NonSyncing, or Expired" --> RD["Already in target state.<br/>If deletedCorpID:<br/>corpIDsRemoved++"]
     RD --> END
     RR -- "Synced, Added,<br/>or Failed" --> TAG["Re-check if tag<br/>still disabled"]
     TAG -- "Tag check failed" --> TAGFAIL["Defer to next run."]

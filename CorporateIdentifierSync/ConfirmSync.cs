@@ -331,9 +331,11 @@ namespace CorporateIdentifierSync
                             continue;
                         }
 
+                        // Expired: DeviceExpiration removed the Corp ID and released its slot concurrently.
                         if (freshDevice is null ||
                             freshDevice.Status == DeviceStatus.Deleting ||
-                            freshDevice.Status == DeviceStatus.NonSyncing)
+                            freshDevice.Status == DeviceStatus.NonSyncing ||
+                            freshDevice.Status == DeviceStatus.Expired)
                         {
                             _logger.DSLogWarning(
                                 $"Device {device.Make} {device.Model} {device.SerialNumber} is {(freshDevice?.Status.ToString() ?? "deleted")}. " +

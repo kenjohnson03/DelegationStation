@@ -140,12 +140,13 @@ public class RemoveSyncedDevicesInDisabledTagsTests
 
     /// <summary>
     /// CorpID deleted from Graph; Cosmos 412 on update; fresh device is already in an end state
-    /// (null, Deleting, or NonSyncing). Counter is still decremented because we performed the Graph delete.
+    /// (null, Deleting, NonSyncing, or Expired). Counter is still decremented because we performed the Graph delete.
     /// </summary>
     [Theory]
     [InlineData(null)]
     [InlineData(DeviceStatus.Deleting)]
     [InlineData(DeviceStatus.NonSyncing)]
+    [InlineData(DeviceStatus.Expired)]
     public async Task Row3_CorpIDRemoved_DB412_FreshDeviceInEndState_DecrementsCounterLeavesDevice(DeviceStatus? freshStatus)
     {
         // Arrange
@@ -461,6 +462,7 @@ public class RemoveSyncedDevicesInDisabledTagsTests
     [InlineData(null)]
     [InlineData(DeviceStatus.Deleting)]
     [InlineData(DeviceStatus.NonSyncing)]
+    [InlineData(DeviceStatus.Expired)]
     public async Task Row11_CorpIDNotFound_DB412_FreshDeviceEndState_NoChange(DeviceStatus? freshStatus)
     {
         // Arrange

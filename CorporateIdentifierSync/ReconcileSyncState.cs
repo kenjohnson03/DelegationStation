@@ -237,9 +237,11 @@ namespace CorporateIdentifierSync
                         }
                         else if (freshDevice is null ||
                                  freshDevice.Status == DeviceStatus.Deleting ||
-                                 freshDevice.Status == DeviceStatus.NonSyncing)
+                                 freshDevice.Status == DeviceStatus.NonSyncing ||
+                                 freshDevice.Status == DeviceStatus.Expired)
                         {
                             // Already in (or heading toward) the intended end state — no row update needed.
+                            // Expired: DeviceExpiration already cleared the Corp ID; don't overwrite it to NonSyncing.
                             // But WE removed the Corp ID from Graph this run, so WE must release its capacity slot;
                             // no other writer is tracking that.
                             _logger.DSLogInformation(

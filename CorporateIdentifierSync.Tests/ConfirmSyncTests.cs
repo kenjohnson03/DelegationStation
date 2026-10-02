@@ -1196,6 +1196,39 @@ public class ConfirmSyncTests
     }
 
     /// <summary>
+    /// Verifies that when DeviceExpiration expires the device concurrently with a re-add,
+    /// the re-added Corp ID is rolled back so it isn't orphaned in Graph.
+    /// </summary>
+    [Fact]
+    public async Task Run_UpdateDevice_ThrowsPreconditionFailed_CorpIDReAdded_FreshDeviceExpired_RollsBack()
+    {
+        // Arrange
+        SetSyncEnabled();
+        var device = MakeDevice(corpId: "");
+        var db = MakeSyncDb(candidates: new List<Device> { device });
+        var graph = new StubGraphBetaService
+        {
+            OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity { Id = "exp-corp-id", ImportedDeviceIdentifier = "ident" }),
+        };
+        db.OnUpdateDevice = _ => throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+        db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Expired });
+        var sut = CreateSut(db: db, graph: graph);
+
+        try
+        {
+            // Act
+            await sut.Run(new TimerInfo());
+
+            // Assert
+            Assert.Equal("exp-corp-id", graph.LastDeletedId);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    /// <summary>
     /// Verifies that when <see cref="ICosmosDbService.UpdateDevice"/> throws
     /// <see cref="HttpStatusCode.PreconditionFailed"/> after a re-add and the re-fetched device
     /// is in an unexpected state (<see cref="DeviceStatus.Added"/>), no rollback is performed
