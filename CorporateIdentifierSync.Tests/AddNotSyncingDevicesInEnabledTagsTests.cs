@@ -516,6 +516,118 @@ public class AddNotSyncingDevicesInEnabledTagsTests
     }
     #endregion
 
+    #region Row13_CorpIDAdded_DB412_FreshStatusUnchanged_Retry
+    // ====================================================================
+    // Row 13: CorpID Added=Yes, DB Updated=No (412), Fresh=NonSyncing (status unchanged,
+    //         e.g. UpdateDevices patched processing fields), retry update
+    // ====================================================================
+
+    private static Device MakeFreshNonSyncingCopy(Device device, DateTime processedAt) => new()
+    {
+        Id = device.Id, Make = device.Make, Model = device.Model,
+        SerialNumber = device.SerialNumber, PartitionKey = device.PartitionKey,
+        Tags = [TagId], Status = DeviceStatus.NonSyncing, OS = device.OS,
+        ETag = "fresh-etag",
+        LastProcessingAttemptUTC = processedAt,
+        SuccessfullyProcessedUTC = processedAt,
+        ProcessingStatus = ProcessingStatus.Processed,
+    };
+
+    /// <summary>
+    /// CorpID added to Graph; Cosmos 412; fresh device still NonSyncing; retry update succeeds.
+    /// Expected: Corp ID fields saved onto the fresh copy (keeping its ETag and processing fields),
+    /// no rollback, counter incremented.
+    /// </summary>
+    [Fact]
+    public async Task Row13_CorpIDAdded_DB412_FreshStatusUnchanged_RetrySucceeds_IncrementsCounter()
+    {
+        // Arrange
+        var device = MakeDevice();
+        DateTime processedAt = DateTime.UtcNow.AddMinutes(-1);
+        var freshDevice = MakeFreshNonSyncingCopy(device, processedAt);
+
+        var db = new Section2DbService(device)
+        {
+            UpdateDeviceException = CosmosPreconditionFailed(),
+            FreshDevice = freshDevice,
+            RetryOnFreshDeviceSucceeds = true,
+        };
+        var graph = new Section2GraphService();
+
+        // Act
+        await RunSection2(db, graph);
+
+        // Assert
+        Assert.Equal(InitialCorpIDCount + 1, db.Counter.CorpIDCount);
+        Assert.Equal(0, graph.DeleteCorporateIdentifierCallCount);
+        Assert.Equal(2, db.UpdateDeviceCallCount);
+        Assert.Same(freshDevice, db.LastUpdatedDevice);
+        Assert.Equal(DeviceStatus.Synced, freshDevice.Status);
+        Assert.Equal("corp-id-new-001", freshDevice.CorporateIdentityID);
+        Assert.False(string.IsNullOrEmpty(freshDevice.CorporateIdentity));
+        Assert.Equal(0, freshDevice.CorpIDFailureCount);
+        Assert.Equal("fresh-etag", freshDevice.ETag);
+        Assert.Equal(ProcessingStatus.Processed, freshDevice.ProcessingStatus);
+        Assert.Equal(processedAt, freshDevice.LastProcessingAttemptUTC);
+        Assert.Equal(processedAt, freshDevice.SuccessfullyProcessedUTC);
+    }
+
+    /// <summary>
+    /// CorpID added to Graph; Cosmos 412; fresh device still NonSyncing; retry also fails; rollback succeeds.
+    /// Expected: counter unchanged, Corp ID rolled back.
+    /// </summary>
+    [Fact]
+    public async Task Row13_CorpIDAdded_DB412_FreshStatusUnchanged_RetryFails_RollbackSuccess_NoCounterChange()
+    {
+        // Arrange
+        var device = MakeDevice();
+        var db = new Section2DbService(device)
+        {
+            UpdateDeviceException = CosmosPreconditionFailed(),
+            FreshDevice = MakeFreshNonSyncingCopy(device, DateTime.UtcNow),
+        };
+        var graph = new Section2GraphService
+        {
+            RollbackDeleteResult = DeleteCorpIdResult.Success,
+        };
+
+        // Act
+        await RunSection2(db, graph);
+
+        // Assert
+        Assert.Equal(InitialCorpIDCount, db.Counter.CorpIDCount);
+        Assert.Equal(2, db.UpdateDeviceCallCount);
+        Assert.Equal(1, graph.DeleteCorporateIdentifierCallCount);
+    }
+
+    /// <summary>
+    /// CorpID added to Graph; Cosmos 412; fresh device still NonSyncing; retry fails; rollback FAILS.
+    /// Expected: counter incremented (Corp ID still in Graph).
+    /// </summary>
+    [Fact]
+    public async Task Row13_CorpIDAdded_DB412_FreshStatusUnchanged_RetryFails_RollbackFailed_CounterIncremented()
+    {
+        // Arrange
+        var device = MakeDevice();
+        var db = new Section2DbService(device)
+        {
+            UpdateDeviceException = CosmosPreconditionFailed(),
+            FreshDevice = MakeFreshNonSyncingCopy(device, DateTime.UtcNow),
+        };
+        var graph = new Section2GraphService
+        {
+            RollbackDeleteResult = DeleteCorpIdResult.Error,
+        };
+
+        // Act
+        await RunSection2(db, graph);
+
+        // Assert
+        Assert.Equal(InitialCorpIDCount + 1, db.Counter.CorpIDCount);
+        Assert.Equal(1, graph.DeleteCorporateIdentifierCallCount);
+    }
+    #endregion
+
     // ====================================================================
     // Inner fakes
     // ====================================================================
@@ -603,6 +715,9 @@ public class AddNotSyncingDevicesInEnabledTagsTests
         /// <summary>Exception thrown by UpdateDevice. If null, succeeds.</summary>
         public Exception? UpdateDeviceException { get; set; }
 
+        /// <summary>When true, UpdateDevice succeeds if called with <see cref="FreshDevice"/> (simulates a successful retry after 412).</summary>
+        public bool RetryOnFreshDeviceSucceeds { get; set; }
+
         /// <summary>Device returned by GetDevice (re-read after 412). Null simulates deleted device.</summary>
         public Device? FreshDevice { get; set; }
 
@@ -637,6 +752,7 @@ public class AddNotSyncingDevicesInEnabledTagsTests
         {
             UpdateDeviceCallCount++;
             LastUpdatedDevice = device;
+            if (RetryOnFreshDeviceSucceeds && ReferenceEquals(device, FreshDevice)) return Task.CompletedTask;
             if (UpdateDeviceException is not null) throw UpdateDeviceException;
             return Task.CompletedTask;
         }

@@ -8,11 +8,7 @@ namespace DelegationStationShared.Enums
         Deleting,
         NonSyncing,
         Failed,
-        Processed,
         Expired,
-        ExpirationFailed,
-        Reprocessing,
-        ReprocessingFailed
-
+        ExpirationFailed
     }
 }

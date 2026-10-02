@@ -1,9 +1,6 @@
 ﻿using ManagedDevice = Microsoft.Graph.Models.ManagedDevice;
 using UpdateDevices.Models;
-using System.Threading.Tasks;
 using DelegationStationShared.Models;
-using System.Collections.Generic;
-using System;
 
 namespace UpdateDevices.Interfaces
 {
@@ -25,7 +22,8 @@ namespace UpdateDevices.Interfaces
 
         Task<List<Straggler>> GetStragglersProcessedByUD(int minCount);
 
-
+        // Returns false if the device is gone or a newer enrollment has already been recorded.
+        Task<bool> UpdateDeviceProcessingState(Device device);
 
     }
 }

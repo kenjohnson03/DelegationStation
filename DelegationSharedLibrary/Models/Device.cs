@@ -56,6 +56,8 @@ namespace DelegationStationShared.Models
         public DateTime? LastProcessingAttemptUTC { get; set; }
         public ProcessingStatus? ProcessingStatus { get; set; }
 
+        public DateTime? LastSeenEnrollmentUTC { get; set; }
+
         // Expiration related
         public DateTime? MarkedForExpirationUTC { get; set; }
         public DateTime? ExpiredUTC { get; set; }
@@ -100,6 +102,7 @@ namespace DelegationStationShared.Models
 
             SuccessfullyProcessedUTC = null;
             LastProcessingAttemptUTC = null;
+            LastSeenEnrollmentUTC = null;
             ProcessingStatus = null;
             MarkedForExpirationUTC = null;
             ExpiredUTC = null;
