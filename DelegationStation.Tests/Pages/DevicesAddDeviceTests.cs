@@ -4,9 +4,7 @@ using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.QualityTools.Testing.Fakes;
-using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;using System.Security.Claims;
 
 namespace DelegationStation.Tests.Pages
 {
@@ -58,21 +56,21 @@ namespace DelegationStation.Tests.Pages
                     defaultAdminGroupId)
             );
 
-            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
             {
-                GetDeviceTagsAsyncIEnumerableOfStringString =
+                GetDeviceTagsAsyncHandler =
                     (groupIds, name) => Task.FromResult(deviceTags),
-                GetDeviceTagCountAsyncIEnumerableOfStringString =
+                GetDeviceTagCountAsyncHandler =
                     (groupIds, name) => Task.FromResult(deviceTags.Count),
-                GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32String =
+                GetDeviceTagsByPageAsyncHandler =
                     (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags)
             };
 
-            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+            var fakeDeviceDBService = new FakeDeviceDBService()
             {
-                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
+                GetDevicesAsyncHandler =
                     (groupIds, searchDevice, pageSize, currentPage) => Task.FromResult(new List<Device>()),
-                AddOrUpdateDeviceAsyncDevice = device => addOrUpdateStub(device)
+                AddOrUpdateDeviceAsyncHandler = device => addOrUpdateStub(device)
 
             };
 
@@ -124,26 +122,24 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void AddDevice_SetsExpirationScheduleFromCreationTime()
         {
-            using (ShimsContext.Create())
+            Device? submittedDevice = null;
+            var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+            var cut = SetupComponent(new List<DeviceTag> { tag }, device =>
             {
-                Device? submittedDevice = null;
-                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
-                var cut = SetupComponent(new List<DeviceTag> { tag }, device =>
-                {
-                    submittedDevice = device;
-                    return Task.FromResult(device);
-                });
+                submittedDevice = device;
+                return Task.FromResult(device);
+            });
 
-                FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN12345", "Windows");
+            FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN12345", "Windows");
 
-                cut.WaitForAssertion(() =>
-                {
-                    Assert.IsNotNull(submittedDevice);
-                    Assert.AreEqual(submittedDevice.ModifiedUTC.AddDays(
-                        DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays),
-                        submittedDevice.MarkedForExpirationUTC);
-                });
-            }
+            cut.WaitForAssertion(() =>
+            {
+                Assert.IsNotNull(submittedDevice);
+                Assert.AreEqual(submittedDevice.ModifiedUTC.AddDays(
+                    DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays),
+                    submittedDevice.MarkedForExpirationUTC);
+            });
+
         }
 
         [TestMethod]
@@ -152,26 +148,24 @@ namespace DelegationStation.Tests.Pages
         [DataRow("Android")]
         public void AddDevice_NonWindowsDevice_DuplicateSerial_ShowsErrorMessage(string osValue)
         {
-            using (ShimsContext.Create())
-            {
-                // Arrange
-                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
-                var cut = SetupComponent(
-                    new List<DeviceTag> { tag },
-                    device => Task.FromException<Device>(new Exception(DuplicateSerialErrorMessage))
-                );
+            // Arrange
+            var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+            var cut = SetupComponent(
+                new List<DeviceTag> { tag },
+                device => Task.FromException<Device>(new Exception(DuplicateSerialErrorMessage))
+            );
 
-                // Act
-                FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN12345", osValue);
+            // Act
+            FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN12345", osValue);
 
-                // Assert: the duplicate serial error from the DB service is surfaced to the user
-                cut.WaitForAssertion(() =>
-                    Assert.IsTrue(
-                        cut.Markup.Contains(DuplicateSerialErrorMessage),
-                        $"Expected duplicate serial error for {osValue} device. Markup: {cut.Markup}"
-                    )
-                );
-            }
+            // Assert: the duplicate serial error from the DB service is surfaced to the user
+            cut.WaitForAssertion(() =>
+                Assert.IsTrue(
+                    cut.Markup.Contains(DuplicateSerialErrorMessage),
+                    $"Expected duplicate serial error for {osValue} device. Markup: {cut.Markup}"
+                )
+            );
+
         }
 
         [TestMethod]
@@ -180,85 +174,79 @@ namespace DelegationStation.Tests.Pages
         [DataRow("Android")]
         public void AddDevice_NonWindowsDevice_UniqueSerial_ShowsSuccessMessage(string osValue)
         {
-            using (ShimsContext.Create())
-            {
-                // Arrange
-                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
-                var addedDevice = new Device { Make = "TestMake", Model = "TestModel", SerialNumber = "SN-UNIQUE" };
-                var cut = SetupComponent(
-                    new List<DeviceTag> { tag },
-                    device => Task.FromResult(addedDevice)
-                );
+            // Arrange
+            var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+            var addedDevice = new Device { Make = "TestMake", Model = "TestModel", SerialNumber = "SN-UNIQUE" };
+            var cut = SetupComponent(
+                new List<DeviceTag> { tag },
+                device => Task.FromResult(addedDevice)
+            );
 
-                // Act
-                FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN-UNIQUE", osValue);
+            // Act
+            FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN-UNIQUE", osValue);
 
-                // Assert: a device with a unique serial number is added successfully
-                cut.WaitForAssertion(() =>
-                    Assert.IsTrue(
-                        cut.Markup.Contains("Device added successfully"),
-                        $"Expected success message for {osValue} device with unique serial. Markup: {cut.Markup}"
-                    )
-                );
-            }
+            // Assert: a device with a unique serial number is added successfully
+            cut.WaitForAssertion(() =>
+                Assert.IsTrue(
+                    cut.Markup.Contains("Device added successfully"),
+                    $"Expected success message for {osValue} device with unique serial. Markup: {cut.Markup}"
+                )
+            );
+
         }
 
         [TestMethod]
         public void AddDevice_WindowsDevice_NotBlockedByNonWindowsSerialCheck_ShowsSuccessMessage()
         {
-            using (ShimsContext.Create())
-            {
-                // Arrange: Windows devices are exempt from the non-Windows serial uniqueness check.
-                // The stub returns success unconditionally; no duplicate-serial exception is thrown.
-                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
-                var addedDevice = new Device { Make = "Dell", Model = "Latitude", SerialNumber = "SN12345" };
-                var cut = SetupComponent(
-                    new List<DeviceTag> { tag },
-                    device => Task.FromResult(addedDevice)
-                );
+            // Arrange: Windows devices are exempt from the non-Windows serial uniqueness check.
+            // The stub returns success unconditionally; no duplicate-serial exception is thrown.
+            var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+            var addedDevice = new Device { Make = "Dell", Model = "Latitude", SerialNumber = "SN12345" };
+            var cut = SetupComponent(
+                new List<DeviceTag> { tag },
+                device => Task.FromResult(addedDevice)
+            );
 
-                // Act - "Windows" matches the enum name rendered in option value=@os
-                FillAndSubmitAddForm(cut, "Dell", "Latitude", "SN12345", "Windows");
+            // Act - "Windows" matches the enum name rendered in option value=@os
+            FillAndSubmitAddForm(cut, "Dell", "Latitude", "SN12345", "Windows");
 
-                // Assert
-                cut.WaitForAssertion(() =>
-                    Assert.IsTrue(
-                        cut.Markup.Contains("Device added successfully"),
-                        $"Windows device should be added successfully. Markup: {cut.Markup}"
-                    )
-                );
-            }
+            // Assert
+            cut.WaitForAssertion(() =>
+                Assert.IsTrue(
+                    cut.Markup.Contains("Device added successfully"),
+                    $"Windows device should be added successfully. Markup: {cut.Markup}"
+                )
+            );
+
         }
 
         [TestMethod]
         public void AddDevice_ServiceThrowsDuplicateSerial_ErrorMessageContainsCorrelationId()
         {
-            using (ShimsContext.Create())
+            // Arrange
+            var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+            var cut = SetupComponent(
+                new List<DeviceTag> { tag },
+                device => Task.FromException<Device>(new Exception(DuplicateSerialErrorMessage))
+            );
+
+            // Act - MacOS device; "MacOS" matches the enum name rendered in option value=@os
+            FillAndSubmitAddForm(cut, "Apple", "MacBook", "SN12345", "MacOS");
+
+            // Assert: error message is shown in an error-styled alert and includes the correlation ID context
+            cut.WaitForAssertion(() =>
             {
-                // Arrange
-                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
-                var cut = SetupComponent(
-                    new List<DeviceTag> { tag },
-                    device => Task.FromException<Device>(new Exception(DuplicateSerialErrorMessage))
-                );
+                Assert.IsTrue(
+                    cut.Markup.Contains("Error adding device:"),
+                    "Error message should include the 'Error adding device:' prefix.");
+                Assert.IsTrue(
+                    cut.Markup.Contains(DuplicateSerialErrorMessage),
+                    "Error message should contain the specific duplicate serial error.");
+                Assert.IsTrue(
+                    cut.Markup.Contains("Correlation Id"),
+                    "Error message should include a Correlation Id for diagnostics.");
+            });
 
-                // Act - MacOS device; "MacOS" matches the enum name rendered in option value=@os
-                FillAndSubmitAddForm(cut, "Apple", "MacBook", "SN12345", "MacOS");
-
-                // Assert: error message is shown in an error-styled alert and includes the correlation ID context
-                cut.WaitForAssertion(() =>
-                {
-                    Assert.IsTrue(
-                        cut.Markup.Contains("Error adding device:"),
-                        "Error message should include the 'Error adding device:' prefix.");
-                    Assert.IsTrue(
-                        cut.Markup.Contains(DuplicateSerialErrorMessage),
-                        "Error message should contain the specific duplicate serial error.");
-                    Assert.IsTrue(
-                        cut.Markup.Contains("Correlation Id"),
-                        "Error message should include a Correlation Id for diagnostics.");
-                });
-            }
         }
     }
 }
