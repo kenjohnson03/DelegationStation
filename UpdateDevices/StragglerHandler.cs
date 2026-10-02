@@ -5,11 +5,7 @@ using DelegationStationShared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using UpdateDevices.Interfaces;
 
 namespace UpdateDevices
@@ -433,6 +429,10 @@ namespace UpdateDevices
             DateTime enrolledUtc,
             bool successfullyProcessed)
         {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             DateTime processedAt = DateTime.UtcNow;
             device.LastProcessingAttemptUTC = processedAt;
             device.LastSeenEnrollmentUTC = enrolledUtc;
@@ -441,6 +441,11 @@ namespace UpdateDevices
             {
                 device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
+                _logger.DSLogInformation("Successfully processed device " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogWarning("Device not processed successfully:  " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
             }
 
             bool stateUpdated = await _dbService.UpdateDeviceProcessingState(device);

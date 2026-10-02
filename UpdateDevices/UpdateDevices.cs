@@ -365,6 +365,10 @@ namespace UpdateDevices
             DateTime enrolledUtc,
             bool successfullyProcessed)
         {
+            string methodName = ExtensionHelper.GetMethodName() ?? "";
+            string className = this.GetType().Name;
+            string fullMethodName = className + "." + methodName;
+
             DateTime processedAt = DateTime.UtcNow;
             device.LastProcessingAttemptUTC = processedAt;
 
@@ -374,6 +378,11 @@ namespace UpdateDevices
             {
                 device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
+                _logger.DSLogInformation("Successfully processed device " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
+            }
+            else
+            {
+                _logger.DSLogWarning("Device not processed successfully:  " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
             }
 
             await _dbService.UpdateDeviceProcessingState(device);

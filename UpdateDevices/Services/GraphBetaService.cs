@@ -6,10 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph.Beta;
 using Microsoft.Graph.Beta.DeviceManagement.ManagedDevices.Item.SetDeviceName;
-using System;
-using System.Linq;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
 using UpdateDevices.Interfaces;
 
 

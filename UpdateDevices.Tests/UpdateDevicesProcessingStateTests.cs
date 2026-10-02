@@ -2,7 +2,6 @@ using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using UpdateDevices.Interfaces;
 using UpdateDevices.Models;
 using Device = DelegationStationShared.Models.Device;
