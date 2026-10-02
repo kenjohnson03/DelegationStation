@@ -20,8 +20,7 @@ public class StragglerHandlerProcessingStateTests
         ProcessingStatus? ProcessingStatus,
         DateTime? LastProcessingAttemptUTC,
         DateTime? SuccessfullyProcessedUTC,
-        DateTime? LastSeenEnrollmentUTC,
-        DateTime? MarkedForExpirationUTC);
+        DateTime? LastSeenEnrollmentUTC);
 
     private sealed class FakeDbService : ICosmosDbService
     {
@@ -75,7 +74,7 @@ public class StragglerHandlerProcessingStateTests
                 device.ProcessingStatus,
                 device.LastProcessingAttemptUTC,
                 device.SuccessfullyProcessedUTC,
-                device.LastSeenEnrollmentUTC, device.MarkedForExpirationUTC));
+                device.LastSeenEnrollmentUTC));
             return Task.FromResult(true);
         }
     }
@@ -200,8 +199,6 @@ public class StragglerHandlerProcessingStateTests
         Assert.Equal(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Equal(update.LastProcessingAttemptUTC, update.SuccessfullyProcessedUTC);
-        Assert.Equal(update.SuccessfullyProcessedUTC!.Value.AddDays(
-            DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays), update.MarkedForExpirationUTC);
     }
 
     private static void AssertAttemptRecordedButNotProcessed(FakeDbService db)
@@ -210,7 +207,6 @@ public class StragglerHandlerProcessingStateTests
         Assert.NotEqual(ProcessingStatus.Processed, update.ProcessingStatus);
         Assert.NotNull(update.LastProcessingAttemptUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
-        Assert.Equal(db.Device!.MarkedForExpirationUTC, update.MarkedForExpirationUTC);
     }
 
     public enum FailingAction
@@ -371,8 +367,6 @@ public class StragglerHandlerProcessingStateTests
         var context = new TestContext(CreateTag(Group("Group A")));
         context.Db.Device!.ProcessingStatus = ProcessingStatus.Processed;
         context.Db.Device.SuccessfullyProcessedUTC = DateTime.UtcNow.AddDays(-1);
-        DateTime scheduledExpiration = DateTime.UtcNow.AddDays(179);
-        context.Db.Device.MarkedForExpirationUTC = scheduledExpiration;
         context.Db.Device.LastSeenEnrollmentUTC = BaselineEnrollment.UtcDateTime;
         context.Graph.ManagedDevice.EnrolledDateTime = BaselineEnrollment.AddDays(45);
         context.Graph.GroupResult = _ => false;
@@ -381,7 +375,6 @@ public class StragglerHandlerProcessingStateTests
 
         ProcessingStateSnapshot update = Assert.Single(context.Db.ProcessingUpdates);
         Assert.Null(update.ProcessingStatus);
-        Assert.Equal(scheduledExpiration, update.MarkedForExpirationUTC);
         Assert.Null(update.SuccessfullyProcessedUTC);
         Assert.Equal(BaselineEnrollment.AddDays(45).UtcDateTime, update.LastSeenEnrollmentUTC);
         Assert.NotNull(update.LastProcessingAttemptUTC);

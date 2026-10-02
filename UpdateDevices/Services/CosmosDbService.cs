@@ -334,12 +334,6 @@ namespace UpdateDevices.Services
                 PatchOperation.Set("/LastSeenEnrollmentUTC", device.LastSeenEnrollmentUTC)
              };
 
-            if (device.SuccessfullyProcessedUTC != null &&
-                device.SuccessfullyProcessedUTC == device.LastProcessingAttemptUTC)
-            {
-                operations.Add(PatchOperation.Set("/MarkedForExpirationUTC", device.MarkedForExpirationUTC));
-            }
-
             var options = new PatchItemRequestOptions
             {
                 FilterPredicate = ProcessingStateFilterPredicate(device.LastSeenEnrollmentUTC.Value)

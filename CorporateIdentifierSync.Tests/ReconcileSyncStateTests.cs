@@ -118,8 +118,8 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
             public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
             public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
             public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
-            public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
-            public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
+            public Task<List<Device>> GetDevicesToExpire(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize) => throw new NotImplementedException();
+            public Task<List<Device>> GetDevicesToRetryExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize) => throw new NotImplementedException();
         }
 
         /// <summary>Stub for <see cref="IGraphBetaService"/> — not called by the methods under test.</summary>

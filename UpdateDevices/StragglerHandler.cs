@@ -441,9 +441,6 @@ namespace UpdateDevices
             {
                 device.ProcessingStatus = ProcessingStatus.Processed;
                 device.SuccessfullyProcessedUTC = processedAt;
-                // TODO: Read ProcessedDevicesExpiredAfterDays from SystemSettings in the DB.
-                device.MarkedForExpirationUTC = processedAt.AddDays(
-                    DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays);
                 _logger.DSLogInformation("Successfully processed device " + device.Make + " " + device.Model + " " + device.SerialNumber, fullMethodName);
             }
             else

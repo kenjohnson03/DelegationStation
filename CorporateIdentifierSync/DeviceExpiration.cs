@@ -10,8 +10,10 @@ using Device = DelegationStationShared.Models.Device;
 namespace CorporateIdentifierSync
 {
     /// <summary>
-    /// Expires devices that were successfully processed more than ProcessedDevicesExpiredAfterDays ago
-    /// by removing their Corporate Identifier and marking them as Expired.
+    /// Expires Synced devices by removing their Corporate Identifier and marking them as Expired.
+    /// Expiration is calculated at run time from the current settings:
+    /// processed devices expire ProcessedDevicesExpiredAfterDays after SuccessfullyProcessedUTC,
+    /// unprocessed devices expire UnprocessedDevicesExpiredAfterDays after they were added (ModifiedUTC).
     /// </summary>
     public class DeviceExpiration
     {
@@ -38,9 +40,11 @@ namespace CorporateIdentifierSync
         // and retries are never starved.
         internal const int RetryBatchPercent = 20;
 
-        // TODO: Temporary static value until SystemSettings is read from the DB.
+        // TODO: Temporary static values until SystemSettings is read from the DB.
         internal const int TempProcessedDevicesExpiredAfterDays =
             DelegationSharedLibrary.Models.SystemSettings.DefaultProcessedDevicesExpiredAfterDays;
+        internal const int TempUnprocessedDevicesExpiredAfterDays =
+            DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays;
 
         public DeviceExpiration(
             ILogger<DeviceExpiration> logger,
@@ -57,6 +61,11 @@ namespace CorporateIdentifierSync
         public static string GetExpiredReason(int ProcessedDevicesExpiredAfterDays)
         {
             return $"Device was expired since it was processed over {ProcessedDevicesExpiredAfterDays} days ago.";
+        }
+
+        public static string GetUnprocessedExpiredReason(int UnprocessedDevicesExpiredAfterDays)
+        {
+            return $"Device was expired since it was not processed within {UnprocessedDevicesExpiredAfterDays} days of being added.";
         }
 
         // TODO: Move all of these settings (MAX_CORPIDS_ALLOWED, ExpireDevicesBatchSize,
@@ -125,26 +134,32 @@ namespace CorporateIdentifierSync
             }
 
             GetEnvironmentVariables();
-            await ExpireProcessedDevices();
+            await ExpireDevices();
         }
 
         /// <summary>
-        /// Finds devices with ProcessingStatus == Processed whose SuccessfullyProcessedUTC is older than
-        /// ProcessedDevicesExpiredAfterDays, removes their Corporate Identifier, and marks them Expired.
+        /// Finds Synced devices that are either processed with SuccessfullyProcessedUTC older than
+        /// ProcessedDevicesExpiredAfterDays, or unprocessed with ModifiedUTC (added) older than
+        /// UnprocessedDevicesExpiredAfterDays. Removes their Corporate Identifier and marks them Expired.
         /// </summary>
-        public async Task ExpireProcessedDevices()
+        public async Task ExpireDevices()
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            // TODO: Temporary workaround. Replace with SystemSettings.ProcessedDevicesExpiredAfterDays
-            // once the SystemSettings DB access code is available.
-            int expiredAfterDays = TempProcessedDevicesExpiredAfterDays;
-            _logger.DSLogInformation($"Using ProcessedDevicesExpiredAfterDays: {expiredAfterDays}.", fullMethodName);
+            // TODO: Temporary workaround. Replace with SystemSettings.ProcessedDevicesExpiredAfterDays and
+            // SystemSettings.UnprocessedDevicesExpiredAfterDays once the SystemSettings DB access code is available.
+            int processedExpiredAfterDays = TempProcessedDevicesExpiredAfterDays;
+            int unprocessedExpiredAfterDays = TempUnprocessedDevicesExpiredAfterDays;
+            _logger.DSLogInformation($"Using ProcessedDevicesExpiredAfterDays: {processedExpiredAfterDays}, UnprocessedDevicesExpiredAfterDays: {unprocessedExpiredAfterDays}.", fullMethodName);
 
-            DateTime cutoff = DateTime.UtcNow.AddDays(-expiredAfterDays);
-            string expiredReason = GetExpiredReason(expiredAfterDays);
+            // Calculated from the current settings each run so setting changes apply to all devices.
+            DateTime now = DateTime.UtcNow;
+            DateTime processedCutoff = now.AddDays(-processedExpiredAfterDays);
+            DateTime unprocessedCutoff = now.AddDays(-unprocessedExpiredAfterDays);
+            string processedExpiredReason = GetExpiredReason(processedExpiredAfterDays);
+            string unprocessedExpiredReason = GetUnprocessedExpiredReason(unprocessedExpiredAfterDays);
 
             //
             // Build this run's batch: previously failed devices (capped share), then new devices.
@@ -156,7 +171,7 @@ namespace CorporateIdentifierSync
             List<Device> retryDevices = new List<Device>();
             try
             {
-                retryDevices = await _dbService.GetProcessedDevicesToRetryExpiration(cutoff, maxRetryDevicesInBatch);
+                retryDevices = await _dbService.GetDevicesToRetryExpiration(processedCutoff, unprocessedCutoff, maxRetryDevicesInBatch);
             }
             catch (Exception ex)
             {
@@ -167,14 +182,14 @@ namespace CorporateIdentifierSync
             List<Device> newDevices = new List<Device>();
             try
             {
-                newDevices = await _dbService.GetProcessedDevicesToExpire(cutoff, newLimit);
+                newDevices = await _dbService.GetDevicesToExpire(processedCutoff, unprocessedCutoff, newLimit);
             }
             catch (Exception ex)
             {
-                _logger.DSLogException("Failed to retrieve processed devices to expire.", ex, fullMethodName);
+                _logger.DSLogException("Failed to retrieve devices to expire.", ex, fullMethodName);
             }
 
-            _logger.DSLogInformation($"Batch size {_BatchSize}: {newDevices.Count} new and {retryDevices.Count} retry devices processed over {expiredAfterDays} days ago (before {cutoff:o}).", fullMethodName);
+            _logger.DSLogInformation($"Batch size {_BatchSize}: {newDevices.Count} new and {retryDevices.Count} retry devices to expire (processed before {processedCutoff:o} or unprocessed and added before {unprocessedCutoff:o}).", fullMethodName);
 
             List<Device> devicesToExpire = retryDevices.Concat(newDevices).ToList();
             if (devicesToExpire.Count == 0)
@@ -193,8 +208,11 @@ namespace CorporateIdentifierSync
 
                 if (device.ExpirationFailureCount > 0)
                 {
-                    _logger.DSLogInformation($"Retrying expiration for device {deviceDesc} (previous failures: {device.ExpirationFailureCount}).", fullMethodName);
+                    _logger.DSLogInformation($"Retrying expiration for device {deviceDesc} (previous failures: {device.ExpirationFailureCount}, first marked for expiration at {device.MarkedForExpirationUTC:o}).", fullMethodName);
                 }
+
+                // Records when expiration processing started; preserved across retries.
+                device.MarkedForExpirationUTC ??= DateTime.UtcNow;
 
                 //
                 // Remove Corporate Identifier
@@ -265,7 +283,9 @@ namespace CorporateIdentifierSync
 
                 device.ExpiredUTC = DateTime.UtcNow;
                 device.Status = DeviceStatus.Expired;
-                device.ExpiredReason = expiredReason;
+                device.ExpiredReason = device.ProcessingStatus == ProcessingStatus.Processed
+                    ? processedExpiredReason
+                    : unprocessedExpiredReason;
                 device.CorporateIdentityID = string.Empty;
                 device.CorporateIdentity = string.Empty;
 

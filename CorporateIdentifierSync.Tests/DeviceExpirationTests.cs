@@ -36,7 +36,21 @@ public class DeviceExpirationTests
             Status = DeviceStatus.Synced,
             ProcessingStatus = ProcessingStatus.Processed,
             SuccessfullyProcessedUTC = DateTime.UtcNow.AddDays(-400),
-            MarkedForExpirationUTC = DateTime.UtcNow.AddDays(-220),
+            CorporateIdentity = "Make,Model,SN",
+            CorporateIdentityID = corpIdentityID
+        };
+    }
+
+    private static Device CreateUnprocessedDevice(string corpIdentityID = "corp-id-1")
+    {
+        return new Device
+        {
+            Make = "Make",
+            Model = "Model",
+            SerialNumber = Guid.NewGuid().ToString(),
+            Status = DeviceStatus.Synced,
+            ProcessingStatus = null,
+            ModifiedUTC = DateTime.UtcNow.AddDays(-400),
             CorporateIdentity = "Make,Model,SN",
             CorporateIdentityID = corpIdentityID
         };
@@ -56,35 +70,58 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_UsesProcessedDevicesExpiredAfterDaysForCutoff()
+    public async Task ExpireDevices_CalculatesBothCutoffsFromCurrentSettings()
     {
         var dbService = new FakeDbService();
         var sut = CreateSut(dbService: dbService);
-        int days = DeviceExpiration.TempProcessedDevicesExpiredAfterDays;
+        int processedDays = DeviceExpiration.TempProcessedDevicesExpiredAfterDays;
+        int unprocessedDays = DeviceExpiration.TempUnprocessedDevicesExpiredAfterDays;
 
-        DateTime before = DateTime.UtcNow.AddDays(-days);
-        await sut.ExpireProcessedDevices();
-        DateTime after = DateTime.UtcNow.AddDays(-days);
+        DateTime start = DateTime.UtcNow;
+        await sut.ExpireDevices();
+        DateTime end = DateTime.UtcNow;
 
         Assert.Equal(1, dbService.GetDevicesCallCount);
-        Assert.InRange(dbService.LastCutoff!.Value, before, after);
+        Assert.InRange(dbService.LastProcessedCutoff!.Value, start.AddDays(-processedDays), end.AddDays(-processedDays));
+        Assert.InRange(dbService.LastAddedCutoff!.Value, start.AddDays(-unprocessedDays), end.AddDays(-unprocessedDays));
+        Assert.Equal(dbService.LastProcessedCutoff, dbService.LastRetryProcessedCutoff);
+        Assert.Equal(dbService.LastAddedCutoff, dbService.LastRetryAddedCutoff);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WhenGetDevicesThrows_DoesNotDeleteCorpIDs()
+    public async Task ExpireDevices_UnprocessedDevice_MarksExpiredWithUnprocessedReason()
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var device = CreateUnprocessedDevice();
+        dbService.DevicesToReturn.Add(device);
+        var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Success };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(1, graph.DeleteCallCount);
+        Assert.Equal(DeviceStatus.Expired, device.Status);
+        Assert.NotNull(device.ExpiredUTC);
+        Assert.Equal($"Device was expired since it was not processed within {DeviceExpiration.TempUnprocessedDevicesExpiredAfterDays} days of being added.", device.ExpiredReason);
+        Assert.Equal(string.Empty, device.CorporateIdentityID);
+        Assert.Equal(4, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_WhenGetDevicesThrows_DoesNotDeleteCorpIDs()
     {
         var dbService = new FakeDbService { GetDevicesException = new Exception("boom") };
         var graph = new FakeGraphBetaService();
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(0, graph.DeleteCallCount);
         Assert.Equal(0, dbService.UpdateDeviceCallCount);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnCorpIDDeleteSuccess_MarksDeviceExpiredAndReleasesCounter()
+    public async Task ExpireDevices_OnCorpIDDeleteSuccess_MarksDeviceExpiredAndReleasesCounter()
     {
         var dbService = new FakeDbService
         {
@@ -95,7 +132,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Success };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(1, graph.DeleteCallCount);
         Assert.NotNull(device.MarkedForExpirationUTC);
@@ -109,26 +146,24 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_PreservesScheduledExpirationInSingleUpdateAfterDeletingCorpID()
+    public async Task ExpireDevices_PersistsMarkedForExpirationInSingleUpdateAfterDeletingCorpID()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
         dbService.DevicesToReturn.Add(device);
         var graph = new FakeGraphBetaService();
-        DateTime? scheduledExpiration = device.MarkedForExpirationUTC;
         graph.OnDelete = () => Assert.Equal(0, dbService.UpdateDeviceCallCount);
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(1, dbService.UpdateDeviceCallCount);
         Assert.NotNull(dbService.FirstUpdateMarkedForExpirationUTC);
-        Assert.Equal(scheduledExpiration, dbService.FirstUpdateMarkedForExpirationUTC);
         Assert.NotNull(dbService.FirstUpdateExpiredUTC);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnCorpIDNotFound_MarksExpiredWithoutReleasingCounter()
+    public async Task ExpireDevices_OnCorpIDNotFound_MarksExpiredWithoutReleasingCounter()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
         var device = CreateProcessedDevice();
@@ -136,7 +171,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.NotFound };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceStatus.Expired, device.Status);
         Assert.NotNull(device.ExpiredUTC);
@@ -145,7 +180,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WithNoCorpID_MarksExpiredWithoutCallingGraph()
+    public async Task ExpireDevices_WithNoCorpID_MarksExpiredWithoutCallingGraph()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice(corpIdentityID: string.Empty);
@@ -153,7 +188,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService();
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(0, graph.DeleteCallCount);
         Assert.Equal(DeviceStatus.Expired, device.Status);
@@ -162,7 +197,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnCorpIDDeleteError_LeavesDeviceSyncedForRetry()
+    public async Task ExpireDevices_OnCorpIDDeleteError_LeavesDeviceSyncedForRetry()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
         var device = CreateProcessedDevice();
@@ -170,7 +205,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceStatus.Synced, device.Status);
         Assert.NotNull(device.MarkedForExpirationUTC);
@@ -182,24 +217,9 @@ public class DeviceExpirationTests
         Assert.Equal(0, dbService.TrySetCorpIDCounterCallCount);
     }
 
-    [Fact]
-    public async Task ExpireProcessedDevices_LegacyDeviceWithoutScheduledExpiration_StillExpires()
-    {
-        var dbService = new FakeDbService();
-        var device = CreateProcessedDevice();
-        device.MarkedForExpirationUTC = null;
-        dbService.DevicesToReturn.Add(device);
-        var sut = CreateSut(dbService: dbService);
-
-        await sut.ExpireProcessedDevices();
-
-        Assert.Equal(DeviceStatus.Expired, device.Status);
-        Assert.Null(device.MarkedForExpirationUTC);
-        Assert.NotNull(device.ExpiredUTC);
-    }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnRetry_PreservesOriginalMarkedForExpirationUTC()
+    public async Task ExpireDevices_OnRetry_PreservesOriginalMarkedForExpirationUTC()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
@@ -209,7 +229,7 @@ public class DeviceExpirationTests
         dbService.RetryDevicesToReturn.Add(device);
         var sut = CreateSut(dbService: dbService);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(originalMark, device.MarkedForExpirationUTC);
         Assert.Equal(DeviceStatus.Expired, device.Status);
@@ -217,7 +237,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_OnRetryFailureBelowMax_IncrementsCountAndStaysSynced()
+    public async Task ExpireDevices_OnRetryFailureBelowMax_IncrementsCountAndStaysSynced()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
@@ -227,7 +247,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceExpiration.DefaultMaxExpirationRetries, device.ExpirationFailureCount);
         Assert.Equal(DeviceStatus.Synced, device.Status);
@@ -235,7 +255,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WhenRetriesExceedMax_MarksExpirationFailed()
+    public async Task ExpireDevices_WhenRetriesExceedMax_MarksExpirationFailed()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
         var device = CreateProcessedDevice();
@@ -245,7 +265,7 @@ public class DeviceExpirationTests
         var graph = new FakeGraphBetaService { DeleteResult = DeleteCorpIdResult.Error };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceExpiration.DefaultMaxExpirationRetries + 1, device.ExpirationFailureCount);
         Assert.Equal(DeviceStatus.ExpirationFailed, device.Status);
@@ -256,7 +276,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_UsesBatchSizeSplitBetweenRetryAndNewDevices()
+    public async Task ExpireDevices_UsesBatchSizeSplitBetweenRetryAndNewDevices()
     {
         var dbService = new FakeDbService();
         for (int i = 0; i < 3; i++)
@@ -268,7 +288,7 @@ public class DeviceExpirationTests
         }
         var sut = CreateSut(dbService: dbService);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         int expectedRetryLimit = DeviceExpiration.DefaultBatchSize * DeviceExpiration.RetryBatchPercent / 100;
         Assert.Equal(expectedRetryLimit, dbService.LastRetryBatchSize);
@@ -276,7 +296,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_RespectsBatchSizeFromEnvironment()
+    public async Task ExpireDevices_RespectsBatchSizeFromEnvironment()
     {
         Environment.SetEnvironmentVariable("ExpireDevicesBatchSize", "10");
         try
@@ -297,7 +317,7 @@ public class DeviceExpirationTests
             var sut = CreateSut(dbService: dbService, graphBetaService: graph);
             sut.GetEnvironmentVariables();
 
-            await sut.ExpireProcessedDevices();
+            await sut.ExpireDevices();
 
             // 20% of 10 = 2 retries, remaining 8 new devices.
             Assert.Equal(2, dbService.LastRetryBatchSize);
@@ -311,14 +331,14 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WhenRetryQueryThrows_StillProcessesNewDevices()
+    public async Task ExpireDevices_WhenRetryQueryThrows_StillProcessesNewDevices()
     {
         var dbService = new FakeDbService { GetRetryDevicesException = new Exception("boom") };
         var device = CreateProcessedDevice();
         dbService.DevicesToReturn.Add(device);
         var sut = CreateSut(dbService: dbService);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceStatus.Expired, device.Status);
         Assert.Equal(DeviceExpiration.DefaultBatchSize, dbService.LastNewBatchSize);
@@ -350,7 +370,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_NewDevice_DoesNotUpdateDbBeforeDeletingCorpID()
+    public async Task ExpireDevices_NewDevice_DoesNotUpdateDbBeforeDeletingCorpID()
     {
         var dbService = new FakeDbService();
         var device = CreateProcessedDevice();
@@ -360,26 +380,26 @@ public class DeviceExpirationTests
         graph.OnDelete = () => updatesBeforeDelete = dbService.UpdateDeviceCallCount;
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(1, graph.DeleteCallCount);
         Assert.Equal(0, updatesBeforeDelete);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_WhenFinalUpdateFails_StillReleasesDeletedCorpIDs()
+    public async Task ExpireDevices_WhenFinalUpdateFails_StillReleasesDeletedCorpIDs()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5), FailUpdateOnCall = 1 };
         dbService.DevicesToReturn.Add(CreateProcessedDevice());
         var sut = CreateSut(dbService: dbService);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(4, dbService.Counter.CorpIDCount);
     }
 
     [Fact]
-    public async Task ExpireProcessedDevices_MultipleDevices_ReleasesOnlySuccessfulDeletes()
+    public async Task ExpireDevices_MultipleDevices_ReleasesOnlySuccessfulDeletes()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(10) };
         var ok1 = CreateProcessedDevice("ok-1");
@@ -392,7 +412,7 @@ public class DeviceExpirationTests
         };
         var sut = CreateSut(dbService: dbService, graphBetaService: graph);
 
-        await sut.ExpireProcessedDevices();
+        await sut.ExpireDevices();
 
         Assert.Equal(DeviceStatus.Expired, ok1.Status);
         Assert.Equal(DeviceStatus.Synced, bad.Status);
@@ -454,22 +474,28 @@ public class DeviceExpirationTests
         public int? LastRetryBatchSize { get; private set; }
         public int UpdateDeviceCallCount { get; private set; }
         public int TrySetCorpIDCounterCallCount { get; private set; }
-        public DateTime? LastCutoff { get; private set; }
+        public DateTime? LastProcessedCutoff { get; private set; }
+        public DateTime? LastAddedCutoff { get; private set; }
+        public DateTime? LastRetryProcessedCutoff { get; private set; }
+        public DateTime? LastRetryAddedCutoff { get; private set; }
         public DateTime? FirstUpdateMarkedForExpirationUTC { get; private set; }
         public DateTime? FirstUpdateExpiredUTC { get; private set; }
 
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize)
+        public Task<List<Device>> GetDevicesToExpire(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize)
         {
             GetDevicesCallCount++;
-            LastCutoff = processedBeforeUTC;
+            LastProcessedCutoff = processedBeforeUTC;
+            LastAddedCutoff = addedBeforeUTC;
             LastNewBatchSize = batchSize;
             if (GetDevicesException is not null) throw GetDevicesException;
             return Task.FromResult(DevicesToReturn.Where(d => d.ExpirationFailureCount == 0).Take(Math.Max(0, batchSize)).ToList());
         }
 
-        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
+        public Task<List<Device>> GetDevicesToRetryExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize)
         {
             GetRetryDevicesCallCount++;
+            LastRetryProcessedCutoff = processedBeforeUTC;
+            LastRetryAddedCutoff = addedBeforeUTC;
             LastRetryBatchSize = batchSize;
             if (GetRetryDevicesException is not null) throw GetRetryDevicesException;
             return Task.FromResult(RetryDevicesToReturn.Where(d => d.ExpirationFailureCount > 0).Take(Math.Max(0, batchSize)).ToList());

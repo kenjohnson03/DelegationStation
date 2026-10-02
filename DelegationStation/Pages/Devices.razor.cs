@@ -318,9 +318,6 @@ namespace DelegationStation.Pages
                 logger?.LogDebug("Authorization successful for tag {TagId}", tag.Id);
 
                 newDevice.ModifiedUTC = DateTime.UtcNow;
-                // TODO: Read UnprocessedDevicesExpiredAfterDays from SystemSettings in the DB.
-                newDevice.MarkedForExpirationUTC = newDevice.ModifiedUTC.AddDays(
-                    DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays);
                 newDevice.AddedBy = userId;
 
                 logger?.LogInformation("Adding device to database. Make: {Make}, Model: {Model}, SerialNumber: {SerialNumber}, Tag: {TagId}, CorrelationId: {CorrelationId}",

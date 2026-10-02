@@ -585,21 +585,25 @@ namespace CorporateIdentifierSync.Services
             }
         }
 
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize)
+        public Task<List<Device>> GetDevicesToExpire(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize)
         {
             // Missing counters on older records are equivalent to zero failures.
-            return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
+            return QueryDevicesForExpiration(processedBeforeUTC, addedBeforeUTC, batchSize,
                 "(NOT IS_DEFINED(c.ExpirationFailureCount) OR IS_NULL(c.ExpirationFailureCount) OR c.ExpirationFailureCount = 0)");
         }
 
-        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize)
+        public Task<List<Device>> GetDevicesToRetryExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize)
         {
             // Retries: CorpID removal failed previously; device remains Synced.
-            return QueryProcessedDevicesForExpiration(processedBeforeUTC, batchSize,
+            return QueryDevicesForExpiration(processedBeforeUTC, addedBeforeUTC, batchSize,
                 "c.ExpirationFailureCount > 0");
         }
 
-        private async Task<List<Device>> QueryProcessedDevicesForExpiration(DateTime processedBeforeUTC, int batchSize, string failureFilter)
+        /// <summary>
+        /// Expiration is calculated at query time from the current settings:
+        /// processed devices expire based on SuccessfullyProcessedUTC, unprocessed devices based on ModifiedUTC (when added).
+        /// </summary>
+        private async Task<List<Device>> QueryDevicesForExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize, string failureFilter)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = GetType().Name;
@@ -614,15 +618,21 @@ namespace CorporateIdentifierSync.Services
             QueryDefinition query = new QueryDefinition(
                 "SELECT * FROM c WHERE c.Type = \"Device\" " +
                 "AND c.Status = @synced " +
-                "AND c.ProcessingStatus = @processed " +
-                "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
-                "AND c.SuccessfullyProcessedUTC < @cutoff " +
+                "AND (" +
+                    "(c.ProcessingStatus = @processed " +
+                    "AND IS_DEFINED(c.SuccessfullyProcessedUTC) AND NOT IS_NULL(c.SuccessfullyProcessedUTC) " +
+                    "AND c.SuccessfullyProcessedUTC < @processedCutoff) " +
+                    "OR " +
+                    "((NOT IS_DEFINED(c.ProcessingStatus) OR IS_NULL(c.ProcessingStatus) OR c.ProcessingStatus != @processed) " +
+                    "AND c.ModifiedUTC < @addedCutoff)" +
+                ") " +
                 "AND " + failureFilter + " " +
-                "ORDER BY c.SuccessfullyProcessedUTC ASC " +
+                "ORDER BY c.ModifiedUTC ASC " +
                 "OFFSET 0 LIMIT @batchSize");
             query.WithParameter("@synced", DeviceStatus.Synced);
             query.WithParameter("@processed", ProcessingStatus.Processed);
-            query.WithParameter("@cutoff", processedBeforeUTC);
+            query.WithParameter("@processedCutoff", processedBeforeUTC);
+            query.WithParameter("@addedCutoff", addedBeforeUTC);
             query.WithParameter("@batchSize", batchSize);
 
             var queryIterator = _container.GetItemQueryIterator<Device>(query);
@@ -633,7 +643,7 @@ namespace CorporateIdentifierSync.Services
                 devices.AddRange(response.ToList());
             }
 
-            _logger.DSLogInformation($"Found {devices.Count} processed devices (limit {batchSize}) last successfully processed before {processedBeforeUTC:o} matching {failureFilter}.", fullMethodName);
+            _logger.DSLogInformation($"Found {devices.Count} devices to expire (limit {batchSize}): processed before {processedBeforeUTC:o} or unprocessed and added before {addedBeforeUTC:o}, matching {failureFilter}.", fullMethodName);
             return devices;
         }
     }

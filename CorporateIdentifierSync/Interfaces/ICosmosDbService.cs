@@ -31,7 +31,7 @@ namespace CorporateIdentifierSync.Interfaces
 
         Task<int> GetSyncedDeviceCountAsync();
 
-        Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize);
-        Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize);
+        Task<List<Device>> GetDevicesToExpire(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize);
+        Task<List<Device>> GetDevicesToRetryExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize);
     }
 }

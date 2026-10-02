@@ -784,7 +784,7 @@ public class AddNotSyncingDevicesInEnabledTagsTests
         public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
         public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
-        public Task<List<Device>> GetProcessedDevicesToExpire(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
-        public Task<List<Device>> GetProcessedDevicesToRetryExpiration(DateTime processedBeforeUTC, int batchSize) => throw new NotImplementedException();
+        public Task<List<Device>> GetDevicesToExpire(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize) => throw new NotImplementedException();
+        public Task<List<Device>> GetDevicesToRetryExpiration(DateTime processedBeforeUTC, DateTime addedBeforeUTC, int batchSize) => throw new NotImplementedException();
     }
 }

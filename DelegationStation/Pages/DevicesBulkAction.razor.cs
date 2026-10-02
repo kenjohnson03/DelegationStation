@@ -387,9 +387,6 @@ namespace DelegationStation.Pages
                     d.OS = device.OS;
                     d.PreferredHostname = device.PreferredHostname;
                     d.ModifiedUTC = DateTime.UtcNow;
-                    // TODO: Read UnprocessedDevicesExpiredAfterDays from SystemSettings in the DB.
-                    d.MarkedForExpirationUTC = d.ModifiedUTC.AddDays(
-                        DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays);
                     d.AddedBy = userId;
                     d.Tags.Add(tagToApply);
                     Device? deviceResult = null;
