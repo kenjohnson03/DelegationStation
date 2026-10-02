@@ -283,6 +283,9 @@ namespace CorporateIdentifierSync
                     continue;
                 }
 
+                //
+                // CorpID removed (or not present): mark the device Expired.
+                //
                 device.ExpiredUTC = DateTime.UtcNow;
                 device.Status = DeviceStatus.Expired;
                 device.ExpiredReason = device.ProcessingStatus == ProcessingStatus.Processed
