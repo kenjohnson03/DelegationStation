@@ -387,7 +387,7 @@ public class DeviceExpirationTests
     }
 
     [Fact]
-    public async Task ExpireDevices_WhenFinalUpdateFails_StillReleasesDeletedCorpIDs()
+    public async Task ExpireDevices_WhenFinalUpdateFails_DoesNotReleaseDeletedCorpID()
     {
         var dbService = new FakeDbService { Counter = new CorpIDCounter(5), FailUpdateOnCall = 1 };
         dbService.DevicesToReturn.Add(CreateProcessedDevice());
@@ -395,7 +395,229 @@ public class DeviceExpirationTests
 
         await sut.ExpireDevices();
 
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    private static Microsoft.Azure.Cosmos.CosmosException Cosmos(System.Net.HttpStatusCode code)
+        => new("simulated", code, 0, "activity", 0);
+
+    [Fact]
+    public async Task ExpireDevices_ReReadShowsRecentlyProcessed_SkipsWithoutDeleting()
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var queried = CreateProcessedDevice();
+        dbService.DevicesToReturn.Add(queried);
+        var fresh = CreateProcessedDevice();
+        fresh.Id = queried.Id;
+        fresh.SuccessfullyProcessedUTC = DateTime.UtcNow;
+        dbService.OnGetDevice = _ => fresh;
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(0, graph.DeleteCallCount);
+        Assert.Equal(0, dbService.UpdateDeviceCallCount);
+        Assert.Equal(DeviceStatus.Synced, fresh.Status);
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_ReReadShowsRecentEnrollment_UnprocessedDeviceSkipped()
+    {
+        var dbService = new FakeDbService();
+        var device = CreateUnprocessedDevice();
+        device.LastSeenEnrollmentUTC = DateTime.UtcNow.AddDays(-1);
+        dbService.DevicesToReturn.Add(device);
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(0, graph.DeleteCallCount);
+        Assert.Equal(DeviceStatus.Synced, device.Status);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_ReReadReturnsNull_Skips()
+    {
+        var dbService = new FakeDbService { OnGetDevice = _ => null };
+        dbService.DevicesToReturn.Add(CreateProcessedDevice());
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(0, graph.DeleteCallCount);
+        Assert.Equal(0, dbService.UpdateDeviceCallCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_ReReadThrows_SkipsWithoutDeleting()
+    {
+        var dbService = new FakeDbService { OnGetDevice = _ => throw new Exception("read failed") };
+        dbService.DevicesToReturn.Add(CreateProcessedDevice());
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(0, graph.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_PreconditionFailed_StillEligible_RetriesAndExpires()
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var device = CreateProcessedDevice();
+        dbService.DevicesToReturn.Add(device);
+        var fresh = CreateProcessedDevice();
+        fresh.Id = device.Id;
+        int reads = 0;
+        dbService.OnGetDevice = _ => ++reads == 1 ? device : fresh;
+        dbService.OnUpdate = d => ReferenceEquals(d, device) ? Cosmos(System.Net.HttpStatusCode.PreconditionFailed) : null;
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(2, dbService.UpdateDeviceCallCount);
+        Assert.Equal(DeviceStatus.Expired, fresh.Status);
+        Assert.Equal(string.Empty, fresh.CorporateIdentityID);
+        Assert.Equal(device.MarkedForExpirationUTC, fresh.MarkedForExpirationUTC);
         Assert.Equal(4, dbService.Counter.CorpIDCount);
+    }
+
+    private static (FakeDbService db, Device fresh) SetupReEnrolledDuringExpiration(Func<Device, Exception?>? onFreshUpdate = null)
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var device = CreateProcessedDevice();
+        dbService.DevicesToReturn.Add(device);
+        var fresh = CreateProcessedDevice();
+        fresh.Id = device.Id;
+        fresh.ProcessingStatus = null;
+        fresh.SuccessfullyProcessedUTC = null;
+        fresh.LastSeenEnrollmentUTC = DateTime.UtcNow;
+        fresh.OS = DeviceOS.Windows;
+        int reads = 0;
+        dbService.OnGetDevice = _ => ++reads == 1 ? device : fresh;
+        dbService.OnUpdate = d => ReferenceEquals(d, device)
+            ? Cosmos(System.Net.HttpStatusCode.PreconditionFailed)
+            : onFreshUpdate?.Invoke(d);
+        return (dbService, fresh);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_PreconditionFailed_DeviceReEnrolled_ReAddsCorpIDAndDoesNotRelease()
+    {
+        var (dbService, fresh) = SetupReEnrolledDuringExpiration();
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(1, graph.AddCallCount);
+        Assert.Equal(2, dbService.UpdateDeviceCallCount);
+        Assert.Equal(DeviceStatus.Synced, fresh.Status);
+        Assert.Equal("readded-id", fresh.CorporateIdentityID);
+        Assert.NotNull(fresh.LastCorpIdentitySync);
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_PreconditionFailed_DeviceReEnrolled_ReAddFails_LeavesForConfirmSync()
+    {
+        var (dbService, fresh) = SetupReEnrolledDuringExpiration();
+        var graph = new FakeGraphBetaService { AddException = new Exception("graph down") };
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        Assert.Equal(DeviceStatus.Synced, fresh.Status);
+        Assert.Equal("corp-id-1", fresh.CorporateIdentityID);
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_PreconditionFailed_DeviceReEnrolled_ReAddSaveFails_RollsBack()
+    {
+        var (dbService, _) = SetupReEnrolledDuringExpiration(_ => new Exception("save failed"));
+        var graph = new FakeGraphBetaService();
+        var sut = CreateSut(dbService: dbService, graphBetaService: graph);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(1, graph.AddCallCount);
+        Assert.Equal(new[] { "corp-id-1", "readded-id" }, graph.DeletedIds);
+        Assert.Equal(5, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public void GetCorpIdentifier_FormatsByOS()
+    {
+        var device = new Device { Make = "M", Model = "X", SerialNumber = "SN", OS = DeviceOS.Windows };
+        Assert.Equal("\"M\",\"X\",SN", CorpIDUtilities.GetCorpIdentifier(device));
+        device.OS = DeviceOS.iOS;
+        Assert.Equal("SN", CorpIDUtilities.GetCorpIdentifier(device));
+    }
+
+    [Theory]
+    [InlineData(DeviceStatus.Deleting)]
+    [InlineData(DeviceStatus.NonSyncing)]
+    public async Task ExpireDevices_PreconditionFailed_DeviceNoLongerSynced_ReleasesWithoutUpdate(DeviceStatus freshStatus)
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        var device = CreateProcessedDevice();
+        dbService.DevicesToReturn.Add(device);
+        var fresh = CreateProcessedDevice();
+        fresh.Id = device.Id;
+        fresh.Status = freshStatus;
+        int reads = 0;
+        dbService.OnGetDevice = _ => ++reads == 1 ? device : fresh;
+        dbService.OnUpdate = _ => Cosmos(System.Net.HttpStatusCode.PreconditionFailed);
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(1, dbService.UpdateDeviceCallCount);
+        Assert.Equal(freshStatus, fresh.Status);
+        Assert.Equal(4, dbService.Counter.CorpIDCount);
+    }
+
+    [Fact]
+    public async Task ExpireDevices_UpdateNotFound_ReleasesDeletedCorpID()
+    {
+        var dbService = new FakeDbService { Counter = new CorpIDCounter(5) };
+        dbService.DevicesToReturn.Add(CreateProcessedDevice());
+        dbService.OnUpdate = _ => Cosmos(System.Net.HttpStatusCode.NotFound);
+        var sut = CreateSut(dbService: dbService);
+
+        await sut.ExpireDevices();
+
+        Assert.Equal(4, dbService.Counter.CorpIDCount);
+    }
+
+    [Theory]
+    [InlineData(DeviceStatus.Synced, ProcessingStatus.Processed, -400, null, null, true)]
+    [InlineData(DeviceStatus.Synced, ProcessingStatus.Processed, -1, null, null, false)]
+    [InlineData(DeviceStatus.Expired, ProcessingStatus.Processed, -400, null, null, false)]
+    [InlineData(DeviceStatus.Synced, null, null, -400, null, true)]
+    [InlineData(DeviceStatus.Synced, null, null, -400, -400, true)]
+    [InlineData(DeviceStatus.Synced, null, null, -400, -1, false)]
+    [InlineData(DeviceStatus.Synced, null, null, -1, null, false)]
+    public void IsEligibleForExpiration_MatchesQueryRules(DeviceStatus status, ProcessingStatus? processing, int? processedDaysAgo, int? modifiedDaysAgo, int? enrolledDaysAgo, bool expected)
+    {
+        var now = DateTime.UtcNow;
+        var device = new Device
+        {
+            Status = status,
+            ProcessingStatus = processing,
+            SuccessfullyProcessedUTC = processedDaysAgo is null ? null : now.AddDays(processedDaysAgo.Value),
+            ModifiedUTC = modifiedDaysAgo is null ? now : now.AddDays(modifiedDaysAgo.Value),
+            LastSeenEnrollmentUTC = enrolledDaysAgo is null ? null : now.AddDays(enrolledDaysAgo.Value)
+        };
+
+        Assert.Equal(expected, DeviceExpiration.IsEligibleForExpiration(device, now.AddDays(-180), now.AddDays(-180)));
     }
 
     [Fact]
@@ -448,12 +670,23 @@ public class DeviceExpirationTests
         public Task<DeleteCorpIdResult> DeleteCorporateIdentifier(string identifierID)
         {
             DeleteCallCount++;
+            DeletedIds.Add(identifierID);
             OnDelete?.Invoke();
             return Task.FromResult(ResultsById.TryGetValue(identifierID, out var r) ? r : DeleteResult);
         }
 
+        public Exception? AddException { get; set; }
+        public int AddCallCount { get; private set; }
+        public string? LastAddedIdentifier { get; private set; }
+        public List<string> DeletedIds { get; } = new();
+
         public Task<ImportedDeviceIdentity> AddCorporateIdentifier(ImportedDeviceIdentityType type, string identifier)
-            => throw new NotImplementedException();
+        {
+            AddCallCount++;
+            LastAddedIdentifier = identifier;
+            if (AddException is not null) throw AddException;
+            return Task.FromResult(new ImportedDeviceIdentity { Id = "readded-id", ImportedDeviceIdentifier = identifier });
+        }
         public Task<bool> CorporateIdentifierExists(string identiferID) => throw new NotImplementedException();
         public Task<int> GetCorporateDeviceIdentifierCountAsync() => throw new NotImplementedException();
     }
@@ -466,6 +699,9 @@ public class DeviceExpirationTests
         public Exception? GetRetryDevicesException { get; set; }
         public Exception? UpdateDeviceException { get; set; }
         public int? FailUpdateOnCall { get; set; }
+        public Func<Device, Exception?>? OnUpdate { get; set; }
+        public Func<Guid, Device?>? OnGetDevice { get; set; }
+        public int GetDeviceCallCount { get; private set; }
         public CorpIDCounter Counter { get; set; } = new CorpIDCounter(0);
 
         public int GetDevicesCallCount { get; private set; }
@@ -511,6 +747,8 @@ public class DeviceExpirationTests
             }
             if (UpdateDeviceException is not null) throw UpdateDeviceException;
             if (FailUpdateOnCall == UpdateDeviceCallCount) throw new Exception("Simulated update failure");
+            var updateEx = OnUpdate?.Invoke(device);
+            if (updateEx is not null) throw updateEx;
             return Task.CompletedTask;
         }
 
@@ -529,7 +767,12 @@ public class DeviceExpirationTests
         public Task<List<Device>> GetAddedDevicesToSync(List<string> tagIds, int batchSize) => throw new NotImplementedException();
         public Task<List<Device>> GetDevicesMarkedForDeletion() => throw new NotImplementedException();
         public Task DeleteDevice(Device device) => throw new NotImplementedException();
-        public Task<Device?> GetDevice(Guid id, string partitionKey) => throw new NotImplementedException();
+        public Task<Device?> GetDevice(Guid id, string partitionKey)
+        {
+            GetDeviceCallCount++;
+            if (OnGetDevice is not null) return Task.FromResult(OnGetDevice(id));
+            return Task.FromResult(DevicesToReturn.Concat(RetryDevicesToReturn).FirstOrDefault(d => d.Id == id));
+        }
         public Task<List<Device>> GetDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
         public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();

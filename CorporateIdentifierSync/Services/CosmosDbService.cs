@@ -624,7 +624,9 @@ namespace CorporateIdentifierSync.Services
                     "AND c.SuccessfullyProcessedUTC < @processedCutoff) " +
                     "OR " +
                     "((NOT IS_DEFINED(c.ProcessingStatus) OR IS_NULL(c.ProcessingStatus) OR c.ProcessingStatus != @processed) " +
-                    "AND c.ModifiedUTC < @addedCutoff)" +
+                    "AND c.ModifiedUTC < @addedCutoff " +
+                    // A recent enrollment restarts the unprocessed window.
+                    "AND (NOT IS_DEFINED(c.LastSeenEnrollmentUTC) OR IS_NULL(c.LastSeenEnrollmentUTC) OR c.LastSeenEnrollmentUTC < @addedCutoff))" +
                 ") " +
                 "AND " + failureFilter + " " +
                 "ORDER BY c.ModifiedUTC ASC " +

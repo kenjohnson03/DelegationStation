@@ -3,6 +3,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Device = DelegationStationShared.Models.Device;
@@ -66,6 +67,81 @@ namespace CorporateIdentifierSync
         public static string GetUnprocessedExpiredReason(int UnprocessedDevicesExpiredAfterDays)
         {
             return $"Device was expired since it was not processed within {UnprocessedDevicesExpiredAfterDays} days of being added.";
+        }
+
+        /// <summary>
+        /// Whether a device currently meets the expiration criteria. Mirrors the Cosmos query so a device
+        /// re-read just before expiration can be re-checked after UpdateDevices/StragglerHandler activity.
+        /// </summary>
+        internal static bool IsEligibleForExpiration(Device device, DateTime processedCutoff, DateTime unprocessedCutoff)
+        {
+            if (device.Status != DeviceStatus.Synced)
+            {
+                return false;
+            }
+
+            if (device.ProcessingStatus == ProcessingStatus.Processed)
+            {
+                return device.SuccessfullyProcessedUTC != null && device.SuccessfullyProcessedUTC < processedCutoff;
+            }
+
+            // A recent enrollment restarts the unprocessed window even if processing hasn't succeeded yet.
+            return device.ModifiedUTC < unprocessedCutoff &&
+                (device.LastSeenEnrollmentUTC == null || device.LastSeenEnrollmentUTC < unprocessedCutoff);
+        }
+
+        /// <summary>
+        /// Re-adds the CorpID we just deleted for a device that enrolled or was processed mid-expiration.
+        /// If the re-add or its save fails, the device is left Synced with the old (deleted) CorpID so
+        /// ConfirmSync re-adds it on its next run.
+        /// </summary>
+        private async Task ReAddCorpIdAsync(Device device, string deviceDesc, string fullMethodName)
+        {
+            _logger.DSLogWarning($"Device {deviceDesc} was re-enrolled or processed during expiration. Leaving it Synced and re-adding Corporate Identifier.", fullMethodName);
+
+            Microsoft.Graph.Beta.Models.ImportedDeviceIdentity identity;
+            try
+            {
+                identity = await _graphBetaService.AddCorporateIdentifier(
+                    CorpIDUtilities.GetCorpIDTypeForOS(device.OS),
+                    CorpIDUtilities.GetCorpIdentifier(device));
+            }
+            catch (Exception ex)
+            {
+                _logger.DSLogException($"Failed to re-add Corporate Identifier for device {deviceDesc}. ConfirmSync will re-add it on its next run.", ex, fullMethodName);
+                return;
+            }
+
+            device.CorporateIdentityID = identity.Id;
+            device.CorporateIdentity = identity.ImportedDeviceIdentifier;
+            device.LastCorpIdentitySync = DateTime.UtcNow;
+
+            try
+            {
+                await _dbService.UpdateDevice(device);
+                _logger.DSLogInformation($"Re-added Corporate Identifier {identity.Id} for device {deviceDesc}.", fullMethodName);
+            }
+            catch (Exception ex)
+            {
+                // Roll back so we don't orphan a CorpID the DB doesn't know about.
+                _logger.DSLogException($"Failed to save re-added Corporate Identifier {identity.Id} for device {deviceDesc}. Rolling back; ConfirmSync will re-add it if the device is still Synced.", ex, fullMethodName);
+                DeleteCorpIdResult rollback = await _graphBetaService.DeleteCorporateIdentifier(identity.Id!);
+                if (rollback == DeleteCorpIdResult.Error)
+                {
+                    _logger.DSLogError($"Failed to roll back re-added Corporate Identifier {identity.Id} for device {deviceDesc}. It is orphaned in Graph and requires manual cleanup.", fullMethodName);
+                }
+            }
+        }
+
+        private static void ApplyExpiredFields(Device device, string processedExpiredReason, string unprocessedExpiredReason)
+        {
+            device.ExpiredUTC = DateTime.UtcNow;
+            device.Status = DeviceStatus.Expired;
+            device.ExpiredReason = device.ProcessingStatus == ProcessingStatus.Processed
+                ? processedExpiredReason
+                : unprocessedExpiredReason;
+            device.CorporateIdentityID = string.Empty;
+            device.CorporateIdentity = string.Empty;
         }
 
         // TODO: Move all of these settings (MAX_CORPIDS_ALLOWED, ExpireDevicesBatchSize,
@@ -200,11 +276,36 @@ namespace CorporateIdentifierSync
             int expiredDeviceCount = 0;
             int failedDeviceCount = 0;
             int expirationFailedCount = 0;
+            int skippedDeviceCount = 0;
             int corpIDsDeletedCount = 0;
-            foreach (Device device in devicesToExpire)
+            foreach (Device queriedDevice in devicesToExpire)
             {
-                string deviceDesc = $"{device.Make} {device.Model} {device.SerialNumber}";
+                string deviceDesc = $"{queriedDevice.Make} {queriedDevice.Model} {queriedDevice.SerialNumber}";
                 _logger.DSLogInformation($"-----Expiring device {deviceDesc}.-----", fullMethodName);
+
+                //
+                // Re-read the device right before removing its CorpID. UpdateDevices/StragglerHandler may have
+                // recorded a new enrollment or successful processing since the batch was queried; those
+                // devices must stay Synced.
+                //
+                Device? device;
+                try
+                {
+                    device = await _dbService.GetDevice(queriedDevice.Id, queriedDevice.PartitionKey);
+                }
+                catch (Exception ex)
+                {
+                    failedDeviceCount++;
+                    _logger.DSLogException($"Failed to re-read device {deviceDesc} before expiring. Will retry on next run.", ex, fullMethodName);
+                    continue;
+                }
+
+                if (device is null || !IsEligibleForExpiration(device, processedCutoff, unprocessedCutoff))
+                {
+                    skippedDeviceCount++;
+                    _logger.DSLogInformation($"Device {deviceDesc} is no longer eligible for expiration (deleted, status changed, re-enrolled, or recently processed). Skipping.", fullMethodName);
+                    continue;
+                }
 
                 if (device.ExpirationFailureCount > 0)
                 {
@@ -218,10 +319,12 @@ namespace CorporateIdentifierSync
                 // Remove Corporate Identifier
                 //
                 bool corpIDRemoved;
+                // Only release a CorpID slot once the outcome is persisted, so a failed save never under-counts.
+                bool corpIDDeletedThisRun = false;
                 if (string.IsNullOrEmpty(device.CorporateIdentityID))
                 {
-                    // No CorpID to delete, so proceed with expiring the device. corpIDsDeletedCount is not
-                    // incremented, so nothing is released from the CorpID counter.
+                    // No CorpID to delete, so proceed with expiring the device. Nothing is released
+                    // from the CorpID counter.
                     corpIDRemoved = true;
                     _logger.DSLogError($"Device {deviceDesc} is Synced but has no Corporate Identifier stored in DB. This is unexpected; treating as removed.", fullMethodName);
                 }
@@ -232,7 +335,7 @@ namespace CorporateIdentifierSync
                     {
                         case DeleteCorpIdResult.Success:
                             corpIDRemoved = true;
-                            corpIDsDeletedCount++;
+                            corpIDDeletedThisRun = true;
                             _logger.DSLogInformation($"Successfully deleted Corporate Identifier {device.CorporateIdentityID} for device {deviceDesc}.", fullMethodName);
                             break;
 
@@ -286,29 +389,90 @@ namespace CorporateIdentifierSync
                 //
                 // CorpID removed (or not present): mark the device Expired.
                 //
-                device.ExpiredUTC = DateTime.UtcNow;
-                device.Status = DeviceStatus.Expired;
-                device.ExpiredReason = device.ProcessingStatus == ProcessingStatus.Processed
-                    ? processedExpiredReason
-                    : unprocessedExpiredReason;
-                device.CorporateIdentityID = string.Empty;
-                device.CorporateIdentity = string.Empty;
+                ApplyExpiredFields(device, processedExpiredReason, unprocessedExpiredReason);
 
                 try
                 {
                     await _dbService.UpdateDevice(device);
                     expiredDeviceCount++;
+                    if (corpIDDeletedThisRun) corpIDsDeletedCount++;
                     _logger.DSLogInformation($"Device {deviceDesc} marked as Expired.", fullMethodName);
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Device row was deleted (DeviceDeletion). We removed the CorpID, so we own the release;
+                    // DeviceDeletion will get NotFound from Graph and skip it.
+                    if (corpIDDeletedThisRun) corpIDsDeletedCount++;
+                    _logger.DSLogWarning($"Device {deviceDesc} was deleted during expiration.", fullMethodName);
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                {
+                    //
+                    // Another writer changed the device after we re-read it (e.g. UpdateDevices recorded a new
+                    // enrollment). Re-read and only finish expiring if it is still eligible.
+                    //
+                    _logger.DSLogWarning($"Device {deviceDesc} was modified concurrently during expiration. Re-checking eligibility.", fullMethodName);
+
+                    Device? freshDevice;
+                    try
+                    {
+                        freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                    }
+                    catch (Exception readEx)
+                    {
+                        // Can't confirm the outcome; don't release. Over-counting is the safe failure.
+                        failedDeviceCount++;
+                        _logger.DSLogException($"Failed to re-read device {deviceDesc} after concurrent update. Not releasing its CorpID slot; will retry on next run.", readEx, fullMethodName);
+                        continue;
+                    }
+
+                    if (freshDevice is null || freshDevice.Status != DeviceStatus.Synced)
+                    {
+                        // Deleted, Deleting, NonSyncing, etc.: the CorpID is gone and that writer owns the device state.
+                        if (corpIDDeletedThisRun) corpIDsDeletedCount++;
+                        _logger.DSLogInformation($"Device {deviceDesc} is now {freshDevice?.Status.ToString() ?? "deleted"}. Leaving device as is.", fullMethodName);
+                    }
+                    else if (!IsEligibleForExpiration(freshDevice, processedCutoff, unprocessedCutoff))
+                    {
+                        // Device enrolled or was processed while we were expiring it. Leave it Synced and don't
+                        // release the slot; the re-added CorpID reuses the existing reservation.
+                        skippedDeviceCount++;
+                        if (corpIDDeletedThisRun)
+                        {
+                            await ReAddCorpIdAsync(freshDevice, deviceDesc, fullMethodName);
+                        }
+                        else
+                        {
+                            _logger.DSLogWarning($"Device {deviceDesc} was re-enrolled or processed during expiration. Leaving it Synced.", fullMethodName);
+                        }
+                    }
+                    else
+                    {
+                        freshDevice.MarkedForExpirationUTC ??= device.MarkedForExpirationUTC;
+                        ApplyExpiredFields(freshDevice, processedExpiredReason, unprocessedExpiredReason);
+                        try
+                        {
+                            await _dbService.UpdateDevice(freshDevice);
+                            expiredDeviceCount++;
+                            if (corpIDDeletedThisRun) corpIDsDeletedCount++;
+                            _logger.DSLogInformation($"Device {deviceDesc} marked as Expired after retry.", fullMethodName);
+                        }
+                        catch (Exception retryEx)
+                        {
+                            failedDeviceCount++;
+                            _logger.DSLogException($"Retry update failed for device {deviceDesc}. Not releasing its CorpID slot; will retry on next run.", retryEx, fullMethodName);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    // If the CorpID was removed, the next run will get NotFound from Graph and complete expiration.
+                    // Not releasing: the device may be re-enrolled before the next run, in which case it stays Synced
+                    // and ConfirmSync re-adds the CorpID using the existing reservation. Over-counting is the safe failure.
                     failedDeviceCount++;
-                    _logger.DSLogException($"Failed to update expiration status for device {deviceDesc}. Will retry on next run.", ex, fullMethodName);
+                    _logger.DSLogException($"Failed to update expiration status for device {deviceDesc}. Not releasing its CorpID slot; will retry on next run.", ex, fullMethodName);
                 }
             }
-
-            _logger.DSLogInformation($"Expired {expiredDeviceCount} devices. {failedDeviceCount} devices failed expiration, {expirationFailedCount} of which exceeded max retries and were marked ExpirationFailed.", fullMethodName);
+            _logger.DSLogInformation($"Expired {expiredDeviceCount} devices. Skipped {skippedDeviceCount} devices no longer eligible. {failedDeviceCount} devices failed expiration, {expirationFailedCount} of which exceeded max retries and were marked ExpirationFailed.", fullMethodName);
 
             if (corpIDsDeletedCount > 0)
             {

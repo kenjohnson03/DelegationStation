@@ -25,6 +25,20 @@ namespace CorporateIdentifierSync
         }
 
         /// <summary>
+        /// Builds the identifier string sent to Graph when importing a Corporate Identifier for the device.
+        /// </summary>
+        public static string GetCorpIdentifier(Device device)
+        {
+            if (device.OS == DeviceOS.Windows || device.OS == DeviceOS.Unknown)
+            {
+                string escapedMake = "\"" + device.Make + "\"";
+                string escapedModel = "\"" + device.Model + "\"";
+                return $"{escapedMake},{escapedModel},{device.SerialNumber}";
+            }
+            return device.SerialNumber;
+        }
+
+        /// <summary>
         /// Copies the fields owned by CorporateIdentifierSync from the in-memory device onto a freshly read copy.
         /// Used to retry an update after a PreconditionFailed caused by another writer (e.g. UpdateDevices
         /// patching processing fields) changing the ETag without changing Status. The fresh copy keeps its
