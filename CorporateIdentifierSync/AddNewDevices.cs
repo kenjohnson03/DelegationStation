@@ -258,20 +258,7 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogInformation($"-----Adding Corporate Identifier for device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
-                    string identifier = "";
-                    if ((device.OS == DeviceOS.Windows) || (device.OS == DeviceOS.Unknown))
-                    {
-
-                        // Putting make and model in quotes to handle commas
-                        string escapedMake = "\"" + device.Make + "\"";
-                        string escapedModel = "\"" + device.Model + "\"";
-                        identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
-                    }
-                    else
-                    {
-                        identifier = device.SerialNumber;
-                    }
-
+                    string identifier = CorpIDUtilities.GetCorpIdentifier(device);
                     ImportedDeviceIdentityType corpIDType = CorpIDUtilities.GetCorpIDTypeForOS(device.OS);
                     ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(corpIDType, identifier);
                     devicesSynced++;

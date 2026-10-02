@@ -192,17 +192,7 @@ namespace CorporateIdentifierSync
                     // Re-add the missing Corp ID
                     _logger.DSLogInformation("Corporate Identifier not found, re-adding.", fullMethodName);
 
-                    string identifier;
-                    if (device.OS == DeviceOS.Windows || device.OS == DeviceOS.Unknown)
-                    {
-                        string escapedMake = "\"" + device.Make + "\"";
-                        string escapedModel = "\"" + device.Model + "\"";
-                        identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
-                    }
-                    else
-                    {
-                        identifier = device.SerialNumber;
-                    }
+                    string identifier = CorpIDUtilities.GetCorpIdentifier(device);
 
                     try
                     {

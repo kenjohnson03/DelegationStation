@@ -31,6 +31,7 @@ namespace CorporateIdentifierSync
         {
             if (device.OS == DeviceOS.Windows || device.OS == DeviceOS.Unknown)
             {
+                // Putting make and model in quotes to handle commas
                 string escapedMake = "\"" + device.Make + "\"";
                 string escapedModel = "\"" + device.Model + "\"";
                 return $"{escapedMake},{escapedModel},{device.SerialNumber}";
