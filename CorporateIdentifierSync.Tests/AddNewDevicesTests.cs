@@ -1635,6 +1635,188 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        /// <summary>
+        /// Graph add succeeds, DB update gets PreconditionFailed, but the fresh device is still Added
+        /// (another writer such as UpdateDevices changed only non-sync fields).
+        /// Expected behavior: Corp ID fields are reapplied to the fresh copy, the retry succeeds,
+        /// fields from the other writer are preserved, no rollback, and the CorpID is counted.
+        /// </summary>
+        [Fact]
+        public async Task Run_UpdateDeviceThrowsPreconditionFailed_StatusUnchanged_RetrySucceeds_KeepsCorpIdAndCount()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var device = MakeDevice();
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
+            {
+                Id = "retry-id",
+                ImportedDeviceIdentifier = "retry-ident",
+            });
+
+            DateTime processedAt = DateTime.UtcNow.AddMinutes(-1);
+            var freshDevice = MakeDevice();
+            freshDevice.Id = device.Id;
+            freshDevice.PartitionKey = device.PartitionKey;
+            freshDevice.Status = DeviceStatus.Added;
+            freshDevice.ETag = "fresh-etag";
+            freshDevice.LastProcessingAttemptUTC = processedAt;
+            freshDevice.SuccessfullyProcessedUTC = processedAt;
+            freshDevice.ProcessingStatus = ProcessingStatus.Processed;
+
+            db.OnUpdateDevice = d => ReferenceEquals(d, freshDevice)
+                ? Task.CompletedTask
+                : throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(freshDevice);
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert – second update was against the fresh copy with our Corp ID fields applied
+                Assert.Equal(2, db.UpdatedDevices.Count);
+                Device saved = db.UpdatedDevices[1];
+                Assert.Same(freshDevice, saved);
+                Assert.Equal(DeviceStatus.Synced, saved.Status);
+                Assert.Equal("retry-id", saved.CorporateIdentityID);
+                Assert.Equal("retry-ident", saved.CorporateIdentity);
+                Assert.Equal(0, saved.CorpIDFailureCount);
+                // Other writer's fields and ETag preserved
+                Assert.Equal("fresh-etag", saved.ETag);
+                Assert.Equal(ProcessingStatus.Processed, saved.ProcessingStatus);
+                Assert.Equal(processedAt, saved.LastProcessingAttemptUTC);
+                Assert.Equal(processedAt, saved.SuccessfullyProcessedUTC);
+
+                Assert.Null(graph.LastDeletedId);
+                Assert.Equal(1, db.Counter.CorpIDCount);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        /// <summary>
+        /// Graph add succeeds, DB update gets PreconditionFailed, fresh device is still Added, but the retry also fails.
+        /// Expected behavior: the Corp ID is rolled back and not counted, so the next run can re-add it cleanly.
+        /// </summary>
+        [Fact]
+        public async Task Run_UpdateDeviceThrowsPreconditionFailed_StatusUnchanged_RetryFails_RollsBackCorpId()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var device = MakeDevice();
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
+            {
+                Id = "retry-fail-id",
+                ImportedDeviceIdentifier = "retry-fail-ident",
+            });
+            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Success);
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Added });
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert
+                Assert.Equal(2, db.UpdatedDevices.Count);
+                Assert.Equal("retry-fail-id", graph.LastDeletedId);
+                Assert.Equal(0, db.Counter.CorpIDCount);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        /// <summary>
+        /// Graph add succeeds, retry fails, and the rollback also fails.
+        /// Expected behavior: the Corp ID is still in Graph, so it stays counted against capacity.
+        /// </summary>
+        [Fact]
+        public async Task Run_UpdateDeviceThrowsPreconditionFailed_StatusUnchanged_RetryFails_RollbackFails_KeepsCount()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var device = MakeDevice();
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => Task.FromResult(new ImportedDeviceIdentity
+            {
+                Id = "orphan-id",
+                ImportedDeviceIdentifier = "orphan-ident",
+            });
+            graph.OnDelete = _ => Task.FromResult(DeleteCorpIdResult.Error);
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(new Device { Status = DeviceStatus.Added });
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert
+                Assert.Equal("orphan-id", graph.LastDeletedId);
+                Assert.Equal(1, db.Counter.CorpIDCount);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        /// <summary>
+        /// Graph add fails, DB update gets PreconditionFailed, fresh device is still Added.
+        /// Expected behavior: the incremented failure count is reapplied and saved; nothing to roll back or count.
+        /// </summary>
+        [Fact]
+        public async Task Run_SyncingDevice_GraphAddFails_UpdateThrowsPreconditionFailed_StatusUnchanged_RetrySavesFailureCount()
+        {
+            // Arrange
+            SetSyncEnabled();
+            var device = MakeDevice(failureCount: 1);
+            var db = MakeSyncDb(syncingDevices: new List<Device> { device });
+            var graph = new StubGraphBetaService();
+            graph.OnAdd = (_, _) => throw new InvalidOperationException("graph unavailable");
+
+            var freshDevice = MakeDevice(failureCount: 1);
+            freshDevice.Status = DeviceStatus.Added;
+            db.OnUpdateDevice = d => ReferenceEquals(d, freshDevice)
+                ? Task.CompletedTask
+                : throw new CosmosException("precondition failed", HttpStatusCode.PreconditionFailed, 0, "act", 0.0);
+            db.OnGetDevice = (_, _) => Task.FromResult<Device?>(freshDevice);
+
+            var sut = CreateSut(db: db, graph: graph);
+            try
+            {
+                // Act
+                await sut.Run(new TimerInfo());
+
+                // Assert
+                Assert.Equal(2, db.UpdatedDevices.Count);
+                Assert.Same(freshDevice, db.UpdatedDevices[1]);
+                Assert.Equal(2, freshDevice.CorpIDFailureCount);
+                Assert.Equal(DeviceStatus.Added, freshDevice.Status);
+                Assert.Null(graph.LastDeletedId);
+                Assert.Equal(0, db.Counter.CorpIDCount);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
         #endregion GraphAndCosmosErrorHandlingTests
 
 

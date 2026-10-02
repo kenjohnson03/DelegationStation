@@ -430,6 +430,9 @@ namespace CorporateIdentifierSync
             {
                 _logger.DSLogInformation($"-----Adding Corp ID for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
 
+                // Captured before we modify the device so a PreconditionFailed can tell whether Status changed underneath us
+                DeviceStatus? originalStatus = device.Status;
+
                 if (device.OS == null)
                 {
                     device.OS = DeviceOS.Unknown;
@@ -495,9 +498,10 @@ namespace CorporateIdentifierSync
                 catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
                 {
                     // Singleton prevents another ReconcileSyncState instance from racing us.
-                    // No other automated function writes to NonSyncing rows (AddNewDevices handles Added,
+                    // No other CorpIDSync function writes to NonSyncing rows (AddNewDevices handles Added,
                     // ConfirmSync handles Synced). Legitimate concurrent writers here are DeviceDeletion
-                    // (after a user marks Deleting) or direct user UI edits.
+                    // (after a user marks Deleting), direct user UI edits, or UpdateDevices patching
+                    // processing fields (which changes the ETag but not Status).
                     _logger.DSLogWarning($"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently during Corp ID add.", fullMethodName);
 
                     if (!graphAddSucceeded)
@@ -538,11 +542,44 @@ namespace CorporateIdentifierSync
                             addedCount--;
                         }
                     }
+                    else if (freshDevice.Status == originalStatus)
+                    {
+                        // Status is unchanged, so the conflict came from a writer that doesn't own sync state
+                        // (e.g. UpdateDevices patching processing fields). Reapply our changes to the fresh copy and retry once.
+                        _logger.DSLogInformation(
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} status unchanged ('{freshDevice.Status}') after 412. " +
+                            $"Reapplying Corporate Identifier changes and retrying update.",
+                            fullMethodName);
+
+                        CorpIDUtilities.ApplyCorpIdFields(device, freshDevice);
+                        bool retrySucceeded = false;
+                        try
+                        {
+                            await _dbService.UpdateDevice(freshDevice);
+                            retrySucceeded = true;
+                            _logger.DSLogInformation($"Retry update succeeded for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                        }
+                        catch (Exception retryEx)
+                        {
+                            _logger.DSLogException(
+                                $"Retry update failed for device {device.Make} {device.Model} {device.SerialNumber} after 412. " +
+                                $"Rolling back Corp ID {device.CorporateIdentityID}; ReconcileSyncState will retry next run.",
+                                retryEx, fullMethodName);
+                        }
+
+                        if (!retrySucceeded)
+                        {
+                            bool rolledBack = await TryDeleteCorpIdAsync(device.CorporateIdentityID, "rollback after failed retry on 412", fullMethodName);
+                            if (rolledBack)
+                            {
+                                addedCount--;
+                            }
+                        }
+                    }
                     else
                     {
-                        // Defensive fallback: no known code path reaches here given current UI constraints
-                        // (user can only mark Deleting). Roll back the Corp ID to be safe — if the device
-                        // still needs syncing, ReconcileSyncState will pick it up again on the next run.
+                        // Defensive fallback: status changed to something other than Deleting. Roll back the Corp ID
+                        // to be safe — if the device still needs syncing, ReconcileSyncState will pick it up again on the next run.
                         _logger.DSLogError(
                             $"Device {device.Make} {device.Model} {device.SerialNumber} in unexpected state '{freshDevice.Status}' after 412. " +
                             $"Rolling back Corp ID {device.CorporateIdentityID} as a precaution.",

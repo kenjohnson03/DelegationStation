@@ -7,11 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
 using DelegationStationShared.Models;
-using System.Collections.Generic;
-using System;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
 
@@ -26,6 +22,14 @@ namespace UpdateDevices.Services
         private readonly IHostEnvironment _env;
         private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
+
+        // Allows tests to supply a GraphServiceClient backed by a fake HTTP handler.
+        internal GraphService(GraphServiceClient graphClient, ILogger<GraphService> logger)
+        {
+            _logger = logger;
+            _graphClient = graphClient;
+        }
+
 
         public GraphService(IHostEnvironment env, IConfiguration configuration, ILogger<GraphService> logger)
         {
@@ -102,7 +106,7 @@ namespace UpdateDevices.Services
             }
         }
 
-        public async Task AddDeviceToAzureADGroup(string deviceId, string deviceObjectId, DeviceUpdateAction group)
+        public async Task<bool> AddDeviceToAzureADGroup(string deviceId, string deviceObjectId, DeviceUpdateAction group)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
@@ -115,22 +119,22 @@ namespace UpdateDevices.Services
             if (string.IsNullOrEmpty(deviceObjectId))
             {
                 _logger.DSLogError("DeviceObjectId is null or empty.", fullMethodName);
-                return;
+                return false;
             }
             if (string.IsNullOrEmpty(groupId))
             {
                 _logger.DSLogError("GroupId is null or empty.", fullMethodName);
-                return;
+                return false;
             }
             if (Regex.IsMatch(deviceObjectId, _guidRegex) == false)
             {
                 _logger.DSLogError("DeviceId is not a valid GUID. DeviceId: " + deviceId, fullMethodName);
-                return;
+                return false;
             }
             if (Regex.IsMatch(groupId, _guidRegex) == false)
             {
                 _logger.DSLogError("GroupId is not a valid GUID. GroupId: " + groupId + "", fullMethodName);
-                return;
+                return false;
             }
 
             try
@@ -141,21 +145,24 @@ namespace UpdateDevices.Services
                 };
                 await _graphClient.Groups[$"{groupId}"].Members.Ref.PostAsync(requestBody);
                 _logger.DSLogAudit("Added DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") to Group " + group.Name + " ( " + groupId + ").", fullMethodName);
+                return true;
             }
             catch (Exception ex)
             {
                 if (ex.Message.Contains("already exist"))
                 {
                     _logger.DSLogInformation("DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") already exists in Group " + group.Name + " (" + groupId + ").", fullMethodName);
+                    return true;
                 }
                 else
                 {
                     _logger.DSLogException("Unable to add DeviceId " + deviceId + " (as Object ID " + deviceObjectId + ") to Group " + group.Name + " (" + groupId + ").", ex, fullMethodName);
+                    return false;
                 }
             }
         }
 
-        public async Task AddDeviceToAzureAdministrativeUnit(string deviceId, string deviceObjectId, DeviceUpdateAction adminUnit)
+        public async Task<bool> AddDeviceToAzureAdministrativeUnit(string deviceId, string deviceObjectId, DeviceUpdateAction adminUnit)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
@@ -167,22 +174,22 @@ namespace UpdateDevices.Services
             if (string.IsNullOrEmpty(deviceObjectId))
             {
                 _logger.DSLogError("Device Object Id is null or empty.", fullMethodName);
-                return;
+                return false;
             }
             if (string.IsNullOrEmpty(auId))
             {
                 _logger.DSLogError("AU Id is null or empty.", fullMethodName);
-                return;
+                return false;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
                 _logger.DSLogError("Device Object Id is not a valid GUID. DeviceId: " + deviceObjectId + "", fullMethodName);
-                return;
+                return false;
             }
             if (Regex.IsMatch(auId, _guidRegex) == false)
             {
                 _logger.DSLogError("AU Id is not a valid GUID. AU Id: " + auId, fullMethodName);
-                return;
+                return false;
             }
 
             try
@@ -193,16 +200,19 @@ namespace UpdateDevices.Services
                 };
                 await _graphClient.Directory.AdministrativeUnits[$"{auId}"].Members.Ref.PostAsync(requestBody);
                 _logger.DSLogAudit("Added Device " + deviceId + " (as Object ID " + deviceObjectId + ") to Administrative Unit " + adminUnit.Name + " (" + auId + ").", fullMethodName);
+                return true;
             }
             catch (Exception ex)
             {
                 if (ex.Message.Contains("conflicting object"))
                 {
                     _logger.DSLogInformation("Device " + deviceId + " (as Object ID " + deviceObjectId + ") already exists in Administrative Unit " + adminUnit.Name + " (" + auId + ").", fullMethodName);
+                    return true;
                 }
                 else
                 {
                     _logger.DSLogException("Unable to add Device " + deviceId + " (as Object ID " + deviceObjectId + ") to Administrative Unit: " + adminUnit.Name + " (" + auId + ").", ex, fullMethodName);
+                    return false;
                 }
             }
         }
@@ -272,7 +282,7 @@ namespace UpdateDevices.Services
             return devices;
         }
 
-        public async Task UpdateAttributesOnDeviceAsync(string deviceId, string objectDeviceId, List<DeviceUpdateAction> updateActions)
+        public async Task<bool> UpdateAttributesOnDeviceAsync(string deviceId, string objectDeviceId, List<DeviceUpdateAction> updateActions)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
@@ -281,17 +291,17 @@ namespace UpdateDevices.Services
             if (string.IsNullOrEmpty(deviceId) || updateActions == null)
             {
                 _logger.DSLogError("DeviceId or updateActions is null or empty. DeviceId: " + objectDeviceId, fullMethodName);
-                return;
+                return false;
             }
             if (Regex.IsMatch(deviceId, _guidRegex) == false)
             {
                 _logger.DSLogError("DeviceId is not a valid GUID. DeviceId: " + objectDeviceId, fullMethodName);
-                return;
+                return false;
             }
             if (updateActions.Count < 1)
             {
                 _logger.DSLogWarning("No update actions configured for " + objectDeviceId, fullMethodName);
-                return;
+                return true;
             }
 
             var requestBody = new Microsoft.Graph.Models.Device
@@ -325,10 +335,12 @@ namespace UpdateDevices.Services
             {
                 var result = await _graphClient.Devices[$"{objectDeviceId}"].PatchAsync(requestBody);
                 _logger.DSLogAudit("Applied Attributes to Device " + deviceId + ": [" + string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value)) + "]", fullMethodName);
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.DSLogException("Unable to apply ExtensionAttributes to DeviceId " + deviceId + ": [" + string.Join(", ", updateActions.Select(a => a.Name + ": " + a.Value)) + "]", ex, fullMethodName);
+                return false;
             }
         }
 

@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace UpdateDevices.Interfaces
+﻿namespace UpdateDevices.Interfaces
 {
     public interface IGraphBetaService
     {

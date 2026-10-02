@@ -7,12 +7,6 @@ namespace DelegationStationShared.Enums
         Synced,
         Deleting,
         NonSyncing,
-        Failed,
-        Processed,
-        Inactive,
-        CorpIDRemovalFailed,
-        Reprocessing,
-        ReprocessingFailed
-
+        Failed
     }
 }
