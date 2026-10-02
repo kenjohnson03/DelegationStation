@@ -122,6 +122,31 @@ namespace DelegationStation.Tests.Pages
         }
 
         [TestMethod]
+        public void AddDevice_SetsExpirationScheduleFromCreationTime()
+        {
+            using (ShimsContext.Create())
+            {
+                Device? submittedDevice = null;
+                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+                var cut = SetupComponent(new List<DeviceTag> { tag }, device =>
+                {
+                    submittedDevice = device;
+                    return Task.FromResult(device);
+                });
+
+                FillAndSubmitAddForm(cut, "TestMake", "TestModel", "SN12345", "Windows");
+
+                cut.WaitForAssertion(() =>
+                {
+                    Assert.IsNotNull(submittedDevice);
+                    Assert.AreEqual(submittedDevice.ModifiedUTC.AddDays(
+                        DelegationSharedLibrary.Models.SystemSettings.DefaultUnprocessedDevicesExpiredAfterDays),
+                        submittedDevice.MarkedForExpirationUTC);
+                });
+            }
+        }
+
+        [TestMethod]
         [DataRow("MacOS")]
         [DataRow("iOS")]
         [DataRow("Android")]

@@ -49,3 +49,7 @@ They preserve any existing schedule when resetting processing for a new enrollme
 successful processing assigns a new schedule.
 Expiration preserves this timestamp; eligibility still uses the processing-date
 cutoff and the current timeframe, not the scheduled timestamp.
+
+The web page's single-device add and bulk upload initialize `MarkedForExpirationUTC`
+to `ModifiedUTC + UnprocessedDevicesExpiredAfterDays` at creation. This uses the
+temporary shared default until SystemSettings can be read from the DB.

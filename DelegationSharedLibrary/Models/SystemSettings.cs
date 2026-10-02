@@ -14,7 +14,8 @@ namespace DelegationSharedLibrary.Models
         public int MaxCorporateIdentifiers { get; set; } = 10000;
         public const int DefaultProcessedDevicesExpiredAfterDays = 180;
         public int ProcessedDevicesExpiredAfterDays { get; set; } = DefaultProcessedDevicesExpiredAfterDays;
-        public int UnprocessedDevicesExpiredAfterDays { get; set; } = 180;
+        public const int DefaultUnprocessedDevicesExpiredAfterDays = 180;
+        public int UnprocessedDevicesExpiredAfterDays { get; set; } = DefaultUnprocessedDevicesExpiredAfterDays;
 
 
         public override string ToString()

@@ -59,7 +59,7 @@ namespace DelegationStationShared.Models
         public DateTime? LastSeenEnrollmentUTC { get; set; }
 
         // Expiration related
-        // Scheduled expiration: successful processing time plus the configured expiration timeframe.
+        // Scheduled expiration: creation or successful processing time plus the applicable expiration timeframe.
         public DateTime? MarkedForExpirationUTC { get; set; }
         public DateTime? ExpiredUTC { get; set; }
         public string ExpiredReason { get; set; } = string.Empty;
