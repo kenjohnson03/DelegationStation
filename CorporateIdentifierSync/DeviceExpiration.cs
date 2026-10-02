@@ -220,8 +220,10 @@ namespace CorporateIdentifierSync
                 bool corpIDRemoved;
                 if (string.IsNullOrEmpty(device.CorporateIdentityID))
                 {
+                    // No CorpID to delete, so proceed with expiring the device. corpIDsDeletedCount is not
+                    // incremented, so nothing is released from the CorpID counter.
                     corpIDRemoved = true;
-                    _logger.DSLogWarning($"Device {deviceDesc} is Synced but has no Corporate Identifier stored in DB. This is unexpected; treating as removed.", fullMethodName);
+                    _logger.DSLogError($"Device {deviceDesc} is Synced but has no Corporate Identifier stored in DB. This is unexpected; treating as removed.", fullMethodName);
                 }
                 else
                 {
