@@ -1,5 +1,7 @@
 ﻿using DelegationStation.Pages;
-using Microsoft.Extensions.DependencyInjection;using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.QualityTools.Testing.Fakes;
+using Microsoft.Extensions.Configuration;
 using DelegationStation.Interfaces;
 
 namespace DelegationStation.Tests.Pages
@@ -10,174 +12,183 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void TagsShouldRender()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            //      Create fake services
-            List<DeviceTag> deviceTags = new List<DeviceTag>();
-            DeviceTag deviceTag1 = new DeviceTag();
-            deviceTag1.Name = "testName1";
-            deviceTag1.Description = "testDescription1";
-            deviceTags.Add(deviceTag1);
-            DeviceTag deviceTag2 = new DeviceTag();
-            deviceTag2.Name = "testName2";
-            deviceTag2.Description = "testDescription2";
-            deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
+            using (ShimsContext.Create())
             {
-                CurrentSearch = new DelegationStation.Services.DeviceTagSearch { pageNumber = 1, pageSize = 10, name = string.Empty },
-                GetDeviceTagsAsyncHandler =
-                    (groupIds, name) => Task.FromResult(deviceTags),
-                GetDeviceTagCountAsyncHandler =
-                    (groupIds, name) => Task.FromResult(2),
-                GetDeviceTagsByPageAsyncHandler =
-                    (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags),
-                GetDeviceCountByTagIdAsyncHandler =
-                    (tagId) => Task.FromResult(tagId == deviceTag1.Id.ToString() ? 5 : 7)
-            };
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            var myConfiguration = new Dictionary<string, string?>
-            {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()},
-                {"Nested:Key1", "NestedValue1"},
-                {"Nested:Key2", "NestedValue2"}
-            };
+                //      Create fake services
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                DeviceTag deviceTag1 = new DeviceTag();
+                deviceTag1.Name = "testName1";
+                deviceTag1.Description = "testDescription1";
+                deviceTags.Add(deviceTag1);
+                DeviceTag deviceTag2 = new DeviceTag();
+                deviceTag2.Name = "testName2";
+                deviceTag2.Description = "testDescription2";
+                deviceTags.Add(deviceTag2);
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    CurrentSearchGet = () => new DelegationStation.Services.DeviceTagSearch() 
+                        { pageNumber = 1, pageSize = 10, name = string.Empty },
+                    GetDeviceTagsAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(deviceTags),
+                    GetDeviceTagCountAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(2),
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32String =
+                        (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags),
+                    GetDeviceCountByTagIdAsyncString =
+                        (tagId) => Task.FromResult(tagId == deviceTag1.Id.ToString() ? 5 : 7)
+                };
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
+
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
 
-            //      Add Dependent Services
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+                //      Add Dependent Services
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
 
-            // Act
-            var cut = Render<Tags>();
+                // Act
+                var cut = Render<Tags>();
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("testName1</td>"), $"Tag1 name should be rendered in the table. \\nActual:\\n{cut.Markup}\"");
-            Assert.IsTrue(cut.Markup.Contains("testDescription1</td>"), "Tag1 description should be rendered in the table.");
-            Assert.IsTrue(cut.Markup.Contains("testName2</td>"), "Tag2 name should be rendered in the table.");
-            Assert.IsTrue(cut.Markup.Contains("testDescription2</td>"), "Tag2 description should be rendered in the table.");
-            var row1 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName1"));
-            var row2 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName2"));
-            Assert.IsTrue(row1.TextContent.Contains("5"), $"Tag1 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
-            Assert.IsTrue(row2.TextContent.Contains("7"), $"Tag2 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
-
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("testName1</td>"), $"Tag1 name should be rendered in the table. \\nActual:\\n{cut.Markup}\"");
+                Assert.IsTrue(cut.Markup.Contains("testDescription1</td>"), "Tag1 description should be rendered in the table.");
+                Assert.IsTrue(cut.Markup.Contains("testName2</td>"), "Tag2 name should be rendered in the table.");
+                Assert.IsTrue(cut.Markup.Contains("testDescription2</td>"), "Tag2 description should be rendered in the table.");
+                var row1 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName1"));
+                var row2 = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("testName2"));
+                Assert.IsTrue(row1.TextContent.Contains("5"), $"Tag1 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
+                Assert.IsTrue(row2.TextContent.Contains("7"), $"Tag2 device count should be rendered in the table row.\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void TagsShouldRenderErrorForFailedDeviceCount()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            List<DeviceTag> deviceTags = new List<DeviceTag>();
-            DeviceTag deviceTag1 = new DeviceTag();
-            deviceTag1.Name = "testName1";
-            deviceTag1.Description = "testDescription1";
-            deviceTags.Add(deviceTag1);
-
-            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
+            using (ShimsContext.Create())
             {
-                CurrentSearch = new DelegationStation.Services.DeviceTagSearch { pageNumber = 1, pageSize = 10, name = string.Empty },
-                GetDeviceTagsAsyncHandler =
-                    (groupIds, name) => Task.FromResult(deviceTags),
-                GetDeviceTagCountAsyncHandler =
-                    (groupIds, name) => Task.FromResult(1),
-                GetDeviceTagsByPageAsyncHandler =
-                    (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags),
-                GetDeviceCountByTagIdAsyncHandler =
-                    (tagId) => throw new Exception("Simulated failure")
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            var myConfiguration = new Dictionary<string, string?>
-            {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()}
-            };
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                DeviceTag deviceTag1 = new DeviceTag();
+                deviceTag1.Name = "testName1";
+                deviceTag1.Description = "testDescription1";
+                deviceTags.Add(deviceTag1);
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    CurrentSearchGet = () => new DelegationStation.Services.DeviceTagSearch()
+                        { pageNumber = 1, pageSize = 10, name = string.Empty },
+                    GetDeviceTagsAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(deviceTags),
+                    GetDeviceTagCountAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(1),
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32String =
+                        (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags),
+                    GetDeviceCountByTagIdAsyncString =
+                        (tagId) => throw new Exception("Simulated failure")
+                };
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()}
+                };
 
-            // Act
-            var cut = Render<Tags>();
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
-                $"Error text should be rendered when device count retrieval fails.\nActual:\n{cut.Markup}");
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
 
+                // Act
+                var cut = Render<Tags>();
+
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
+                    $"Error text should be rendered when device count retrieval fails.\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void UnauthorizedShouldNotRender()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetNotAuthorized();
-
-
-            //      Create fake services
-            List<DeviceTag> deviceTags = new List<DeviceTag>();
-            DeviceTag deviceTag1 = new DeviceTag();
-            deviceTag1.Name = "testName1";
-            deviceTag1.Description = "testDescription1";
-            deviceTags.Add(deviceTag1);
-            DeviceTag deviceTag2 = new DeviceTag();
-            deviceTag2.Name = "testName2";
-            deviceTag2.Description = "testDescription2";
-            deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
+            using (ShimsContext.Create())
             {
-                CurrentSearch = new DelegationStation.Services.DeviceTagSearch { pageNumber = 1, pageSize = 10, name = string.Empty },
-                GetDeviceTagsAsyncHandler =
-                    (groupIds, name) => Task.FromResult(deviceTags),
-                GetDeviceTagCountAsyncHandler =
-                    (groupIds, name) => Task.FromResult(2),
-                GetDeviceTagsByPageAsyncHandler =
-                    (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags)
-            };
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetNotAuthorized();
 
-            var myConfiguration = new Dictionary<string, string?>
-            {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()},
-                {"Nested:Key1", "NestedValue1"},
-                {"Nested:Key2", "NestedValue2"}
-            };
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                //      Create fake services
+                List<DeviceTag> deviceTags = new List<DeviceTag>();
+                DeviceTag deviceTag1 = new DeviceTag();
+                deviceTag1.Name = "testName1";
+                deviceTag1.Description = "testDescription1";
+                deviceTags.Add(deviceTag1);
+                DeviceTag deviceTag2 = new DeviceTag();
+                deviceTag2.Name = "testName2";
+                deviceTag2.Description = "testDescription2";
+                deviceTags.Add(deviceTag2);
+                var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
+                {
+                    CurrentSearchGet = () => new DelegationStation.Services.DeviceTagSearch() 
+                        { pageNumber = 1, pageSize = 10, name = string.Empty },
+                    GetDeviceTagsAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(deviceTags),
+                    GetDeviceTagCountAsyncIEnumerableOfStringString =
+                        (groupIds, name) => Task.FromResult(2),
+                    GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32String =
+                        (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags)
+                };
 
-            //      Add Dependent Services
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
 
-            // Act
-            var cut = Render<Tags>();
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
-            // Assert
-            cut.MarkupMatches(@"
+                //      Add Dependent Services
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+
+                // Act
+                var cut = Render<Tags>();
+
+                // Assert
+                cut.MarkupMatches(@"
 <h3>Tags</h3>
 Not Authorized to create Tags
 <p>Not Authorized</p>");
-
+            }
         }
     }
 }

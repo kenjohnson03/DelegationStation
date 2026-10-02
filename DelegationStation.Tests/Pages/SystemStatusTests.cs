@@ -1,5 +1,7 @@
 using DelegationStation.Pages;
-using Microsoft.Extensions.DependencyInjection;using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.QualityTools.Testing.Fakes;
+using Microsoft.Extensions.Configuration;
 using DelegationStation.Interfaces;
 
 namespace DelegationStation.Tests.Pages
@@ -7,16 +9,17 @@ namespace DelegationStation.Tests.Pages
     [TestClass]
     public class SystemStatusTests : Bunit.TestContext
     {
-        private static FakeDeviceTagDBService CreateTagService(List<DeviceTag> deviceTags)
+        private static DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService CreateTagService(List<DeviceTag> deviceTags)
         {
-            return new FakeDeviceTagDBService()
+            return new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
-                CurrentSearch = new DelegationStation.Services.DeviceTagSearch { pageNumber = 1, pageSize = 10, name = string.Empty },
-                GetDeviceTagsAsyncHandler =
+                CurrentSearchGet = () => new DelegationStation.Services.DeviceTagSearch()
+                    { pageNumber = 1, pageSize = 10, name = string.Empty },
+                GetDeviceTagsAsyncIEnumerableOfStringString =
                     (groupIds, name) => Task.FromResult(deviceTags),
-                GetDeviceTagCountAsyncHandler =
+                GetDeviceTagCountAsyncIEnumerableOfStringString =
                     (groupIds, name) => Task.FromResult(deviceTags.Count),
-                GetDeviceTagsByPageAsyncHandler =
+                GetDeviceTagsByPageAsyncIEnumerableOfStringInt32Int32String =
                     (groupIds, pageNumber, pageSize, name) => Task.FromResult(deviceTags)
             };
         }
@@ -37,290 +40,306 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void CorporateIdentifierStatusShouldRenderCounterValues()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(2500))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(2500))
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("10000"), $"Max allowed corporate identifiers should be rendered.\nActual:\n{cut.Markup}");
-            Assert.IsTrue(cut.Markup.Contains("2500"), "Current corporate identifier count should be rendered.");
-            Assert.IsTrue(cut.Markup.Contains("25%"), "Utilization percentage should be rendered.");
-            Assert.IsTrue(cut.Markup.Contains("text-success"), "Utilization below 90% should use the success style.");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("10000"), $"Max allowed corporate identifiers should be rendered.\nActual:\n{cut.Markup}");
+                Assert.IsTrue(cut.Markup.Contains("2500"), "Current corporate identifier count should be rendered.");
+                Assert.IsTrue(cut.Markup.Contains("25%"), "Utilization percentage should be rendered.");
+                Assert.IsTrue(cut.Markup.Contains("text-success"), "Utilization below 90% should use the success style.");
+            }
         }
 
         [TestMethod]
         public void CorporateIdentifierStatusShouldShowErrorWhenCounterMissing()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(null)
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(null)
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("Corporate Identifier counter was not found in the database."),
-                $"An error message should be shown when the counter is missing.\nActual:\n{cut.Markup}");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("Corporate Identifier counter was not found in the database."),
+                    $"An error message should be shown when the counter is missing.\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void CorporateIdentifierStatusShouldShowErrorWhenCounterLoadFails()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => throw new Exception("Database unavailable")
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => throw new Exception("Database unavailable")
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("Failed to load Corporate Identifier status."),
-                $"An error message should be shown when loading the counter throws.\nActual:\n{cut.Markup}");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("Failed to load Corporate Identifier status."),
+                    $"An error message should be shown when loading the counter throws.\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void UtilizationShouldUseDangerStyleWhenAtOrAboveLimit()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(150))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 100));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(150))
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 100));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("text-danger"),
-                $"Utilization at or above 100% should use the danger style.\nActual:\n{cut.Markup}");
-            // The count is capped at the max allowed for display purposes.
-            Assert.IsTrue(cut.Markup.Contains("100%"), "Utilization should be capped at 100%.");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("text-danger"),
+                    $"Utilization at or above 100% should use the danger style.\nActual:\n{cut.Markup}");
+                // The count is capped at the max allowed for display purposes.
+                Assert.IsTrue(cut.Markup.Contains("100%"), "Utilization should be capped at 100%.");
+            }
         }
 
         [TestMethod]
         public void TagsTableShouldRenderTagsWithSyncedDeviceCounts()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            DeviceTag deviceTag = new DeviceTag() { Name = "testTag" };
-            var deviceTags = new List<DeviceTag> { deviceTag };
-            var fakeDeviceTagDBService = CreateTagService(deviceTags);
-
-            var devices = new List<Device>
+            using (ShimsContext.Create())
             {
-                new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Synced },
-                new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Synced },
-                new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Added }
-            };
-            var fakeDeviceDBService = new FakeDeviceDBService()
-            {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(devices)
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
+                DeviceTag deviceTag = new DeviceTag() { Name = "testTag" };
+                var deviceTags = new List<DeviceTag> { deviceTag };
+                var fakeDeviceTagDBService = CreateTagService(deviceTags);
 
-            // Act
-            var cut = Render<SystemStatus>();
+                var devices = new List<Device>
+                {
+                    new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Synced },
+                    new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Synced },
+                    new Device() { Status = DelegationStationShared.Enums.DeviceStatus.Added }
+                };
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(devices)
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
+                };
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("testTag"), $"Tag name should be rendered.\nActual:\n{cut.Markup}");
-            // Only the two Synced devices should be counted.
-            Assert.IsTrue(cut.Markup.Contains("<td>2</td>"), "Only synced devices should be counted.");
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId, 10000));
 
+                // Act
+                var cut = Render<SystemStatus>();
+
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("testTag"), $"Tag name should be rendered.\nActual:\n{cut.Markup}");
+                // Only the two Synced devices should be counted.
+                Assert.IsTrue(cut.Markup.Contains("<td>2</td>"), "Only synced devices should be counted.");
+            }
         }
 
         [TestMethod]
         public void TagsTableShouldShowNoTagsMessageWhenEmpty()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("No tags found."),
-                $"A no tags message should be shown when there are no tags.\nActual:\n{cut.Markup}");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("No tags found."),
+                    $"A no tags message should be shown when there are no tags.\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void TagsTableShouldShowErrorWhenDeviceCountRetrievalFails()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-
-            DeviceTag deviceTag = new DeviceTag() { Name = "testTag" };
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag> { deviceTag });
-
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => throw new Exception("Device lookup failed")
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                DeviceTag deviceTag = new DeviceTag() { Name = "testTag" };
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag> { deviceTag });
 
-            // Act
-            var cut = Render<SystemStatus>();
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => throw new Exception("Device lookup failed")
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
+                };
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
-                $"A failed device count should be shown per tag.\nActual:\n{cut.Markup}");
-            Assert.IsTrue(cut.Markup.Contains("N/A"), "Utilization should be N/A when the device count fails.");
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
+                // Act
+                var cut = Render<SystemStatus>();
+
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("Unable to retrieve device count"),
+                    $"A failed device count should be shown per tag.\nActual:\n{cut.Markup}");
+                Assert.IsTrue(cut.Markup.Contains("N/A"), "Utilization should be N/A when the device count fails.");
+            }
         }
 
         [TestMethod]
         public void TagsTableShouldNotRenderWhenNotAuthorized()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetNotAuthorized();
-
-            var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            using (ShimsContext.Create())
             {
-                GetDevicesByTagAsyncHandler = (tagId) => Task.FromResult(new List<Device>())
-            };
-            var fakeCorpIdDBService = new FakeCorpIdDBService()
-            {
-                GetCorpIDCounterAsyncHandler = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetNotAuthorized();
 
-            Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
-            Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
-            Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
-            Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
+                var fakeDeviceTagDBService = CreateTagService(new List<DeviceTag>());
+                var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
+                {
+                    GetDevicesByTagAsyncString = (tagId) => Task.FromResult(new List<Device>())
+                };
+                var fakeCorpIdDBService = new DelegationStation.Interfaces.Fakes.StubICorpIdDBService()
+                {
+                    GetCorpIDCounterAsync = () => Task.FromResult<CorpIDCounter?>(new CorpIDCounter(0))
+                };
 
-            // Act
-            var cut = Render<SystemStatus>();
+                Services.AddSingleton<IDeviceTagDBService>(fakeDeviceTagDBService);
+                Services.AddSingleton<IDeviceDBService>(fakeDeviceDBService);
+                Services.AddSingleton<ICorpIdDBService>(fakeCorpIdDBService);
+                Services.AddSingleton<IConfiguration>(CreateConfiguration(defaultId));
 
-            // Assert
-            Assert.IsTrue(cut.Markup.Contains("Not Authorized"),
-                $"An unauthorized user should see the not authorized message.\nActual:\n{cut.Markup}");
-            Assert.IsFalse(cut.Markup.Contains("Number of Devices"),
-                "The tags table should not render for an unauthorized user.");
+                // Act
+                var cut = Render<SystemStatus>();
 
+                // Assert
+                Assert.IsTrue(cut.Markup.Contains("Not Authorized"),
+                    $"An unauthorized user should see the not authorized message.\nActual:\n{cut.Markup}");
+                Assert.IsFalse(cut.Markup.Contains("Number of Devices"),
+                    "The tags table should not render for an unauthorized user.");
+            }
         }
     }
 }

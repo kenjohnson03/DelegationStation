@@ -3,7 +3,9 @@ using DelegationStation.Pages;
 using DelegationStation.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection;
-using DelegationStation.Interfaces;using Microsoft.Extensions.Configuration;
+using DelegationStation.Interfaces;
+using Microsoft.QualityTools.Testing.Fakes;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
 using DelegationStation.Shared;
 
@@ -15,172 +17,180 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void DisplayRolesMenuToAdmins()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroupId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("DelegationStationAdmin");
-
-            var myConfiguration = new Dictionary<string, string?>
+            using (ShimsContext.Create())
             {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()},
-                {"Nested:Key1", "NestedValue1"},
-                {"Nested:Key2", "NestedValue2"}
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroupId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("DelegationStationAdmin");
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
 
-            var httpContext = new HttpContextAccessor();
-            httpContext.HttpContext = new DefaultHttpContext();
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
-            // Add Dependent Services
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
-            Services.AddSingleton<IHttpContextAccessor>(httpContext);
-            Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
-            Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
-            Services.AddDataProtection();
-            Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
-            JSInterop.Mode = JSRuntimeMode.Loose;
+                var httpContext = new HttpContextAccessor();
+                httpContext.HttpContext = new DefaultHttpContext();
+
+                // Add Dependent Services
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+                Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
 
 
-            // Act
-            var cut = Render<NavMenu>();
+                // Act
+                var cut = Render<NavMenu>();
 
-            // Assert
+                // Assert
 Assert.AreEqual(1, cut.FindAll("a[href='Roles']").Count, $"Role link should be rendered. Actual: {cut.Markup}");
 
 
-
+            }
         }
 
         [TestMethod]
         public void DoNotDisplayRolesMenuToNonAdmins()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroupId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
-
-
-            var myConfiguration = new Dictionary<string, string?>
+            using (ShimsContext.Create())
             {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()},
-                {"Nested:Key1", "NestedValue1"},
-                {"Nested:Key2", "NestedValue2"}
-            };
-
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
-
-            var httpContext = new HttpContextAccessor();
-            httpContext.HttpContext = new DefaultHttpContext();
-
-            // Add Dependent Services
-            Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
-            Services.AddSingleton<IHttpContextAccessor>(httpContext);
-            Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
-            Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
-            Services.AddDataProtection();
-            Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
-            JSInterop.Mode = JSRuntimeMode.Loose;
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroupId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroupId.ToString()));
 
 
-            // Act
-            var cut = Render<NavMenu>();
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()},
+                    {"Nested:Key1", "NestedValue1"},
+                    {"Nested:Key2", "NestedValue2"}
+                };
 
-            // Assert
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
+
+                var httpContext = new HttpContextAccessor();
+                httpContext.HttpContext = new DefaultHttpContext();
+
+                // Add Dependent Services
+                Services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(configuration);
+                Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton<DelegationStation.Services.HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
+
+
+                // Act
+                var cut = Render<NavMenu>();
+
+                // Assert
 Assert.AreEqual(0, cut.FindAll("a[href='Roles']").Count, $"Menu should not display Roles link. Actual: {cut.Markup}");
-
+            }
         }
 
         [TestMethod]
         public void DisplayUpdatesBadgeWhenUpdatesNotViewed()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-
-            var myConfiguration = new Dictionary<string, string?>
+            using (ShimsContext.Create())
             {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()}
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()}
+                };
 
-            var httpContext = new HttpContextAccessor();
-            httpContext.HttpContext = new DefaultHttpContext();
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
-            Services.AddSingleton<IConfiguration>(configuration);
-            Services.AddSingleton<IHttpContextAccessor>(httpContext);
-            Services.AddSingleton<HelpNotificationService>();
-            Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
-            Services.AddDataProtection();
-            Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
-            JSInterop.Mode = JSRuntimeMode.Loose;
+                var httpContext = new HttpContextAccessor();
+                httpContext.HttpContext = new DefaultHttpContext();
 
-            // Act
-            var cut = Render<NavMenu>();
+                Services.AddSingleton<IConfiguration>(configuration);
+                Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton<HelpNotificationService>();
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
 
-            // Assert - badge should show because local storage has no viewed version
-            Assert.AreEqual(1, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should be displayed when updates have not been viewed. Actual: {cut.Markup}");
-            Assert.AreEqual(1, cut.FindAll(".visually-hidden").Count, $"Accessible label for new updates should be present. Actual: {cut.Markup}");
+                // Act
+                var cut = Render<NavMenu>();
 
+                // Assert - badge should show because local storage has no viewed version
+                Assert.AreEqual(1, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should be displayed when updates have not been viewed. Actual: {cut.Markup}");
+                Assert.AreEqual(1, cut.FindAll(".visually-hidden").Count, $"Accessible label for new updates should be present. Actual: {cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void HideUpdatesBadgeAfterUpdatesViewed()
         {
-            // Arrange
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-
-            var myConfiguration = new Dictionary<string, string?>
+            using (ShimsContext.Create())
             {
-                {"DefaultAdminGroupObjectId", defaultId.ToString()}
-            };
+                // Arrange
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(myConfiguration)
-                .Build();
+                var myConfiguration = new Dictionary<string, string?>
+                {
+                    {"DefaultAdminGroupObjectId", defaultId.ToString()}
+                };
 
-            var httpContext = new HttpContextAccessor();
-            httpContext.HttpContext = new DefaultHttpContext();
+                var configuration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(myConfiguration)
+                    .Build();
 
-            var updatesNotification = new HelpNotificationService();
+                var httpContext = new HttpContextAccessor();
+                httpContext.HttpContext = new DefaultHttpContext();
 
-            Services.AddSingleton<IConfiguration>(configuration);
-            Services.AddSingleton<IHttpContextAccessor>(httpContext);
-            Services.AddSingleton(updatesNotification);
-            Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
-            Services.AddDataProtection();
-            Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
-            JSInterop.Mode = JSRuntimeMode.Loose;
+                var updatesNotification = new HelpNotificationService();
 
-            var cut = Render<NavMenu>();
+                Services.AddSingleton<IConfiguration>(configuration);
+                Services.AddSingleton<IHttpContextAccessor>(httpContext);
+                Services.AddSingleton(updatesNotification);
+                Services.AddSingleton<IReleaseNotesService>(new TestReleaseNotesService());
+                Services.AddDataProtection();
+                Services.AddSingleton<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage>();
+                JSInterop.Mode = JSRuntimeMode.Loose;
 
-            // Act - simulate the user viewing the Help page
-            updatesNotification.MarkAsViewed();
-            cut.WaitForState(() => cut.FindAll(".bg-danger.rounded-circle").Count == 0);
+                var cut = Render<NavMenu>();
 
-            // Assert - badge should be hidden after updates are marked as viewed
-            Assert.AreEqual(0, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should not be displayed after updates have been viewed. Actual: {cut.Markup}");
-            Assert.AreEqual(0, cut.FindAll(".visually-hidden").Count, $"Accessible label for new updates should not be present after viewed. Actual: {cut.Markup}");
+                // Act - simulate the user viewing the Help page
+                updatesNotification.MarkAsViewed();
+                cut.WaitForState(() => cut.FindAll(".bg-danger.rounded-circle").Count == 0);
 
+                // Assert - badge should be hidden after updates are marked as viewed
+                Assert.AreEqual(0, cut.FindAll(".bg-danger.rounded-circle").Count, $"Updates badge should not be displayed after updates have been viewed. Actual: {cut.Markup}");
+                Assert.AreEqual(0, cut.FindAll(".visually-hidden").Count, $"Accessible label for new updates should not be present after viewed. Actual: {cut.Markup}");
+            }
 
         }
 

@@ -1,5 +1,7 @@
 ﻿using DelegationStation.Pages;
-using Microsoft.Extensions.DependencyInjection;using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.QualityTools.Testing.Fakes;
+using Microsoft.Extensions.Configuration;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using DelegationStation.Authorization;
@@ -14,245 +16,265 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void TagShouldRender()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
 
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdate");
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate");
 
-            AddDefaultServices(defaultId.ToString());
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "11111111-1111-1111-1111-111111111111"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "11111111-1111-1111-1111-111111111111"));
 
-            // Assert
-            string match = @"class=""form-control valid"" value=""testTagName1""";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-            match = @"class=""form-control valid"" value=""testTagDescription1""";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = @"class=""form-control valid"" value=""testTagName1""";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+                match = @"class=""form-control valid"" value=""testTagDescription1""";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
         [TestMethod]
         public void AdminShouldRenderEdit()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            AddDefaultServices(defaultId.ToString());
-            var authContext = this.AddAuthorization();
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                AddDefaultServices(defaultId.ToString());
+                var authContext = this.AddAuthorization();
 
-            authContext.SetAuthorized("TEST USER", AuthorizationState.Authorized);
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdate");
+                authContext.SetAuthorized("TEST USER", AuthorizationState.Authorized);
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate");
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, Guid.NewGuid().ToString()));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, Guid.NewGuid().ToString()));
 
-            // Assert
-            string match = @"Role:\s*<select";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = @"Role:\s*<select";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void AuthorizedShouldNotRenderEdit()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", Guid.NewGuid().ToString()));
-            AddDefaultServices(defaultId.ToString());
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", Guid.NewGuid().ToString()));
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = @" Role:
-                <select";
-            Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = @" Role:
+                    <select";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void AdminShouldShowAttributes()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAttributes");
-            AddDefaultServices(defaultId.ToString());
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAttributes");
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"Attribute\".*>Attribute</option>";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"Attribute\".*>Attribute</option>";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void AdminShouldShowSecurityGroups()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionSecurityGroups");
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionSecurityGroups");
 
-            AddDefaultServices(defaultId.ToString());
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"Group\".*>Group</option>";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"Group\".*>Group</option>";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void AdminShouldShowAdministrativeUnits()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAdministrativeUnits");
-            AddDefaultServices(defaultId.ToString());
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", defaultId.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdate", "TagUpdateActions", "TagUpdateActionAdministrativeUnits");
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"AdministrativeUnit\".*>AdministrativeUnit</option>";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"AdministrativeUnit\".*>AdministrativeUnit</option>";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void LimitedRoleShouldNotRenderSecurityGroups()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroup = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
-            authContext.SetPolicies("TagView");
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
 
-            AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"Group\".*>Group</option>";
-            Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"Group\".*>Group</option>";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void LimitedRoleShouldNotRenderAdministrativeUnits()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroup = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
-            authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
-            authContext.SetPolicies("TagView");
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
 
-            AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"AdministrativeUnit\".*>AdministrativeUnit</option>";
-            Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"AdministrativeUnit\".*>AdministrativeUnit</option>";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void LimitedRoleShouldNotRenderAttributes()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroup = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
-            authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
-            authContext.SetPolicies("TagView");
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetClaims(new System.Security.Claims.Claim("roles", userGroup.ToString()));
+                authContext.SetPolicies("TagView");
 
-            AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
 
-            // Assert
-            string match = $"<option value=\"Attribute\".*>Attribute</option>";
-            Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = $"<option value=\"Attribute\".*>Attribute</option>";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
         public void UnauthorizedShouldNotRender()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetNotAuthorized();
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetNotAuthorized();
 
-            AddDefaultServices(defaultId.ToString());
+                AddDefaultServices(defaultId.ToString());
 
-            // Act
-            var cut = Render<TagEdit>();
+                // Act
+                var cut = Render<TagEdit>();
 
-            // Assert
-            string match = @"<h2>Tag Edit</h2>.*";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-            match = @"<h3>Not Authorized</h3>";
-            Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
-            match = @".*<table";
-            Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected to not Match:\n{match}\nActual:\n{cut.Markup}");
-
+                // Assert
+                string match = @"<h2>Tag Edit</h2>.*";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+                match = @"<h3>Not Authorized</h3>";
+                Assert.IsTrue(Regex.IsMatch(cut.Markup, match), $"Expected Match:\n{match}\nActual:\n{cut.Markup}");
+                match = @".*<table";
+                Assert.IsFalse(Regex.IsMatch(cut.Markup, match), $"Expected to not Match:\n{match}\nActual:\n{cut.Markup}");
+            }
         }
 
         [TestMethod]
@@ -306,28 +328,30 @@ namespace DelegationStation.Tests.Pages
         [TestMethod]
         public void SaveButtonShouldRender()
         {
-            // Arrange
-            // Add Dependent Services
-            Guid defaultId = Guid.NewGuid();
-            Guid userGroup = Guid.NewGuid();
-            var authContext = this.AddAuthorization();
-            authContext.SetAuthorized("TEST USER");
-            authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
-            authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
-            authContext.SetPolicies("TagView", "TagUpdateActions");
+            using (ShimsContext.Create())
+            {
+                // Arrange
+                // Add Dependent Services
+                Guid defaultId = Guid.NewGuid();
+                Guid userGroup = Guid.NewGuid();
+                var authContext = this.AddAuthorization();
+                authContext.SetAuthorized("TEST USER");
+                authContext.SetClaims(new System.Security.Claims.Claim("name", "TEST USER"));
+                authContext.SetClaims(new System.Security.Claims.Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", userGroup.ToString()));
+                authContext.SetPolicies("TagView", "TagUpdateActions");
 
-            AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
+                AddLimitedRoleServices(defaultId.ToString(), userGroup.ToString());
 
-            // Act
-            var cut = Render<TagEdit>(parameters => parameters
-                .Add(p => p.Id, "myId"));
-            var buttonElement = cut.Find("#SaveButton");
-            //FIXME:  Do we actually need this to test?
-            //buttonElement.Click();
+                // Act
+                var cut = Render<TagEdit>(parameters => parameters
+                    .Add(p => p.Id, "myId"));
+                var buttonElement = cut.Find("#SaveButton");
+                //FIXME:  Do we actually need this to test?
+                //buttonElement.Click();
 
-            // Assert
-            Assert.IsNotNull(buttonElement);
-
+                // Assert
+                Assert.IsNotNull(buttonElement);
+            }
         }
 
         private void AddDefaultServices(string defaultId = "")
@@ -345,11 +369,11 @@ namespace DelegationStation.Tests.Pages
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
+            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
-                GetDeviceTagsAsyncHandler =
+                GetDeviceTagsAsyncIEnumerableOfStringString =
                     (groupIds, name) => Task.FromResult<List<DeviceTag>>(deviceTags),
-                GetDeviceTagAsyncHandler =
+                GetDeviceTagAsyncString =
                     (input) => Task.FromResult(deviceTag1)
             };
 
@@ -361,9 +385,9 @@ namespace DelegationStation.Tests.Pages
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
             devices.Add(device1);
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
-                GetDevicesAsyncHandler =
+                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
                         (groupIds, searchDevice, pageSize, page) => Task.FromResult(devices)
             };
 
@@ -375,14 +399,14 @@ namespace DelegationStation.Tests.Pages
             role.AdministrativeUnits = true;
             roles.Add(role);
 
-            var fakeRoleDBService = new FakeRoleDBService()
+            var fakeRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
             {
-                GetRolesAsyncHandler = () => Task.FromResult<List<Role>>(roles)
+                GetRolesAsync = () => Task.FromResult<List<Role>>(roles)
             };
 
-            var fakeGraphService = new FakeGraphService()
+            var fakeGraphService = new DelegationStation.Interfaces.Fakes.StubIGraphService()
             {
-                GetSecurityGroupNameHandler = (input) => Task.FromResult((string)input)
+                GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };
 
             var myConfiguration = new Dictionary<string, string?>
@@ -435,11 +459,11 @@ namespace DelegationStation.Tests.Pages
             deviceTag2.Name = "testName2";
             deviceTag2.Description = "testDescription2";
             deviceTags.Add(deviceTag2);
-            var fakeDeviceTagDBService = new FakeDeviceTagDBService()
+            var fakeDeviceTagDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
-                GetDeviceTagsAsyncHandler =
+                GetDeviceTagsAsyncIEnumerableOfStringString =
                     (groupIds, name) => Task.FromResult<List<DeviceTag>>(deviceTags),
-                GetDeviceTagAsyncHandler =
+                GetDeviceTagAsyncString =
                     (input) => Task.FromResult(deviceTag1)
             };
 
@@ -451,22 +475,22 @@ namespace DelegationStation.Tests.Pages
             };
             List<DelegationStationShared.Models.Device> devices = new List<DelegationStationShared.Models.Device>();
             devices.Add(device1);
-            var fakeDeviceDBService = new FakeDeviceDBService()
+            var fakeDeviceDBService = new DelegationStation.Interfaces.Fakes.StubIDeviceDBService()
             {
-                GetDevicesAsyncHandler =
+                GetDevicesAsyncIEnumerableOfStringDeviceInt32Int32 =
                         (groupIds, searchDevice, pageSize, page) => Task.FromResult(devices)
             };
 
 
 
-            var fakeRoleDBService = new FakeRoleDBService()
+            var fakeRoleDBService = new DelegationStation.Interfaces.Fakes.StubIRoleDBService()
             {
-                GetRolesAsyncHandler = () => Task.FromResult<List<Role>>(roles)
+                GetRolesAsync = () => Task.FromResult<List<Role>>(roles)
             };
 
-            var fakeGraphService = new FakeGraphService()
+            var fakeGraphService = new DelegationStation.Interfaces.Fakes.StubIGraphService()
             {
-                GetSecurityGroupNameHandler = (input) => Task.FromResult((string)input)
+                GetSecurityGroupNameString = (input) => Task.FromResult((string)input)
             };
 
             var myConfiguration = new Dictionary<string, string?>
