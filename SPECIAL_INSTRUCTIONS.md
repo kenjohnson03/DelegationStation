@@ -1,82 +1,117 @@
 # Special Instructions
 
-Manual Instructions needed for the deployment of updates in the HOTFIX update for CorporateIdentifiers.
+These steps upgrade an existing environment to support tracking device processing state.
 
-> These steps are required only when upgrading an environment that is already running a
-> previous build. For brand-new deployments, follow the standard setup in
-> [`README.md`](README.md).
+## Pre-deployment
 
----
+### Configure the WebJob host
 
-### 1. Add new environment variables
+On the existing webapp's App Service, configure:
 
-Add the following to the **CorporateIdentifierSync function app** configuration. Defaults are
-applied in code if a value is missing or invalid, but set them explicitly for clarity.
+| Setting | Required/default | Purpose |
+|---------|------------------|---------|
+| `MigrationID` | Required | Stable migration event ID. |
+| `ProcessingMigrationBatchSize` | `1000` | Maximum devices evaluated per invocation. |
+| `ProcessingMigration_ProcessedIfSeenDays` | `180` | Maximum age in days of Intune last sync for marking a device Processed. |
+| `ProcessingMigrationGraphMaxRetries` | `8` | Graph retries per page for throttling or service unavailability. |
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `CorpIDAuditTriggerTime` | Yes (for CorpIDAudit) | — | Cron for the CorpIDAudit function (e.g. `0 0 */6 * * *`). |
-| `ReconcileSyncStateTriggerTime` | Yes (for ReconcileSyncState) | — | Cron for the ReconcileSyncState function, which syncs/unsyncs devices when a tag's "enable sync" setting is changed (e.g. `0 0 */12 * * *`). |
-| `MAX_CORPIDS_ALLOWED` | No | `10000` | Maximum Corporate Identifiers allowed in the tenant. |
-| `MAX_CORPID_RETRIES` | No | `10` | Retries before a device add is marked Failed. |
-| `ReconcileSyncBatchSize` | No | `1000` | Devices processed per ReconcileSyncState batch. |
-| `CORPID_WARNING_THRESHOLD_PERCENT` | No | `90` | Usage % of `MAX_CORPIDS_ALLOWED` that triggers an audit warning (clamped 1–100). |
+Verify the following settings are already present:
 
-### 3. Review/modify current timer triggers
+| Setting | Required/default | Purpose |
+|---------|------------------|---------|
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` or `APPINSIGHTS_CONNECTION_STRING` | One required | Webapp's Application Insights resource. |
+| `COSMOS_ENDPOINT` or `COSMOS_CONNECTION_STRING` | One required | Existing Cosmos account. |
+| `COSMOS_DATABASE_NAME` | `DelegationStationData` | Existing database. |
+| `COSMOS_CONTAINER_NAME` | `DeviceData` | Existing device container. |
+| `GraphEndpoint` | Based on Azure environment | Tenant's Microsoft Graph endpoint. |
+| `AzureEnvironment` | `AzurePublicCloud` | Azure cloud environment. |
 
-Review the other CorpID timer triggers to make sure they are still appropriate.
+See [`MigrateDeviceProcessingState/README.md`](MigrateDeviceProcessingState/README.md)
+for the complete configuration and permission requirements.
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `AddDevicesTriggerTime` | Yes | — | Cron for the AddDevices function (e.g. `0 */5 * * * *`). |
-| `DeleteDevicesTriggerTime` | Yes | — | Cron for the DeleteDevices function (e.g. `0 2-59/5 * * * *`). |
-| `ConfirmSyncTriggerTime` | Yes | — | Cron for the ConfirmSync function (e.g. `0 0 */4 * * *`). |
+### Verify Graph permission
 
-### 3. Turn off syncing at system level
+Confirm that the managed identity or app registration already has the Microsoft Graph
+application permission `DeviceManagementManagedDevices.Read.All`, with admin consent.
 
-Set the `CorporateIdentifierSync` function app environment variable 
-`EnableCorpIDSync` to `false`.  
+### Disable ConfirmSync
 
-Confirm the functions are no longer syncing before proceeding.
+- In Azure Portal, open the **CorporateIdentifierSync** function app.
+- Go to **Functions** and select **ConfirmSync**.
+- Click **Disable**.
+- Verify ConfirmSync is disabled and any in-progress execution has finished before
+  uploading the migration WebJob.
 
+### Upload only the migration WebJob
 
-### 4. Deploy application code
+1. Download the **migrate-device-processing-state-webjob** artifact from the build.
+2. Review `settings.job`: the default timer runs every ten minutes. Adjust its schedule
+   if needed, and enable App Service **Always On** for unattended execution.
+3. In Azure Portal, open the existing webapp's **WebJobs → Add**. Upload the artifact ZIP
+   as a **Triggered / Scheduled** WebJob named **MigrateDeviceProcessingState**.
 
-Deploy all software components.
+### Verify an initial batch and allow scheduled processing
 
-1. Web App (`DelegationStation`)
-2. UpdateDevices function app
+Start with a small batch and verify that qualifying devices receive:
+
+- `SuccessfullyProcessedUTC` and `LastProcessingAttemptUTC` set to Intune enrolledDateTime in UTC.
+- `ProcessingStatus` set to `Processed`.
+- `MigrationID` set to the configured event ID.
+
+Nonqualifying devices receive only the migration marker; their processing values remain
+unchanged. Devices with all three processing fields already set are excluded.
+
+Confirm the run summary appears in **the webapp's Application Insights resource** under
+`cloud_RoleName = MigrateDeviceProcessingState` before leaving the job unattended. The
+WebJob README includes a Logs query. Review checked, matched, qualified, stale, not-found,
+updated, conflict and error counts.
+
+Use the small run to estimate batch timing:
+
+1. Divide the summary's `durationSeconds` by `checked` to estimate seconds per device
+   evaluated. Use `checked`, not `updated`, because nonqualifying devices also take time.
+2. Multiply that estimate by the proposed batch size to estimate the batch duration.
+   For example, 120 seconds for 100 checked devices is roughly 1.2 seconds per device;
+   a batch of 500 would take roughly 600 seconds (10 minutes).
+3. Update `ProcessingMigrationBatchSize` in the webapp's App Service application settings
+   and adjust the trigger schedule in `settings.job`. Allow at least 50% extra time above
+   the estimated batch duration before the next trigger (15 minutes in the example).
+4. Observe a run at the new batch size and adjust the batch size or trigger interval
+   again if needed before leaving the job unattended.
+
+This is a rough estimate: every nonempty batch reads all Intune pages, adding fixed overhead,
+and Graph/Cosmos throttling can extend a run. Choose an interval comfortably longer than
+observed run times rather than relying on the estimate alone.
+
+### Complete the migration
+
+1. Confirm the job reports `No pending devices`; investigate errors or repeated conflicts.
+   This indicates completion at that moment, not protection against subsequent old application saves.
+
+## Deployment
+
+Stop/remove the scheduled migration WebJob before deploying application code.
+
+Deploy the updated applications:
+
+1. Webapp (`DelegationStation`).
+2. UpdateDevices function app.
 3. CorporateIdentifierSync function app.
 
-### 5. Run Audit function to get current CorpID count
+## Post-deployment
 
-Run the **CorpIDAudit** function (or otherwise determine the current count of Corporate Identifiers already 
-  in use in the tenant).
+**TBD:** Finalize post-deployment steps.
 
-### 6. Seed the CorpID counter
+1. Set up the maintenance banner: use App Service **Advanced Tools (Kudu)** to create
+   `maintenance-banner.txt` in the deployed webapp's `wwwroot` directory (the web root
+   containing static assets). Add the banner message and verify it appears in the webapp.
+   **TBD:** Finalize the maintenance banner text.
+2. Restore ConfirmSync if it was temporarily disabled, and verify normal operation.
 
-The CorporateIdentifierSync functions require a `CorpIDCounter` document in CosmosDB. Create
-it once using the **SeedCorpIDCounter** triggered webjob. The webjob **refuses to run if a
-counter already exists**, so it is safe to re-run.
+## Rollback
 
-1. Download the `SeedCorpIDCounter` webjob artifact to a local machine.
-2. On the Web App: **Configuration → Application settings**, add `CORPID_INITIAL_COUNT` set to
-   that current count (use `0` only if starting completely fresh).
-3. On the Web App: **WebJobs → Add** a **Triggered** webjob named `SeedCorpIDCounter`,
-   trigger **Manual**, and upload the `seed-corpid-counter-webjob` artifact.
-4. **Run** the webjob manually and confirm in the logs that the counter was created.
-5. **Remove** the webjob and delete the `CORPID_INITIAL_COUNT` setting afterward.
-
-See [`SeedCorpIDCounter/README.md`](SeedCorpIDCounter/README.md) for full details, including the
-document schema that is created.
-
-### 6. Re-enable sync 
-
-Set `EnableCorpIDSync=true` on the CorporateIdentifierSync function app.
-
----
-
-## Rollback Notes
-
-- Redeploy previous version of code.  
-- Manually remove counter from database (to prevent issues on redeployment of changes).
+1. Redeploy the previous version of the code.
+2. **TBD:** Define how to migrate devices that moved to new states back to a previously
+   valid state before rollback, likely using a WebJob. If no devices are in the new states,
+   no rollback WebJob is needed. It is safe to leave the processing fields and `MigrationID`
+   on the device documents.

@@ -28,6 +28,9 @@ env:
   AZURE_WEBJOB_PACKAGE_PATH: .\SeedCorpIDCounter\published
   AZURE_WEBJOB_PKG_NAME: seed-corpid-counter-webjob
 
+  AZURE_MIGRATION_WEBJOB_PACKAGE_PATH: .\MigrateDeviceProcessingState\published
+  AZURE_MIGRATION_WEBJOB_PKG_NAME: migrate-device-processing-state-webjob
+
 jobs:
   build:
 
@@ -73,12 +76,16 @@ jobs:
     #    reporter: dotnet-trx
     #    fail-on-error: 'false'
 
+    - name: Run Migration WebJob Tests
+      run: dotnet test .\MigrateDeviceProcessingState.Tests\MigrateDeviceProcessingState.Tests.csproj --configuration Release --no-build --verbosity quiet
+
     - name: Publish
       run: |
         dotnet publish ${{ env.SRC_DIR }}/DelegationStation --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_APP_PACKAGE_PATH }}"
         dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
         dotnet publish ${{ env.SRC_DIR }}/CorporateIdentifierSync --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_SYNC_FUNCTION_PACKAGE_PATH }}"
         dotnet publish ${{ env.SRC_DIR }}/SeedCorpIDCounter --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
+        dotnet publish ${{ env.SRC_DIR }}/MigrateDeviceProcessingState --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_MIGRATION_WEBJOB_PACKAGE_PATH }}"
       
     - name: Upload WebApp Artifact
       uses: actions/upload-artifact@v4.6.0
@@ -106,3 +113,8 @@ jobs:
         name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
         path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
 
+    - name: Upload Migration WebJob Artifact
+      uses: actions/upload-artifact@v4.6.0
+      with:
+        name: ${{ env.AZURE_MIGRATION_WEBJOB_PKG_NAME }}
+        path: ${{ env.AZURE_MIGRATION_WEBJOB_PACKAGE_PATH }}

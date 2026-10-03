@@ -50,14 +50,15 @@ This repository contains 4 applications:
   * Cleanup function:  Cleans up old DB entries related to the hand-off between the UpdateDevices and StragglerHandler functions 
 * (WIP) InTuneEnrollment function app
 
-The repository also includes a supporting WebJob used during deployment:
-* **SeedCorpIDCounter** (triggered WebJob): one-time job that seeds an initial `CorpIDCounter` document required by CorporateIdentifierSync. See [`SeedCorpIDCounter/README.md`](SeedCorpIDCounter/README.md).
+The repository also includes supporting WebJobs used during deployment:
+* **[v2.3] SeedCorpIDCounter** (triggered WebJob): one-time job that seeds an initial `CorpIDCounter` document required by CorporateIdentifierSync. See [`SeedCorpIDCounter/README.md`](SeedCorpIDCounter/README.md).
+* **MigrateDeviceProcessingState** (scheduled triggered WebJob): pre-deployment migration of device processing state using paged Intune data and a configurable `MigrationID`. See [`MigrateDeviceProcessingState/README.md`](MigrateDeviceProcessingState/README.md).
 
-These applications can be deployed into Azure App Services (Windows or Linux) or Container Instances via Azure CLI, Visual Studio, or GitHub Actions.
+The web application is hosted in Azure App Service, and the function apps are hosted in Azure Functions.
 
-Software is currently built on .NET8 and function apps are using isolated worker model.
+Software is currently built on .NET10.
 
-**Upgrading an existing deployment?** See [`SPECIAL_INSTRUCTIONS.md`](SPECIAL_INSTRUCTIONS.md) for any one-time migration steps that may be required between releases.
+**Upgrading an existing deployment?** See the [`SpecialInstructions`](SpecialInstructions) folder for migration steps for each release. The root [`SPECIAL_INSTRUCTIONS.md`](SPECIAL_INSTRUCTIONS.md) is the working version until the release is finalized.
 
 ## Dependencies
 

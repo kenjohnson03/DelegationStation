@@ -1,0 +1,5 @@
+{
+  "schedule": "0 */10 * * * *",
+  "is_singleton": true,
+  "stopping_wait_time": 300
+}

@@ -55,6 +55,7 @@ namespace DelegationStationShared.Models
         public DateTime? SuccessfullyProcessedUTC { get; set; }
         public DateTime? LastProcessingAttemptUTC { get; set; }
         public ProcessingStatus? ProcessingStatus { get; set; }
+        public string? MigrationID { get; set; }
 
         public DateTime? LastSeenEnrollmentUTC { get; set; }
         //public DateTime? MarkedInactiveUTC { get; set; }
