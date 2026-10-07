@@ -25,8 +25,7 @@ public interface IDeviceStore
 
 public interface IIntuneReader
 {
-    Task<IReadOnlyDictionary<DeviceKey, IntuneDevice>> GetMatchesAsync(
-        IReadOnlySet<DeviceKey> keys, CancellationToken cancellationToken);
+    Task<IntuneDevice?> GetMatchAsync(Device device, CancellationToken cancellationToken);
 }
 
 public sealed class RunCounts
@@ -37,7 +36,6 @@ public sealed class RunCounts
     public int Stale { get; set; }
     public int NotFound { get; set; }
     public int MissingDates { get; set; }
-    public int FutureSync { get; set; }
     public int Updated { get; set; }
     public int Marked { get; set; }
     public int Conflicts { get; set; }
@@ -57,8 +55,9 @@ public sealed class MigrationJob(IDeviceStore store, IIntuneReader intune, Migra
             ["MigrationID"] = options.MigrationID,
             ["MigrationRunUTC"] = runUtc.ToString("O")
         });
-        logger.LogInformation("Starting migration {MigrationID} at {RunUTC}, batch limit {BatchSize}, cutoff {CutoffUTC}.",
-            options.MigrationID, runUtc, options.BatchSize, cutoff);
+        logger.LogInformation(
+            "Starting migration {MigrationID} at {RunUTC}, batch limit {BatchSize}, maximum Intune sync age {MaxIntuneSyncAgeDays} days, cutoff {CutoffUTC}.",
+            options.MigrationID, runUtc, options.BatchSize, options.MaxIntuneSyncAgeDays, cutoff);
         try
         {
             var devices = await store.GetBatchAsync(options, cancellationToken);
@@ -68,42 +67,71 @@ public sealed class MigrationJob(IDeviceStore store, IIntuneReader intune, Migra
                 return counts;
             }
 
-            var keys = devices.Select(DeviceKey.FromCosmos).ToHashSet();
-            // Do not mark any devices until every Graph page has been read successfully.
-            var matches = await intune.GetMatchesAsync(keys, cancellationToken);
+            logger.LogInformation("Loaded {DeviceCount} pending devices, ordered oldest ModifiedUTC first.",
+                devices.Count);
             foreach (Device device in devices)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
                 counts.Checked++;
-                DateTime? enrollmentUtc = null;
-                if (!matches.TryGetValue(DeviceKey.FromCosmos(device), out var match))
-                    counts.NotFound++;
-                else
-                {
-                    counts.Matched++;
-                    if (match.LastSyncDateTime < cutoff)
-                        counts.Stale++;
-                    else if (match.EnrolledDateTime == null || match.LastSyncDateTime == null)
-                        counts.MissingDates++;
-                    else if (match.LastSyncDateTime > runUtc)
-                        counts.FutureSync++;
-                    else
-                    {
-                        counts.Qualified++;
-                        enrollmentUtc = match.EnrolledDateTime.Value.UtcDateTime;
-                    }
-                }
-
                 try
                 {
-                    // Once an evaluation starts, complete its atomic patch even during graceful shutdown.
+                    // Finish the current device's lookup and patch before honoring graceful shutdown.
+                    // A failed lookup throws before any marker is written, leaving this device retryable.
+                    var match = await intune.GetMatchAsync(device, CancellationToken.None);
+                    DateTime? enrollmentUtc = null;
+                    // A missing Intune match or a nonqualifying match still completes this migration's
+                    // evaluation; only a failed/conflicted Cosmos patch leaves the marker unset.
+                    if (match == null)
+                    {
+                        counts.NotFound++;
+                        logger.LogDebug("Device {DeviceID} was not found in Intune; marking evaluated for migration without changing processing fields.",
+                            device.Id);
+                    }
+                    else if (match.EnrolledDateTime == null || match.LastSyncDateTime == null)
+                    {
+                        counts.Matched++;
+                        counts.MissingDates++;
+                        logger.LogDebug(
+                            "Device {DeviceID} matched Intune but is not qualified because enrolledDateTime or lastSyncDateTime is missing.",
+                            device.Id);
+                    }
+                    else if (match.LastSyncDateTime < cutoff)
+                    {
+                        counts.Matched++;
+                        counts.Stale++;
+                        logger.LogDebug(
+                            "Device {DeviceID} matched Intune but is stale: lastSyncDateTime={LastSyncDateTime}, cutoff={CutoffUTC}.",
+                            device.Id, match.LastSyncDateTime, cutoff);
+                    }
+                    else
+                    {
+                        // A timestamp later than run start is still within the configured maximum age.
+                        // Future-dated Intune values can result from clock skew and qualify on recency.
+                        counts.Matched++;
+                        counts.Qualified++;
+                        enrollmentUtc = match.EnrolledDateTime.Value.UtcDateTime;
+                        logger.LogInformation(
+                            "Device {DeviceID} qualified for Processed state using Intune enrollment time {EnrolledUTC}.",
+                            device.Id, enrollmentUtc);
+                    }
+
                     if (await store.PatchAsync(device, options.MigrationID, enrollmentUtc))
                     {
                         counts.Marked++;
                         if (enrollmentUtc.HasValue)
+                        {
                             counts.Updated++;
+                            logger.LogInformation(
+                                "Device {DeviceID} processing fields updated and marked with MigrationID {MigrationID}.",
+                                device.Id, options.MigrationID);
+                        }
+                        else
+                        {
+                            logger.LogDebug("Device {DeviceID} evaluated without processing-field changes and marked with MigrationID {MigrationID}.",
+                                device.Id, options.MigrationID);
+                        }
                     }
                     else
                     {
@@ -114,7 +142,7 @@ public sealed class MigrationJob(IDeviceStore store, IIntuneReader intune, Migra
                 catch (Exception ex)
                 {
                     counts.Errors++;
-                    logger.LogError(ex, "Device {DeviceID} patch failed or its outcome is unknown; re-query eligibility next run.", device.Id);
+                    logger.LogError(ex, "Device {DeviceID} lookup or patch failed, or patch outcome is unknown; re-query eligibility next run.", device.Id);
                 }
             }
             return counts;
@@ -123,6 +151,13 @@ public sealed class MigrationJob(IDeviceStore store, IIntuneReader intune, Migra
         {
             logger.LogInformation("Migration {MigrationID} cancelled before starting another device.", options.MigrationID);
             return counts;
+        }
+        catch (OperationCanceledException ex)
+        {
+            counts.Errors++;
+            logger.LogError(ex, "Migration {MigrationID} was cancelled by an unexpected operation; pending devices remain eligible for retry.",
+                options.MigrationID);
+            throw;
         }
         catch (Exception ex)
         {
@@ -134,10 +169,10 @@ public sealed class MigrationJob(IDeviceStore store, IIntuneReader intune, Migra
         {
             logger.LogInformation(
                 "Migration {MigrationID} summary: checked={Checked}, matched={Matched}, qualified={Qualified}, stale={Stale}, " +
-                "notFound={NotFound}, missingDates={MissingDates}, futureSync={FutureSync}, updated={Updated}, marked={Marked}, " +
+                "notFound={NotFound}, missingDates={MissingDates}, updated={Updated}, marked={Marked}, " +
                 "conflicts={Conflicts}, errors={Errors}, cancelled={Cancelled}, durationSeconds={Duration}.",
                 options.MigrationID, counts.Checked, counts.Matched, counts.Qualified, counts.Stale, counts.NotFound,
-                counts.MissingDates, counts.FutureSync, counts.Updated, counts.Marked, counts.Conflicts, counts.Errors,
+                counts.MissingDates, counts.Updated, counts.Marked, counts.Conflicts, counts.Errors,
                 cancellationToken.IsCancellationRequested, ((timeProvider ?? TimeProvider.System).GetUtcNow() - runUtc).TotalSeconds);
         }
     }

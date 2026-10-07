@@ -15,11 +15,9 @@ public class CosmosDeviceStoreTests
         Assert.Contains("ORDER BY c.ModifiedUTC ASC", query.QueryText);
         Assert.Contains("NOT IS_DEFINED(c.MigrationID)", query.QueryText);
         Assert.Contains("c.MigrationID != @migrationID", query.QueryText);
-        foreach (string field in new[] { "SuccessfullyProcessedUTC", "LastProcessingAttemptUTC", "ProcessingStatus" })
-        {
-            Assert.Contains($"NOT IS_DEFINED(c.{field})", query.QueryText);
-            Assert.Contains($"IS_NULL(c.{field})", query.QueryText);
-        }
+        Assert.DoesNotContain("SuccessfullyProcessedUTC", query.QueryText);
+        Assert.DoesNotContain("LastProcessingAttemptUTC", query.QueryText);
+        Assert.DoesNotContain("ProcessingStatus", query.QueryText);
         Assert.DoesNotContain("OFFSET", query.QueryText);
         Assert.Equal(37, query.GetQueryParameters().Single(p => p.Name == "@batchSize").Value);
         Assert.Equal("event", query.GetQueryParameters().Single(p => p.Name == "@migrationID").Value);

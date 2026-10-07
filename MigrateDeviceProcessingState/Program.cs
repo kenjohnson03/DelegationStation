@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace MigrateDeviceProcessingState;
@@ -33,20 +34,13 @@ public static class Program
         try
         {
             var options = MigrationOptions.FromEnvironment();
-            string cloud = Environment.GetEnvironmentVariable("AzureEnvironment") ?? "AzurePublicCloud";
-            if (cloud != "AzurePublicCloud" && cloud != "AzureUSGovernment" && cloud != "AzureUSDoD")
-                throw new InvalidOperationException("AzureEnvironment must be AzurePublicCloud, AzureUSGovernment or AzureUSDoD.");
-            string endpoint = Environment.GetEnvironmentVariable("GraphEndpoint") ??
-                (cloud == "AzurePublicCloud" ? "https://graph.microsoft.com/" :
-                 cloud == "AzureUSDoD" ? "https://dod-graph.microsoft.us/" : "https://graph.microsoft.us/");
-            var graphUri = new Uri(endpoint.TrimEnd('/') + "/");
-            if (graphUri.Scheme != Uri.UriSchemeHttps)
-                throw new InvalidOperationException("GraphEndpoint must use HTTPS.");
+            // Read the same named Graph settings through IConfiguration, like the webapp GraphService.
+            IConfiguration configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+            var graphSettings = GraphSettings.FromConfiguration(configuration);
 
             var credential = new ManagedIdentityCredential(new ManagedIdentityCredentialOptions(ManagedIdentityId.SystemAssigned)
             {
-                AuthorityHost = cloud == "AzurePublicCloud"
-                    ? AzureAuthorityHosts.AzurePublicCloud : AzureAuthorityHosts.AzureGovernment
+                AuthorityHost = graphSettings.AuthorityHost
             });
             string? connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING");
             using var cosmos = !string.IsNullOrWhiteSpace(connectionString)
@@ -56,8 +50,8 @@ public static class Program
                 Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME") ?? "DelegationStationData",
                 Environment.GetEnvironmentVariable("COSMOS_CONTAINER_NAME") ?? "DeviceData");
             using var http = new HttpClient();
-            var job = new MigrationJob(new CosmosDeviceStore(container),
-                new GraphIntuneReader(http, credential, graphUri, options.GraphMaxRetries,
+            var job = new MigrationJob(new CosmosDeviceStore(container, loggerFactory.CreateLogger<CosmosDeviceStore>()),
+                new GraphIntuneReader(http, credential, graphSettings.Endpoint, options.GraphMaxRetries,
                     loggerFactory.CreateLogger<GraphIntuneReader>()), options, logger);
             RunCounts counts = await job.RunAsync(shutdown.Token);
             return counts.Errors == 0 ? 0 : 1;

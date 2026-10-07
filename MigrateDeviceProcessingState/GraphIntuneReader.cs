@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Core;
+using DelegationStationShared.Models;
 using Microsoft.Extensions.Logging;
 
 namespace MigrateDeviceProcessingState;
@@ -21,6 +22,7 @@ public sealed class GraphIntuneReader(HttpClient http, TokenCredential credentia
 
     private sealed class ManagedDeviceFields
     {
+        // Keep the deserialized Graph shape limited to fields needed for hardware matching and qualification.
         public string? Manufacturer { get; set; }
         public string? Model { get; set; }
         public string? SerialNumber { get; set; }
@@ -28,25 +30,47 @@ public sealed class GraphIntuneReader(HttpClient http, TokenCredential credentia
         public DateTimeOffset? LastSyncDateTime { get; set; }
     }
 
-    public async Task<IReadOnlyDictionary<DeviceKey, IntuneDevice>> GetMatchesAsync(
-        IReadOnlySet<DeviceKey> keys, CancellationToken cancellationToken)
+    public async Task<IntuneDevice?> GetMatchAsync(Device cosmosDevice, CancellationToken cancellationToken)
     {
-        var matches = new Dictionary<DeviceKey, IntuneDevice>();
+        if (string.IsNullOrWhiteSpace(cosmosDevice.Make) || string.IsNullOrWhiteSpace(cosmosDevice.Model) ||
+            string.IsNullOrWhiteSpace(cosmosDevice.SerialNumber))
+        {
+            logger.LogWarning("Device {DeviceID} lacks make, model or serial number; no Intune lookup can be made.", cosmosDevice.Id);
+            return null;
+        }
+
+        IntuneDevice? match = null;
+        DeviceKey expectedKey = DeviceKey.FromCosmos(cosmosDevice);
+        // Escape OData string literals before URL encoding; never interpolate unescaped hardware values.
+        string filter = $"manufacturer eq {Literal(cosmosDevice.Make)} and model eq {Literal(cosmosDevice.Model)} " +
+            $"and serialNumber eq {Literal(cosmosDevice.SerialNumber)}";
         Uri? next = new(graphEndpoint,
-            "v1.0/deviceManagement/managedDevices?$select=manufacturer,model,serialNumber,enrolledDateTime,lastSyncDateTime");
+            "v1.0/deviceManagement/managedDevices?$select=manufacturer,model,serialNumber,enrolledDateTime,lastSyncDateTime" +
+            "&$filter=" + Uri.EscapeDataString(filter));
         int pages = 0, records = 0;
+        logger.LogDebug("Looking up Intune managedDevices by make/model/serial for device {DeviceID}.", cosmosDevice.Id);
         while (next != null)
         {
             if (next.Scheme != Uri.UriSchemeHttps || next.Authority != graphEndpoint.Authority)
                 throw new InvalidOperationException("Graph returned a nextLink outside the configured HTTPS Graph endpoint.");
 
-            using HttpResponseMessage response = await GetPageAsync(next, cancellationToken);
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            Page page = await JsonSerializer.DeserializeAsync<Page>(stream,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken)
-                ?? throw new InvalidOperationException("Graph returned an empty page.");
-            if (page.Value == null)
-                throw new InvalidOperationException("Graph managedDevices response is missing value; refusing to mark devices not found.");
+            Page page;
+            try
+            {
+                using HttpResponseMessage response = await GetPageAsync(next, cancellationToken);
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                page = await JsonSerializer.DeserializeAsync<Page>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken)
+                    ?? throw new InvalidOperationException("Graph returned an empty page.");
+                if (page.Value == null)
+                    throw new InvalidOperationException("Graph managedDevices response is missing value; refusing to mark devices not found.");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogError(ex, "Failed reading Intune lookup page {PageNumber} for device {DeviceID}; its migration marker will not be written.",
+                    pages + 1, cosmosDevice.Id);
+                throw;
+            }
 
             pages++;
             records += page.Value.Count;
@@ -58,18 +82,25 @@ public sealed class GraphIntuneReader(HttpClient http, TokenCredential credentia
                 var device = new IntuneDevice(item.Manufacturer, item.Model, item.SerialNumber,
                     item.EnrolledDateTime, item.LastSyncDateTime);
                 DeviceKey key = DeviceKey.FromGraph(device);
-                if (keys.Contains(key) &&
-                    (!matches.TryGetValue(key, out var previous) ||
+                // A hardware key can have multiple Intune records; retain the one most recently synced.
+                if (key == expectedKey &&
+                    (match == null ||
                      (device.LastSyncDateTime ?? DateTimeOffset.MinValue) >
-                     (previous.LastSyncDateTime ?? DateTimeOffset.MinValue)))
-                    matches[key] = device;
+                     (match.LastSyncDateTime ?? DateTimeOffset.MinValue)))
+                {
+                    match = device;
+                }
             }
+            logger.LogDebug("Read Intune lookup page {PageNumber} for device {DeviceID}: {RecordCount} records.",
+                pages, cosmosDevice.Id, page.Value.Count);
             next = string.IsNullOrEmpty(page.NextLink) ? null : new Uri(page.NextLink, UriKind.Absolute);
         }
-        logger.LogInformation("Read {Pages} Graph pages, {Records} managedDevices, {Matches} matching hardware keys.",
-            pages, records, matches.Count);
-        return matches;
+        logger.LogInformation("Intune lookup for device {DeviceID} completed: pages={Pages}, records={Records}, matched={Matched}.",
+            cosmosDevice.Id, pages, records, match != null);
+        return match;
     }
+
+    private static string Literal(string value) => "'" + value.Replace("'", "''") + "'";
 
     private async Task<HttpResponseMessage> GetPageAsync(Uri uri, CancellationToken cancellationToken)
     {
@@ -82,22 +113,23 @@ public sealed class GraphIntuneReader(HttpClient http, TokenCredential credentia
             HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (response.StatusCode is not (HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable))
             {
-                try
-                {
-                    response.EnsureSuccessStatusCode();
+                if (response.IsSuccessStatusCode)
                     return response;
-                }
-                catch
-                {
-                    response.Dispose();
-                    throw;
-                }
+
+                var status = response.StatusCode;
+                response.Dispose();
+                var exception = new HttpRequestException($"Graph returned HTTP {(int)status} for a managedDevices page.", null, status);
+                logger.LogError(exception, "Graph request for managedDevices failed with HTTP {Status}.", (int)status);
+                throw exception;
             }
             if (attempt >= maxRetries)
             {
                 var status = response.StatusCode;
                 response.Dispose();
-                throw new HttpRequestException($"Graph retry limit ({maxRetries}) exhausted with HTTP {(int)status}.", null, status);
+                var exception = new HttpRequestException($"Graph retry limit ({maxRetries}) exhausted with HTTP {(int)status}.", null, status);
+                logger.LogError(exception, "Graph retry limit exhausted after {AttemptCount} attempts with HTTP {Status}.",
+                    attempt + 1, (int)status);
+                throw exception;
             }
 
             TimeSpan wait = response.Headers.RetryAfter?.Delta ??

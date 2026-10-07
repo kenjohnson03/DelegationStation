@@ -23,8 +23,8 @@ Verify the following settings are already present:
 | `COSMOS_ENDPOINT` or `COSMOS_CONNECTION_STRING` | One required | Existing Cosmos account. |
 | `COSMOS_DATABASE_NAME` | `DelegationStationData` | Existing database. |
 | `COSMOS_CONTAINER_NAME` | `DeviceData` | Existing device container. |
-| `GraphEndpoint` | Based on Azure environment | Tenant's Microsoft Graph endpoint. |
-| `AzureEnvironment` | `AzurePublicCloud` | Azure cloud environment. |
+| `GraphEndpoint` | Same value as webapp | Tenant's Microsoft Graph endpoint. |
+| `AzureEnvironment` | Same value as webapp | Azure cloud environment. |
 
 See [`MigrateDeviceProcessingState/README.md`](MigrateDeviceProcessingState/README.md)
 for the complete configuration and permission requirements.
@@ -59,7 +59,8 @@ Start with a small batch and verify that qualifying devices receive:
 - `MigrationID` set to the configured event ID.
 
 Nonqualifying devices receive only the migration marker; their processing values remain
-unchanged. Devices with all three processing fields already set are excluded.
+unchanged. Devices are skipped only when their `MigrationID` already matches the configured
+event ID; existing processing-field values do not exclude a device from evaluation.
 
 Confirm the run summary appears in **the webapp's Application Insights resource** under
 `cloud_RoleName = MigrateDeviceProcessingState` before leaving the job unattended. The
@@ -79,8 +80,9 @@ Use the small run to estimate batch timing:
 4. Observe a run at the new batch size and adjust the batch size or trigger interval
    again if needed before leaving the job unattended.
 
-This is a rough estimate: every nonempty batch reads all Intune pages, adding fixed overhead,
-and Graph/Cosmos throttling can extend a run. Choose an interval comfortably longer than
+This is a rough estimate: individual Intune lookup latency, extra pages of matching records,
+and Graph/Cosmos throttling can extend a run. Verify the make/model/serial filter returns expected
+matches in the initial run. Choose an interval comfortably longer than
 observed run times rather than relying on the estimate alone.
 
 ### Complete the migration

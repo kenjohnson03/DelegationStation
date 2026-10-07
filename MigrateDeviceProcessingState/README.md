@@ -8,23 +8,30 @@ Only this WebJob is deployed at this stage.
 
 Each scheduled invocation queries up to `ProcessingMigrationBatchSize` Device documents in
 **oldest ModifiedUTC first** order. It excludes documents marked with the configured `MigrationID`
-and documents where all three processing fields are already non-null. Missing and null fields
-are both eligible; partially populated devices are eligible.
+and evaluates every other Device document, regardless of its existing processing-field values.
+Missing, null, partially populated and fully populated processing states are all eligible unless
+the document already has the configured `MigrationID`.
 
-The job scans all Intune `managedDevices` pages with
-`$select=manufacturer,model,serialNumber,enrolledDateTime,lastSyncDateTime`. It retains only
-hardware keys for the current Cosmos batch, limiting memory usage to that batch. There are
-no per-device Graph calls. Every nonempty batch scans Graph again; select the schedule and
-batch size with tenant size, Graph throttling and Cosmos RU capacity in mind.
+Immediately before evaluating each Cosmos device, the job queries Intune `managedDevices`
+with `$filter` on manufacturer, model and serialNumber and
+`$select=manufacturer,model,serialNumber,enrolledDateTime,lastSyncDateTime`.
+Lookups run sequentially and follow all pages of that device's filtered results. There is
+no full-collection scan, snapshot or staging storage. Expect approximately one Graph request
+per device, plus additional pages and retries. Measure lookup latency and throttling in the
+initial tenant run before increasing the batch size.
 
 Matching follows UpdateDevices: case-insensitive make/manufacturer, model and serial number,
 with Graph values trimmed and stored Cosmos values not trimmed. Missing hardware fields
 cannot match. For duplicate Intune records, the record with the most recent lastSyncDateTime
 wins; a dated record wins over a null date. Equal sync dates retain the first returned record.
+The Graph filter uses the stored hardware values, with OData escaping and URL encoding.
+Verify the combined filter is supported and returns expected matches, including casing
+differences, in the target tenant; local case-insensitive comparison only applies to records
+Graph returns. Filter errors are logged and leave the device unmarked, with no unfiltered fallback.
 
-A record qualifies when it has enrolledDateTime and lastSyncDateTime, and its sync is between
-the run's UTC start minus `ProcessingMigration_ProcessedIfSeenDays` and the run's UTC start, inclusive.
-Enrollment itself need not be recent. Future sync dates do not qualify.
+A record qualifies when it has enrolledDateTime and lastSyncDateTime, and its sync is at or
+after the run's UTC start minus `ProcessingMigration_ProcessedIfSeenDays`, inclusive.
+Enrollment itself need not be recent. Sync dates later than run start also qualify.
 
 Qualifying documents receive one atomic `PatchItemAsync` containing:
 
@@ -36,8 +43,10 @@ Qualifying documents receive one atomic `PatchItemAsync` containing:
 | `MigrationID` | Configured migration event ID |
 
 Unmatched, stale or otherwise nonqualifying documents receive **only MigrationID**. Their
-processing fields remain unchanged, including any partial values. No other fields, including
-ModifiedUTC and LastSeenEnrollmentUTC, are written. The job never replaces Device documents.
+processing fields remain unchanged, including any partial values. A qualifying device has its
+three processing fields set to the migration values even if they were previously populated.
+No other fields, including ModifiedUTC and LastSeenEnrollmentUTC, are written. The job never
+replaces Device documents.
 
 ## Configuration
 
@@ -48,7 +57,7 @@ also be applied to that host, without replacing the deployed webapp.
 |---------|------------------|---------|
 | `MigrationID` | Required, nonblank | Stable event identifier, e.g. `device-processing-migration-2026-10`. Keep unchanged when resuming. |
 | `ProcessingMigrationBatchSize` | 1000 | Maximum devices checked per invocation; positive integer. |
-| `ProcessingMigration_ProcessedIfSeenDays` | 180 | Maximum age in days of Intune lastSyncDateTime for marking a device Processed, relative to the run's UTC start. All Intune devices are read regardless of this setting. |
+| `ProcessingMigration_ProcessedIfSeenDays` | 180 | Maximum age in days of Intune lastSyncDateTime for marking a device Processed, relative to the run's UTC start. Does not filter the Intune lookup by date. |
 | `ProcessingMigrationGraphMaxRetries` | 8 | Positive retry count per Graph page for 429/503. Honors Retry-After seconds or HTTP date, otherwise exponential backoff. Exhaustion fails the run. |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Required unless alias below is set | Use the **same connection string as the webapp's Application Insights resource**. |
 | `APPINSIGHTS_CONNECTION_STRING` | Fallback alias | Used only when the standard connection-string setting is absent/blank. |
@@ -56,8 +65,12 @@ also be applied to that host, without replacing the deployed webapp.
 | `COSMOS_CONNECTION_STRING` | Optional | Takes precedence over COSMOS_ENDPOINT for this WebJob. |
 | `COSMOS_DATABASE_NAME` | `DelegationStationData` | Existing database. |
 | `COSMOS_CONTAINER_NAME` | `DeviceData` | Existing container; partition key must be `/PartitionKey`. |
-| `AzureEnvironment` | `AzurePublicCloud` | `AzurePublicCloud`, `AzureUSGovernment` or `AzureUSDoD`. |
-| `GraphEndpoint` | Based on cloud | Public: `https://graph.microsoft.com/`; Government: `https://graph.microsoft.us/`; DoD: `https://dod-graph.microsoft.us/`. |
+| `AzureEnvironment` | Same value as the webapp | `AzurePublicCloud`, `AzureUSGovernment` or `AzureUSDoD`; selects the same public or government authority as the webapp GraphService. |
+| `GraphEndpoint` | Same value as the webapp | The configured absolute HTTPS Graph endpoint, e.g. `https://graph.microsoft.com/`. |
+
+The WebJob reads `AzureEnvironment` and `GraphEndpoint` through `IConfiguration`, matching the
+webapp GraphService setting names. It uses the configured Graph endpoint directly rather than
+inferring a default endpoint from the cloud name.
 
 The host's **system-assigned managed identity** needs admin-consented Graph application permission
 `DeviceManagementManagedDevices.Read.All`. The webapp's existing permissions alone may not include
@@ -109,8 +122,9 @@ pending work. Cosmos SDK handles transient throttling; exhausted retries are log
 
 There is no saved offset: each invocation queries devices still eligible for the current
 MigrationID. Stop/restart with the **same ID** to resume. Changing the ID allows reevaluation
-of non-fully-populated documents from earlier events. This is a single reusable marker, not a
-migration-history ledger; concurrent migrations using different IDs are not supported.
+of every Device document, including ones fully processed by an earlier event. This is a single
+reusable marker, not a migration-history ledger; concurrent migrations using different IDs are
+not supported.
 
 Successful evaluation, including "not found", is recorded once per event **as long as the
 marker survives**. Old applications can remove new fields when replacing a document, causing
@@ -119,14 +133,15 @@ After deployment, UpdateDevices/StragglerHandler can legitimately supersede proc
 when processing an enrollment; they do not patch MigrationID. This migration does not address
 later preservation behavior.
 
-Graph must finish all pages before any Device is marked, so partial retrieval never incorrectly
-classifies missing devices. Errors return a nonzero exit code and log a summary.
+Each device's lookup must finish all filtered Graph pages before that device is marked.
+A lookup failure leaves its marker unchanged and processing continues with the next device.
+Errors return a nonzero exit code and log a summary.
 
 Ctrl+C, SIGTERM on non-Windows hosts, and App Service's `WEBJOBS_SHUTDOWN_FILE` request graceful
-shutdown. No new device starts after cancellation is observed. An already-started device patch
-finishes without the cancellation token, then the job logs a summary and flushes telemetry.
-Cancellation during Graph retrieval or the Cosmos query cancels that retrieval without marking
-devices. A hard process kill or exhausted App Service shutdown grace period cannot guarantee
+shutdown. No new device starts after cancellation is observed. An already-started device's
+lookup (including retries) and patch finish without the cancellation token, then the job logs
+a summary and flushes telemetry. Cancellation during the Cosmos batch query cancels that query.
+A long lookup/retry can exceed the grace period. A hard process kill or exhausted grace period cannot guarantee
 completion/log delivery; an atomic patch is either committed with its marker or remains retryable.
 
 ## Application Insights
@@ -138,9 +153,13 @@ sampling. A missing connection string fails startup **before any Cosmos changes*
 
 Telemetry is tagged with `cloud_RoleName = MigrateDeviceProcessingState`. Migration run logs include
 MigrationID and run UTC properties. Each run logs checked, matched, qualified, stale, not-found,
-missing-date, future-sync, updated, marked, conflict and error counts, cancellation status and duration.
-Telemetry is explicitly flushed before exit; ingestion/network failures or resource-side sampling
-can still affect delivery, so verify on the deployed host.
+missing-date, updated, marked, conflict and error counts, cancellation status and duration.
+Batch load, Cosmos RU charge, Graph page counts, Graph throttling, successful per-device
+qualification/updates, and errors are logged. Routine nonqualifying-device details are Debug
+level and are filtered from normal telemetry to avoid producing hundreds of thousands of records;
+their aggregate counts are in the run summary. Telemetry is explicitly flushed before exit;
+ingestion/network failures or resource-side sampling can still affect delivery, so verify on the
+deployed host.
 
 In the webapp's Application Insights **Logs** view:
 

@@ -14,8 +14,8 @@ public class MigrationJobTests
     [InlineData(-179, true)]
     [InlineData(0, true)]
     [InlineData(-181, false)]
-    [InlineData(1, false)]
-    public async Task SyncWindowIsInclusiveAndExcludesFutureSync(int days, bool qualifies)
+    [InlineData(1, true)]
+    public async Task SyncWindowIsInclusiveAndFutureSyncAlsoQualifies(int days, bool qualifies)
     {
         var device = DeviceFor("one");
         var enrolled = new DateTimeOffset(2024, 1, 1, 9, 0, 0, TimeSpan.FromHours(3));
@@ -30,7 +30,6 @@ public class MigrationJobTests
         Assert.Equal(qualifies ? enrolled.UtcDateTime : (DateTime?)null, store.Patches.Single().Enrollment);
         Assert.Equal(Options.MigrationID, store.Patches.Single().MigrationID);
         Assert.Equal(days < -180 ? 1 : 0, counts.Stale);
-        Assert.Equal(days > 0 ? 1 : 0, counts.FutureSync);
     }
 
     [Fact]
@@ -60,7 +59,7 @@ public class MigrationJobTests
     }
 
     [Fact]
-    public async Task ResumeSkipsMarkedAndFullyPopulatedDevicesAndHonorsBatchSize()
+    public async Task ResumeSkipsOnlyDevicesMarkedWithCurrentMigrationAndHonorsBatchSize()
     {
         var marked = DeviceFor("marked");
         marked.MigrationID = Options.MigrationID;
@@ -75,15 +74,35 @@ public class MigrationJobTests
         var job = Job(store, reader);
 
         Assert.Equal(3, (await job.RunAsync(CancellationToken.None)).NotFound);
-        Assert.Equal(1, (await job.RunAsync(CancellationToken.None)).NotFound);
+        Assert.Equal(2, (await job.RunAsync(CancellationToken.None)).NotFound);
         Assert.Equal(0, (await job.RunAsync(CancellationToken.None)).Checked);
-        Assert.Equal(4, store.Patches.Count);
-        Assert.Equal(2, reader.Calls);
-        Assert.DoesNotContain(store.Patches, p => p.Device == processed || p.Device == marked);
+        Assert.Equal(5, store.Patches.Count);
+        Assert.Equal(5, reader.Calls);
+        Assert.DoesNotContain(store.Patches, p => p.Device == marked);
+        Assert.Contains(store.Patches, p => p.Device == processed);
 
         var newMigration = new MigrationJob(store, reader, Options with { MigrationID = "next-event" },
             NullLogger<MigrationJob>.Instance, new Clock());
         Assert.Equal(3, (await newMigration.RunAsync(CancellationToken.None)).Checked);
+        Assert.Contains(store.Patches, p => p.Device == processed && p.MigrationID == "next-event");
+    }
+
+    [Fact]
+    public async Task FullyPopulatedDeviceIsReevaluatedWhenNotMarkedForMigration()
+    {
+        var device = DeviceFor("already-processed");
+        device.SuccessfullyProcessedUTC = Now.AddYears(-1).UtcDateTime;
+        device.LastProcessingAttemptUTC = Now.AddYears(-1).UtcDateTime;
+        device.ProcessingStatus = ProcessingStatus.Processed;
+        var enrolled = Now.AddYears(-2);
+        var store = new Store(device);
+        var reader = new Reader(device, enrolled, Now);
+
+        var counts = await Job(store, reader).RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, counts.Checked);
+        Assert.Equal(1, counts.Updated);
+        Assert.Contains(store.Patches, patch => patch.Device == device && patch.Enrollment == enrolled.UtcDateTime);
     }
 
     [Fact]
@@ -124,12 +143,45 @@ public class MigrationJobTests
     }
 
     [Fact]
-    public async Task IncompleteGraphScanNeverMarksDevices()
+    public async Task FailedIntuneLookupNeverMarksDevice()
     {
         var store = new Store(DeviceFor("one"));
         var reader = new Reader { Failure = new HttpRequestException("Graph page failed") };
-        await Assert.ThrowsAsync<HttpRequestException>(() => Job(store, reader).RunAsync(CancellationToken.None));
+        var counts = await Job(store, reader).RunAsync(CancellationToken.None);
+        Assert.Equal(1, counts.Errors);
         Assert.Empty(store.Patches);
+    }
+
+    [Fact]
+    public async Task LookupFailureDoesNotStopOtherDevices()
+    {
+        var failing = DeviceFor("one");
+        var succeeding = DeviceFor("two");
+        var store = new Store(failing, succeeding);
+        var reader = new Reader { FailID = failing.Id };
+
+        var counts = await Job(store, reader).RunAsync(CancellationToken.None);
+
+        Assert.Equal(2, counts.Checked);
+        Assert.Equal(1, counts.Errors);
+        Assert.Equal(1, counts.Marked);
+        Assert.Equal(succeeding, Assert.Single(store.Patches).Device);
+        Assert.Null(failing.MigrationID);
+    }
+
+    [Fact]
+    public async Task CancellationDuringLookupFinishesCurrentDeviceThenStops()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var store = new Store(DeviceFor("one"), DeviceFor("two"));
+        var reader = new Reader { DuringLookup = cancellation.Cancel };
+
+        var counts = await Job(store, reader).RunAsync(cancellation.Token);
+
+        Assert.Equal(1, counts.Checked);
+        Assert.Equal(1, counts.Marked);
+        Assert.Equal(1, reader.Calls);
+        Assert.Single(store.Patches);
     }
 
     private static MigrationJob Job(Store store, Reader reader) =>
@@ -152,8 +204,7 @@ public class MigrationJobTests
         public Task<IReadOnlyList<Device>> GetBatchAsync(MigrationOptions options, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<IReadOnlyList<Device>>(devices.Where(d => d.MigrationID != options.MigrationID &&
-                (d.SuccessfullyProcessedUTC == null || d.LastProcessingAttemptUTC == null || d.ProcessingStatus == null))
+            return Task.FromResult<IReadOnlyList<Device>>(devices.Where(d => d.MigrationID != options.MigrationID)
                 .OrderBy(d => d.ModifiedUTC).Take(options.BatchSize).ToList());
         }
 
@@ -174,19 +225,23 @@ public class MigrationJobTests
     {
         private readonly Dictionary<DeviceKey, IntuneDevice> matches = [];
         public Exception? Failure { get; init; }
+        public Guid? FailID { get; init; }
+        public Action? DuringLookup { get; init; }
         public int Calls { get; private set; }
         public Reader() { }
         public Reader(Device device, DateTimeOffset? enrollment, DateTimeOffset? sync) =>
             matches[DeviceKey.FromCosmos(device)] = new(device.Make, device.Model, device.SerialNumber, enrollment, sync);
 
-        public Task<IReadOnlyDictionary<DeviceKey, IntuneDevice>> GetMatchesAsync(
-            IReadOnlySet<DeviceKey> keys, CancellationToken cancellationToken)
+        public Task<IntuneDevice?> GetMatchAsync(Device device, CancellationToken cancellationToken)
         {
             Calls++;
+            DuringLookup?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
+            if (FailID == device.Id)
+                throw new HttpRequestException("Device lookup failed");
             if (Failure != null)
                 throw Failure;
-            return Task.FromResult<IReadOnlyDictionary<DeviceKey, IntuneDevice>>(matches);
+            return Task.FromResult(matches.GetValueOrDefault(DeviceKey.FromCosmos(device)));
         }
     }
 }
