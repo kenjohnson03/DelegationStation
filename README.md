@@ -335,6 +335,11 @@ For example, "https://graph.microsoft.com/"
 <b>"DefaultActionDisable": "false"</b><br/>
 (Optional) Can be set to "true" to disable the device if not found in the database. If set to "false" the device will be allowed to connect if not found in the database.
 
+<b>"ASPNETCORE_ENVIRONMENT": "Development"</b><br/>
+(Development Only) This is used to determine how to connect to Graph.  By default, it will use Managed Identity authentication.  
+This setting allows you to authenticate using an AppReg with a cert or secret in environments where MSI is not an option.
+For web apps, this works both locally and in Azure.
+
 #### Certificate Configuration
 
 This is only needed if you are connecting to Graph using certificates.
@@ -424,6 +429,16 @@ The default is 5, which is the correct value for using the default UpdateDevices
 
 <b>"MaxStragglerAttempts": "5"</b><br/>
 (Optional)  The number of times the Straggler Handler will re-attempt to process a device if it encounters errors during processing.  Defaults to 5.
+
+<b>"ASPNETCORE_ENVIRONMENT": "Development"</b><br/>
+(Development Only) This is used to determine how to connect to Graph.  By default, it will use Managed Identity authentication.  
+This setting allows you to authenticate using an AppReg with a cert or secret in environments where MSI is not an option.
+This will only work in local development and not in Azure.
+
+<b>"AZURE_FUNCTIONS_ENVIRONMENT": "Development"</b><br/>
+(Development Only) This is used to determine how to connect to Graph.  By default, it will use Managed Identity authentication.  
+This setting allows you to authenticate using an AppReg with a cert or secret in environments where MSI is not an option.
+This setting only works in Azure and not locally.
 
 ### Certificate Configuration
 
@@ -521,6 +536,16 @@ Amount of time to pass before checking that a device is still synced.  For examp
 
 <b>"CORPID_WARNING_THRESHOLD_PERCENT": "90"</b><br/>
 (Optional) Usage percentage (of `MAX_CORPIDS_ALLOWED`) at which the CorpIDAudit function logs a warning. Valid range is 1-100; values outside the range are clamped. Default is 90.
+
+<b>"ASPNETCORE_ENVIRONMENT": "Development"</b><br/>
+(Development Only) This is used to determine how to connect to Graph.  By default, it will use Managed Identity authentication.  
+This setting allows you to authenticate using an AppReg with a cert or secret in environments where MSI is not an option.
+This will only work in local development and not in Azure.
+
+<b>"AZURE_FUNCTIONS_ENVIRONMENT": "Development"</b><br/>
+(Development Only) This is used to determine how to connect to Graph.  By default, it will use Managed Identity authentication.  
+This setting allows you to authenticate using an AppReg with a cert or secret in environments where MSI is not an option.
+This setting only works in Azure and not locally.
 
 #### Certificate Configuration
 
