@@ -93,9 +93,9 @@ namespace UpdateDevices.Services
             }
             else // Use Managed identity in Azure
             {
-                _logger.LogInformation("Using Managed Identity to authenticate to Graph service");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using Managed Identity to authenticate to Graph service", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
                 ManagedIdentityCredential managedIdentityCredential = new ManagedIdentityCredential(options: options);
                 this._graphClient = new GraphServiceClient(managedIdentityCredential, scopes, baseUrl);
