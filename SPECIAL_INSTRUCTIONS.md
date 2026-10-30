@@ -1,82 +1,177 @@
 # Special Instructions
 
-Manual Instructions needed for the deployment of updates in the HOTFIX update for CorporateIdentifiers.
+Working instructions for the 2.4 release. Add the non-managed-identity upgrade steps here.
 
-> These steps are required only when upgrading an environment that is already running a
-> previous build. For brand-new deployments, follow the standard setup in
-> [`README.md`](README.md).
+For managed identity migration steps, see
+[`SPECIAL_INSTRUCTIONS_MANAGED_IDENTITY.md`](SPECIAL_INSTRUCTIONS_MANAGED_IDENTITY.md).
 
----
+## Staging
 
-### 1. Add new environment variables
+### DelegationStation WebApp
+Under **Settings** --> **Environment Variables**, add the following:
+- ASPNETCORE_ENVIRONMENT = Development
+- MAX\_CORPIDS\_ALLOWED = <current value set in CorpIDSync function>
+This will disable Graph Managed Identity Auth until we can transition.
+### UpdateDevices
+Under **Settings** --> **Environment Variables**, add the following:
+- AZURE\_FUNCTIONS\_ENVIRONMENT = Development
 
-Add the following to the **CorporateIdentifierSync function app** configuration. Defaults are
-applied in code if a value is missing or invalid, but set them explicitly for clarity.
+This will disable Graph Managed Identity Auth until we can transition.
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `CorpIDAuditTriggerTime` | Yes (for CorpIDAudit) | — | Cron for the CorpIDAudit function (e.g. `0 0 */6 * * *`). |
-| `ReconcileSyncStateTriggerTime` | Yes (for ReconcileSyncState) | — | Cron for the ReconcileSyncState function, which syncs/unsyncs devices when a tag's "enable sync" setting is changed (e.g. `0 0 */12 * * *`). |
-| `MAX_CORPIDS_ALLOWED` | No | `10000` | Maximum Corporate Identifiers allowed in the tenant. |
-| `MAX_CORPID_RETRIES` | No | `10` | Retries before a device add is marked Failed. |
-| `ReconcileSyncBatchSize` | No | `1000` | Devices processed per ReconcileSyncState batch. |
-| `CORPID_WARNING_THRESHOLD_PERCENT` | No | `90` | Usage % of `MAX_CORPIDS_ALLOWED` that triggers an audit warning (clamped 1–100). |
+### CorpIDSync
+Requires a down-time so this update cannot be staged.
 
-### 3. Review/modify current timer triggers
+## Deployment
 
-Review the other CorpID timer triggers to make sure they are still appropriate.
+### [Downtime Required] Disable CorpIDSync Functions
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `AddDevicesTriggerTime` | Yes | — | Cron for the AddDevices function (e.g. `0 */5 * * * *`). |
-| `DeleteDevicesTriggerTime` | Yes | — | Cron for the DeleteDevices function (e.g. `0 2-59/5 * * * *`). |
-| `ConfirmSyncTriggerTime` | Yes | — | Cron for the ConfirmSync function (e.g. `0 0 */4 * * *`). |
+- In the function, under **Settings**, go to **Environment Variables**
+    - Search for 'Trigger'
+    - Click on **Show Values**
+    - Make a note if the frequency of the function doesn't match the following as you will need to adjust some of the steps accordingingly:
+        - AddDevicesTriggerTime - every 5 minutes
+        - DeleteDevicesTriggerTime - every 5 minutes
+        - ConfirmSync - every 4 hours
+        - ReconcileSync - every 12 hours
+    - Click on Advanced Edit
+        - Add the following entries: 
+```json
+        {  "name": "AzureWebJobs.AddNewDevices.Disabled", "value": "1", "slotSetting": false  },  
+        {  "name": "AzureWebJobs.ConfirmSync.Disabled", "value": "1", "slotSetting": false  },  
+        {  "name": "AzureWebJobs.CorpIDAudit.Disabled", "value": "1", "slotSetting": false  },  
+        {  "name": "AzureWebJobs.DeviceDeletion.Disabled", "value": "1", "slotSetting": false  },  
+        {  "name": "AzureWebJobs.ReconcileSyncState.Disabled", "value": "1", "slotSetting": false  },
+```
 
-### 3. Turn off syncing at system level
+- Click on **Add**
+- Search for 'Disabled' to verify you see them but DO NOT click Apply yet.
+- In a new tab, on the function page under **Development Tools**, go to **Console**
+    - Check the current time (which is in UTC):  `date /T`
+    - `cd ../../LogFiles/Application/Functions/Host`
+    -  \`ls -ltrh \*.log\`
+    - You are interested in the latest log, which will be at the bottom. Replaced <logfile> in the steps below with that file name.  These commands will return the last start/stop of each function.
+    - `grep Execut <logfile> | grep Reconcile`
+        - This function shouldn't have any work to do, but to be safe make sure it ran and completed within the last 12 hours.
+    - `grep Execut <logfile> | grep Confirm`
+        - Make sure this function has run and completed within the last 4 hours.  If it's about to trigger again, let it run and the check again.
+    - `grep Execut <logfile> | grep -e Add -e Delet`
+        - This will be tricky since they run frequently but the goal is to see if you can find a window when neither is running.
+- On the AppSettings screen, click on **Apply** to disable all CorpIDSync functions. 
+- **Do not proceed** until you have confirmed no function is actively running.
 
-Set the `CorporateIdentifierSync` function app environment variable 
-`EnableCorpIDSync` to `false`.  
+### Update CorpID Setting
+Under **Settings** --> **Environment Variables**, add the following:
+- ASPNETCORE\_ENVIRONMENT = Development
 
-Confirm the functions are no longer syncing before proceeding.
+### Deploy Updated Software
+Deploy v2.4 software to both function apps and the webapp.
+
+### Configure Banner Notification
+
+- Use notepad to create a text file called maintenance-banner.txt
+    - Enter the following text and save in your Downloads file:
+    ```text
+    red
+    ATTN:  Delegation Station update is in progress.  There will be a temporary delay of CorpID sync services during the update, but post-enrollment processing will still be active.      
+    ```
+
+- Bring up an Explorer window and open up the Downloads directory. 
+- In the DS webapp in the Azure Portal, Go to Advanced Tools.
+    - Click on Debug console in the menu
+    - Go into site/wwwroot/wwwroot
+- From the explorer window, drag maintenance-banner.txt into the window
+- Users should see the updated banner shortly
+### Verify Deployment
+
+#### Delegation Station WebApp
+For initial checkout, user will need to validate the following:
+
+- They are able to login
+- They can complete a device search without performance impacts
+- They can search for AUs and Groups related to settings on the 
+- Can access new pages and they look okay
+#### UpdateDevices
+
+Manually kick off the UpdateDevices function and confirm:
+
+- It is able to successfully query graph for enrolled devices.
+- Scan through logs to verify no other errors requiring immediate attention are seen.
+
+Manually kick off the other two functions and confirm there are no unexpected errors in their logs as well.
 
 
-### 4. Deploy application code
+#### CorpIDsync
 
-Deploy all software components.
+Manually kick off the CorpIDAudit function and confirm:
 
-1. Web App (`DelegationStation`)
-2. UpdateDevices function app
-3. CorporateIdentifierSync function app.
+- It is able to successfully query graph for the CorpID count.
+- Scan through logs to verify no other errors requiring immediate attention are seen.
 
-### 5. Run Audit function to get current CorpID count
+Kick off the other functions one at a time to verify they function.  Make sure they run to completion.
+### Modify CorpID counter and related settings
 
-Run the **CorpIDAudit** function (or otherwise determine the current count of Corporate Identifiers already 
-  in use in the tenant).
+If you've observed some drift with the CorpID counter you can make adjustments while the software is disabled.
 
-### 6. Seed the CorpID counter
+- If we have a reserved count of > 0, it should be safe to reset it to 0.
+- If Devices in Synced State > DS CorpIDCount, we should set the CorpIDCount == Synced State.
+- If Corporate Identifiers in Intune > DS CorpIDCount, we should set CorpIDCount == # in Intune.
 
-The CorporateIdentifierSync functions require a `CorpIDCounter` document in CosmosDB. Create
-it once using the **SeedCorpIDCounter** triggered webjob. The webjob **refuses to run if a
-counter already exists**, so it is safe to re-run.
+If needed, now is also when you can raise the internal limit on CorpIDs:
 
-1. Download the `SeedCorpIDCounter` webjob artifact to a local machine.
-2. On the Web App: **Configuration → Application settings**, add `CORPID_INITIAL_COUNT` set to
-   that current count (use `0` only if starting completely fresh).
-3. On the Web App: **WebJobs → Add** a **Triggered** webjob named `SeedCorpIDCounter`,
-   trigger **Manual**, and upload the `seed-corpid-counter-webjob` artifact.
-4. **Run** the webjob manually and confirm in the logs that the counter was created.
-5. **Remove** the webjob and delete the `CORPID_INITIAL_COUNT` setting afterward.
+- MAX\_CORPIDS\_ALLOWED = <new number>
 
-See [`SeedCorpIDCounter/README.md`](SeedCorpIDCounter/README.md) for full details, including the
-document schema that is created.
+You will also need to change the value of the setting you just added to the WebApp
 
-### 6. Re-enable sync 
+- MAX\_CORPIDS\_ALLOWED = <new number>
 
-Set `EnableCorpIDSync=true` on the CorporateIdentifierSync function app.
 
----
+## Rollback
 
-## Rollback Notes
+The software can be rolled back by deploying the previous version (2.3).
+N
 
-- Redeploy previous version of code.  
-- Manually remove counter from database (to prevent issues on redeployment of changes).
+**Note**:  If the CorpID function was re-enabled, you must repeat the steps to try to shut it down without interrupting current processing.
+
+## Post-Deployment Work
+
+### Configure Banner Notification
+
+- In notepad edit maintenance-banner.txt
+- Enter the following text and save in your Downloads file:
+
+  ```text
+  green
+  ATTN:  Delegation Station update is complete.  CorpID services are back online.
+  ```
+
+
+- Bring up an Explorer window and open up the Downloads directory.
+- In the DS webapp in the Azure Portal, Go to Advanced Tools.
+    - Click on Debug console in the menu
+    - Go into site/wwwroot/wwwroot
+- From the explorer window, drag maintenance-banner.txt into the window
+- Users should see the updated banner shortly
+
+### Manually clean up device entries with non-space whitespace or hidden characters
+
+Review existing device entries whose Make, Model, or Serial Number contains whitespace other than a regular space (`" "`) or hidden characters.
+
+- In the Cosmos DB account, open **Data Explorer** and select the device container.
+- Run a query to identify matching device entries:
+    ```sql
+    SELECT d.id, d.Make, d.Model, d.SerialNumber
+    FROM d
+    WHERE d.Type = "Device"
+    AND (
+      REGEXMATCH(d.Make, "[^-a-zA-Z0-9\_.,&() ]")
+      OR REGEXMATCH(d.Model, "[^-a-zA-Z0-9\_.,&()+ ]")
+      OR REGEXMATCH(d.SerialNumber, "[^-a-zA-Z0-9\_. ]")
+    )
+    ```
+- Review each match before deleting it; do not delete entries based solely on the query results.
+- Use **Data Explorer** to manually delete the confirmed unwanted entries.
+- Run the query again to confirm the intended entries were removed.
+
+## Cleanup
+
+Remove maintenance-banner.txt.
