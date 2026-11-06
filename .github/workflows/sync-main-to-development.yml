@@ -1,0 +1,58 @@
+name: Sync main to development
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  create-sync-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if main has commits not in development
+        id: check
+        run: |
+          git fetch origin development
+          COMMITS=$(git log origin/development..origin/main --oneline)
+          if [ -z "$COMMITS" ]; then
+            echo "No new commits in main that aren't already in development. Skipping PR."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "New commits found:"
+            echo "$COMMITS"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing open PR
+        if: steps.check.outputs.skip == 'false'
+        id: existing-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh pr list --base development --head main --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists. Skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR from main into development
+        if: steps.check.outputs.skip == 'false' && steps.existing-pr.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base development \
+            --head main \
+            --title "chore: sync main into development" \
+            --body "This PR was automatically created because commits were pushed to \`main\` that are not yet present in \`development\`. Please review and merge to keep the branches in sync."
