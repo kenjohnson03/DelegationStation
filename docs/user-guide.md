@@ -78,6 +78,8 @@ The **Add device** form is located below the device table.
 3. Use the **Tags** filter input to search and select the tag(s) to assign to the device.
 4. Click **Add**.
 
+For both single-device entry and **Bulk Devices** uploads, **Device Make**, **Device Model**, and **Serial Number** allow ordinary spaces but not tabs, line breaks, or other whitespace characters. These required fields cannot contain only spaces.
+
 On success, a green confirmation banner is shown and the new device appears in the table.  
 On failure, a red error banner is shown with a correlation ID for troubleshooting.
 
