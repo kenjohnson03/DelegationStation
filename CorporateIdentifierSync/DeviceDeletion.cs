@@ -53,12 +53,25 @@ namespace CorporateIdentifierSync
             }
         }
 
+        private bool ShouldStopForCancellation(CancellationToken cancellationToken, string fullMethodName)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _logger.DSLogInformation("Cancellation requested. Stopping new work and finalizing Corporate ID deletions before exiting.", fullMethodName);
+            return true;
+        }
+
         [Function("DeviceDeletion")]
-        public async Task Run([TimerTrigger("%DeleteDevicesTriggerTime%")] TimerInfo myTimer)
+        public async Task Run([TimerTrigger("%DeleteDevicesTriggerTime%")] TimerInfo myTimer, CancellationToken cancellationToken = default)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
+
+            if (ShouldStopForCancellation(cancellationToken, fullMethodName)) return;
 
             await using var handle = await _singletonLock.TryAcquireAsync(nameof(DeviceDeletion));
             if (handle is null)
@@ -99,85 +112,96 @@ namespace CorporateIdentifierSync
 
             int deletedDeviceCount = 0;
             int corpIDsDeletedCount = 0;
-            foreach (Device device in devicesToDelete)
+            int deviceNumber = 0;
+            try
             {
-                _logger.DSLogInformation($"-----Deleting device {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
-
-                bool delCorpID = false;
-
-                // If present, delete from Corporate Identifiers
-                if (!String.IsNullOrEmpty(device.CorporateIdentityID))
+                foreach (Device device in devicesToDelete)
                 {
-                    DeleteCorpIdResult deleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
-                    switch (deleteResult)
+                    // Finish the current device's Graph/DB work before honoring cancellation.
+                    if (ShouldStopForCancellation(cancellationToken, fullMethodName)) return;
+
+                    deviceNumber++;
+                    _logger.DSLogInformation($"-----Deleting device {deviceNumber}/{devicesToDelete.Count}: {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
+
+                    bool delCorpID = false;
+
+                    // If present, delete from Corporate Identifiers
+                    if (!String.IsNullOrEmpty(device.CorporateIdentityID))
                     {
-                        case DeleteCorpIdResult.Success:
-                            delCorpID = true;
-                            corpIDsDeletedCount++;
-                            _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
-                            break;
+                        DeleteCorpIdResult deleteResult = await _graphBetaService.DeleteCorporateIdentifier(device.CorporateIdentityID);
+                        switch (deleteResult)
+                        {
+                            case DeleteCorpIdResult.Success:
+                                delCorpID = true;
+                                corpIDsDeletedCount++;
+                                _logger.DSLogInformation($"Successfully deleted Corporate Identifier: {device.CorporateIdentity}", fullMethodName);
+                                break;
 
-                        case DeleteCorpIdResult.NotFound:
-                            // Already removed from Graph so safe to proceed with Cosmos deletion, but don't
-                            // increment corpIDsDeletedCount since there is nothing to release from the counter.
-                            // This may result in count > reality, but this is the preferred error scenario.
-                            delCorpID = true;
-                            _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
-                            break;
+                            case DeleteCorpIdResult.NotFound:
+                                // Already removed from Graph so safe to proceed with Cosmos deletion, but don't
+                                // increment corpIDsDeletedCount since there is nothing to release from the counter.
+                                // This may result in count > reality, but this is the preferred error scenario.
+                                delCorpID = true;
+                                _logger.DSLogWarning($"Corporate Identifier {device.CorporateIdentityID} was not found in Graph. Proceeding with Cosmos deletion for device {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                                break;
 
-                        case DeleteCorpIdResult.Error:
-                            delCorpID = false;
-                            _logger.DSLogError($"Could not delete CorpID for: {device.Make} {device.Model} {device.SerialNumber} (ID: {device.CorporateIdentityID})", fullMethodName);
-                            break;
+                            case DeleteCorpIdResult.Error:
+                                delCorpID = false;
+                                _logger.DSLogError($"Could not delete CorpID for: {device.Make} {device.Model} {device.SerialNumber} (ID: {device.CorporateIdentityID})", fullMethodName);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        _logger.DSLogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
+                        delCorpID = true;
+                    }
+
+                    // Delete from Delegation Station
+                    if (delCorpID)
+                    {
+                        try
+                        {
+                            await _dbService.DeleteDevice(device);
+                            deletedDeviceCount++;
+                            _logger.DSLogInformation($"Successfully deleted device from Delegation Station: {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
+                        }
+                        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        {
+                            // Already gone — treat as success.
+                            deletedDeviceCount++;
+                            _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} already deleted from Cosmos.", fullMethodName);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogException($"Deletion from Delegation Station failed for device {device.Make} {device.Model} {device.SerialNumber}.", ex, fullMethodName);
+                        }
+                    }
+                    else
+                    {
+                        _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Make} {device.Model} {device.SerialNumber}.  Not deleting from Delegation Station", fullMethodName);
                     }
                 }
-                else
-                {
-                    _logger.DSLogInformation($"Device not synced yet. No Corp Identifier to delete.  {device.Make} {device.Model} {device.SerialNumber}", fullMethodName);
-                    delCorpID = true;
-                }
+            }
+            finally
+            {
 
-                // Delete from Delegation Station
-                if (delCorpID)
+                _logger.DSLogInformation($"Successfully deleted {deletedDeviceCount} devices from Delegation Station.", fullMethodName);
+
+                if (corpIDsDeletedCount > 0)
                 {
+                    _logger.DSLogInformation($"Successfully deleted {corpIDsDeletedCount} Corporate Identifiers.", fullMethodName);
+                    var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
+
                     try
                     {
-                        await _dbService.DeleteDevice(device);
-                        deletedDeviceCount++;
-                        _logger.DSLogInformation($"Successfully deleted device from Delegation Station: {device.Make} {device.Model} {device.SerialNumber}.", fullMethodName);
-                    }
-                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    {
-                        // Already gone — treat as success.
-                        deletedDeviceCount++;
-                        _logger.DSLogInformation($"Device {device.Make} {device.Model} {device.SerialNumber} already deleted from Cosmos.", fullMethodName);
+                        int available = await capacityManager.ReleaseCorpIDs(corpIDsDeletedCount, CancellationToken.None);
+                        _logger.DSLogInformation($"Available CorpIDs after release: {available}", fullMethodName);
                     }
                     catch (Exception ex)
                     {
-                        _logger.DSLogException($"Deletion from Delegation Station failed for device {device.Make} {device.Model} {device.SerialNumber}.", ex, fullMethodName);
+                        _logger.DSLogException("Failed to release CorpIDs after deletions.", ex, fullMethodName);
                     }
-                }
-                else
-                {
-                    _logger.DSLogError($"Deletion from Corporate Identifiers failed for device {device.Make} {device.Model} {device.SerialNumber}.  Not deleting from Delegation Station", fullMethodName);
-                }
-            }
-
-            _logger.DSLogInformation($"Successfully deleted {deletedDeviceCount} devices from Delegation Station.", fullMethodName);
-
-            if (corpIDsDeletedCount > 0)
-            {
-                _logger.DSLogInformation($"Successfully deleted {corpIDsDeletedCount} Corporate Identifiers.", fullMethodName);
-                var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
-
-                try
-                {
-                    int available = await capacityManager.ReleaseCorpIDs(corpIDsDeletedCount, CancellationToken.None);
-                    _logger.DSLogInformation($"Available CorpIDs after release: {available}", fullMethodName);
-                }
-                catch (Exception ex)
-                {
-                    _logger.DSLogException("Failed to release CorpIDs after deletions.", ex, fullMethodName);
                 }
             }
         }
