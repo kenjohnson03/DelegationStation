@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
@@ -178,7 +180,8 @@ public class ConfirmSyncTests
             loggerFactory ?? NullLoggerFactory.Instance,
             db ?? new StubDbService(),
             graph ?? new StubGraphBetaService(),
-            singletonLock ?? new StubSingletonLock());
+            singletonLock ?? new StubSingletonLock(),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
     }
 
     private static Device MakeDevice(
@@ -230,6 +233,160 @@ public class ConfirmSyncTests
         Environment.SetEnvironmentVariable("MAX_CORPIDS_ALLOWED", null);
     }
     #endregion setup
+
+    [Fact]
+    public async Task Run_WhenCanceledBeforeRun_DoesNotStartWork()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var db = new StubDbService();
+        var graph = new StubGraphBetaService();
+
+        await CreateSut(db: db, graph: graph).Run(new TimerInfo(), cts.Token);
+
+        Assert.False(db.WasGetSyncingDeviceTagsCalled);
+        Assert.Equal(0, graph.ExistsCallCount);
+        Assert.Empty(db.UpdatedDevices);
+    }
+
+    [Theory]
+    [InlineData(true, false, false, 5)]
+    [InlineData(false, false, false, 5)]
+    [InlineData(false, true, false, 4)]
+    [InlineData(false, true, true, 5)]
+    public async Task Run_WhenCanceledDuringDevice_FinishesDeviceAndReleasesOnlyPersistedFailedReAdds(
+        bool exists, bool reAddFails, bool dbUpdateFails, int expectedCount)
+    {
+        SetSyncEnabled();
+        using var cts = new CancellationTokenSource();
+        var firstDevice = MakeDevice(corpId: "first-id");
+        var secondDevice = MakeDevice(serial: "SN002", corpId: "second-id");
+        var db = MakeSyncDb(candidates: [firstDevice, secondDevice]);
+        db.Counter = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 };
+        int counterWrites = 0;
+        db.OnTrySetCorpIDCounter = (_, _) =>
+        {
+            counterWrites++;
+            return Task.FromResult(true);
+        };
+        if (dbUpdateFails)
+        {
+            db.OnUpdateDevice = _ => throw new InvalidOperationException("DB update failed");
+        }
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ =>
+            {
+                if (exists) cts.Cancel();
+                return Task.FromResult(exists);
+            },
+            OnAdd = (_, _) =>
+            {
+                cts.Cancel();
+                if (reAddFails) throw new InvalidOperationException("Graph add failed");
+                return Task.FromResult(new ImportedDeviceIdentity
+                {
+                    Id = "re-added-id",
+                    ImportedDeviceIdentifier = "re-added-identifier"
+                });
+            }
+        };
+        var loggerFactory = new RecordingLoggerFactory();
+
+        try
+        {
+            await CreateSut(loggerFactory, db, graph).Run(new TimerInfo(), cts.Token);
+
+            Assert.Equal(1, graph.ExistsCallCount);
+            Assert.Same(firstDevice, Assert.Single(db.UpdatedDevices));
+            Assert.Equal(reAddFails ? DeviceStatus.Added : DeviceStatus.Synced, firstDevice.Status);
+            Assert.Equal("second-id", secondDevice.CorporateIdentityID);
+            Assert.Equal(expectedCount, db.Counter.CorpIDCount);
+            Assert.Equal(3, db.Counter.CorpIDReserve);
+            Assert.Equal(expectedCount == 4 ? 1 : 0, counterWrites);
+            Assert.Contains(loggerFactory.Logger.Logs, l => l.Message.Contains("Cancellation requested"));
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    [Fact]
+    public async Task Run_WhenCanceledDuringReAdd_FinishesRollbackBeforeStopping()
+    {
+        SetSyncEnabled();
+        using var cts = new CancellationTokenSource();
+        var db = MakeSyncDb(candidates:
+        [
+            MakeDevice(corpId: "first-id"),
+            MakeDevice(serial: "SN002", corpId: "second-id")
+        ]);
+        db.Counter = new CorpIDCounter(0) { CorpIDCount = 5 };
+        db.OnUpdateDevice = _ => throw new CosmosException(
+            "not found", HttpStatusCode.NotFound, 0, "test", 0);
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) =>
+            {
+                cts.Cancel();
+                return Task.FromResult(new ImportedDeviceIdentity { Id = "re-added-id" });
+            }
+        };
+
+        try
+        {
+            await CreateSut(db: db, graph: graph).Run(new TimerInfo(), cts.Token);
+
+            Assert.Equal("re-added-id", graph.LastDeletedId);
+            Assert.Equal(1, graph.ExistsCallCount);
+            Assert.Single(db.UpdatedDevices);
+            Assert.Equal(5, db.Counter.CorpIDCount);
+            Assert.Equal(0, db.GetCorpIDCounterCallCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
+
+    [Fact]
+    public async Task Run_WhenLaterRollbackThrows_FinalizesEarlierFailedReAddAndPropagatesException()
+    {
+        SetSyncEnabled();
+        var firstDevice = MakeDevice(corpId: "first-id");
+        var secondDevice = MakeDevice(serial: "SN002", corpId: "second-id");
+        var db = MakeSyncDb(candidates: [firstDevice, secondDevice]);
+        db.Counter = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 };
+        db.OnUpdateDevice = device => device == secondDevice
+            ? throw new CosmosException("not found", HttpStatusCode.NotFound, 0, "test", 0)
+            : Task.CompletedTask;
+        int addCalls = 0;
+        var graph = new StubGraphBetaService
+        {
+            OnExists = _ => Task.FromResult(false),
+            OnAdd = (_, _) => ++addCalls == 1
+                ? throw new InvalidOperationException("Graph add failed")
+                : Task.FromResult(new ImportedDeviceIdentity { Id = "re-added-id" }),
+            OnDelete = _ => throw new InvalidOperationException("rollback failed")
+        };
+
+        try
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => CreateSut(db: db, graph: graph).Run(new TimerInfo()));
+
+            Assert.Equal("rollback failed", ex.Message);
+            Assert.Equal(4, db.Counter.CorpIDCount);
+            Assert.Equal(3, db.Counter.CorpIDReserve);
+            Assert.Equal(1, db.GetCorpIDCounterCallCount);
+        }
+        finally
+        {
+            ClearEnvVars();
+        }
+    }
 
     #region ConstructorTests
     // ═══════════════════════════════════════════════════════════════════════

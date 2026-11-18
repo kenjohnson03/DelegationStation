@@ -3,6 +3,7 @@ using CorporateIdentifierSync.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
+using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ namespace CorporateIdentifierSync
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
         private readonly IFunctionSingletonLock _singletonLock;
+        private readonly TelemetryClient _telemetryClient;
 
         private bool _IsCorpIDSyncEnabled;
         private int _SyncIntervalHours;
@@ -26,12 +28,14 @@ namespace CorporateIdentifierSync
             ILoggerFactory loggerFactory,
             ICosmosDbService dbService,
             IGraphBetaService graphBetaService,
-            IFunctionSingletonLock singletonLock)
+            IFunctionSingletonLock singletonLock,
+            TelemetryClient telemetryClient)
         {
             _logger = loggerFactory.CreateLogger<ConfirmSync>();
             _dbService = dbService;
             _graphBetaService = graphBetaService;
             _singletonLock = singletonLock;
+            _telemetryClient = telemetryClient;
         }
 
         public void GetEnvironmentVariables()
@@ -79,12 +83,25 @@ namespace CorporateIdentifierSync
             }
         }
 
+        private bool ShouldStopForCancellation(CancellationToken cancellationToken, string fullMethodName)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _logger.DSLogInformation("Cancellation requested. Stopping new work and finalizing Corporate ID accounting before exiting.", fullMethodName);
+            return true;
+        }
+
         [Function("ConfirmSync")]
-        public async Task Run([TimerTrigger("%ConfirmSyncTriggerTime%")] TimerInfo myTimer)
+        public async Task Run([TimerTrigger("%ConfirmSyncTriggerTime%")] TimerInfo myTimer, CancellationToken cancellationToken = default)
         {
             string methodName = ExtensionHelper.GetMethodName() ?? "";
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
+
+            if (ShouldStopForCancellation(cancellationToken, fullMethodName)) return;
 
             await using var handle = await _singletonLock.TryAcquireAsync(nameof(ConfirmSync));
             if (handle is null)
@@ -149,231 +166,242 @@ namespace CorporateIdentifierSync
             int countCorpIDsReAdded = 0;
             int countCorpIDsReAddFailed = 0;
 
-            foreach (Device device in devicesToCheck)
+            try
             {
-                _logger.DSLogInformation($"-----Confirming corporate identifier for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
-
-                // Boolean used to keep track of scenarios
-                bool corpIDFound = false;
-                bool corpIDReAdded = false;
-                bool corpIDReAddFailed = false;
-
-                // Check whether the Corp ID still exists in Graph
-                if (!string.IsNullOrEmpty(device.CorporateIdentityID))
+                foreach (Device device in devicesToCheck)
                 {
-                    try
+                    // Finish each device's Graph/DB work (including rollback) before honoring cancellation.
+                    if (ShouldStopForCancellation(cancellationToken, fullMethodName)) return;
+
+                    _logger.DSLogInformation($"-----Confirming corporate identifier for {device.Make} {device.Model} {device.SerialNumber}.-----", fullMethodName);
+
+                    // Boolean used to keep track of scenarios
+                    bool corpIDFound = false;
+                    bool corpIDReAdded = false;
+                    bool corpIDReAddFailed = false;
+
+                    // Check whether the Corp ID still exists in Graph
+                    if (!string.IsNullOrEmpty(device.CorporateIdentityID))
                     {
-                    corpIDFound = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
-                }
-                    catch (Exception ex)
-                    {
-                        _logger.DSLogException(
-                            $"Error checking Corp ID existence for {device.Make} {device.Model} {device.SerialNumber}. Skipping device this run.",
-                            ex, fullMethodName);
-                        continue; // leave device untouched; next ConfirmSync run will retry
-                    }
-                }
-                else
-                {
-                    _logger.DSLogWarning("Device does not have a CorporateIdentityID stored in DB. Not sure how we got here. Will attempt to re-add.", fullMethodName);
-                }
-
-                if (corpIDFound)
-                {
-                    _logger.DSLogInformation("Corporate Identifier confirmed present.", fullMethodName);
-                    countCorpIDsFound++;
-                    device.LastCorpIdentitySync = DateTime.UtcNow;
-                }
-                else
-                {
-                    // Re-add the missing Corp ID
-                    _logger.DSLogInformation("Corporate Identifier not found, re-adding.", fullMethodName);
-
-                    string identifier;
-                    if (device.OS == DeviceOS.Windows || device.OS == DeviceOS.Unknown)
-                    {
-                        string escapedMake = "\"" + device.Make + "\"";
-                        string escapedModel = "\"" + device.Model + "\"";
-                        identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
+                        try
+                        {
+                            corpIDFound = await _graphBetaService.CorporateIdentifierExists(device.CorporateIdentityID);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogException(
+                                $"Error checking Corp ID existence for {device.Make} {device.Model} {device.SerialNumber}. Skipping device this run.",
+                                ex, fullMethodName);
+                            continue; // leave device untouched; next ConfirmSync run will retry
+                        }
                     }
                     else
                     {
-                        identifier = device.SerialNumber;
+                        _logger.DSLogWarning("Device does not have a CorporateIdentityID stored in DB. Not sure how we got here. Will attempt to re-add.", fullMethodName);
                     }
 
-                    try
+                    if (corpIDFound)
                     {
-                        ImportedDeviceIdentityType corpIDType = CorpIDUtilities.GetCorpIDTypeForOS(device.OS);
-                        ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(corpIDType, identifier);
-
-                        device.CorporateIdentityID = deviceIdentity.Id;
-                        device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                        _logger.DSLogInformation("Corporate Identifier confirmed present.", fullMethodName);
+                        countCorpIDsFound++;
                         device.LastCorpIdentitySync = DateTime.UtcNow;
-                        device.Status = DeviceStatus.Synced;
-                        device.CorpIDFailureCount = 0;
-                        corpIDReAdded = true;
-                        countCorpIDsReAdded++;
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _logger.DSLogException($"Error re-adding corporate identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
-                        // Reset to Added so AddNewDevices will retry
-                        device.CorporateIdentityID = string.Empty;
+                        // Re-add the missing Corp ID
+                        _logger.DSLogInformation("Corporate Identifier not found, re-adding.", fullMethodName);
 
-                        // Not checking against max since this should only ever be the first failure
-                        device.CorpIDFailureCount++;
-                        device.Status = DeviceStatus.Added;
-                        corpIDReAddFailed = true;
-                        countCorpIDsReAddFailed++;
-                    }
-                }
-
-                //
-                //  Update device entry
-                //
-                try
-                {
-                    await _dbService.UpdateDevice(device);
-                    _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber} in Delegation Station.", fullMethodName);
-                }
-                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    // Device was deleted between our read and write (DeviceDeletion or user UI).
-                    _logger.DSLogWarning(
-                        $"Device {device.Make} {device.Model} {device.SerialNumber} was deleted during ConfirmSync.",
-                        fullMethodName);
-
-                    if (corpIDFound)
-                    {
-                        // Only a timestamp update was lost — nothing to undo.
-                        countCorpIDsFound--;
-                    }
-                    else if (corpIDReAddFailed)
-                    {
-                        // No Corp ID was actually added — counter-only adjustment for the summary log.
-                        countCorpIDsReAddFailed--;
-                    }
-                    else if (corpIDReAdded)
-                    {
-                        // We added a Corp ID to Graph but the device is gone — roll back.
-                        await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
-                        countCorpIDsReAdded--;
-                    }
-                }
-                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
-                {
-                    // Singleton prevents another ConfirmSync instance from racing us.
-                    // Legitimate concurrent writers on a Synced row: user marking Deleting via UI,
-                    // or ReconcileSyncState flipping it to NonSyncing after a tag sync-setting change.
-                    if (corpIDFound)
-                    {
-                        // Only a timestamp update was lost.
-                        _logger.DSLogWarning(
-                            $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently. " +
-                            $"Corp ID already confirmed; no action needed.",
-                            fullMethodName);
-                        countCorpIDsFound--;
-                    }
-                    else if (corpIDReAddFailed)
-                    {
-                        countCorpIDsReAddFailed--;
-                    }
-                    else if (corpIDReAdded)
-                    {
-                        _logger.DSLogWarning(
-                            $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently after Corp ID re-add. " +
-                            $"Reading fresh state to determine rollback.",
-                            fullMethodName);
-
-                        Device? freshDevice;
-                        try
+                        string identifier;
+                        if (device.OS == DeviceOS.Windows || device.OS == DeviceOS.Unknown)
                         {
-                            freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
-                        }
-                        catch (Exception readEx)
-                        {
-                            _logger.DSLogException(
-                                $"Could not read fresh device {device.Make} {device.Model} {device.SerialNumber} to determine rollback. " +
-                                $"Leaving Corp ID {device.CorporateIdentityID} in Graph; ReconcileSyncState will reconcile.",
-                                readEx, fullMethodName);
-                            // Don't decrement — Corp ID is still in Graph and tracked.
-                            continue;
-                        }
-
-                        if (freshDevice is null ||
-                            freshDevice.Status == DeviceStatus.Deleting ||
-                            freshDevice.Status == DeviceStatus.NonSyncing)
-                        {
-                            _logger.DSLogWarning(
-                                $"Device {device.Make} {device.Model} {device.SerialNumber} is {(freshDevice?.Status.ToString() ?? "deleted")}. " +
-                                $"Rolling back re-added Corp ID.",
-                                fullMethodName);
-                            await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
-                            countCorpIDsReAdded--;
+                            string escapedMake = "\"" + device.Make + "\"";
+                            string escapedModel = "\"" + device.Model + "\"";
+                            identifier = $"{escapedMake},{escapedModel},{device.SerialNumber}";
                         }
                         else
                         {
-                            // Singleton makes a second ConfirmSync impossible, and no other function transitions
-                            // a row into a state that leaves our Corp ID valid here. This is unexpected.
-                            // Leave the Corp ID in Graph; ReconcileSyncState/the next ConfirmSync run will reconcile.
+                            identifier = device.SerialNumber;
+                        }
+
+                        try
+                        {
+                            ImportedDeviceIdentityType corpIDType = CorpIDUtilities.GetCorpIDTypeForOS(device.OS);
+                            ImportedDeviceIdentity deviceIdentity = await _graphBetaService.AddCorporateIdentifier(corpIDType, identifier);
+
+                            device.CorporateIdentityID = deviceIdentity.Id;
+                            device.CorporateIdentity = deviceIdentity.ImportedDeviceIdentifier;
+                            device.LastCorpIdentitySync = DateTime.UtcNow;
+                            device.Status = DeviceStatus.Synced;
+                            device.CorpIDFailureCount = 0;
+                            corpIDReAdded = true;
+                            countCorpIDsReAdded++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.DSLogException($"Error re-adding corporate identifier for device {device.Make} {device.Model} {device.SerialNumber}: ", ex, fullMethodName);
+                            // Reset to Added so AddNewDevices will retry
+                            device.CorporateIdentityID = string.Empty;
+
+                            // Not checking against max since this should only ever be the first failure
+                            device.CorpIDFailureCount++;
+                            device.Status = DeviceStatus.Added;
+                            corpIDReAddFailed = true;
+                            countCorpIDsReAddFailed++;
+                        }
+                    }
+
+                    //
+                    //  Update device entry
+                    //
+                    try
+                    {
+                        await _dbService.UpdateDevice(device);
+                        _logger.DSLogInformation($"Updated device {device.Make} {device.Model} {device.SerialNumber} in Delegation Station.", fullMethodName);
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        // Device was deleted between our read and write (DeviceDeletion or user UI).
+                        _logger.DSLogWarning(
+                            $"Device {device.Make} {device.Model} {device.SerialNumber} was deleted during ConfirmSync.",
+                            fullMethodName);
+
+                        if (corpIDFound)
+                        {
+                            // Only a timestamp update was lost — nothing to undo.
+                            countCorpIDsFound--;
+                        }
+                        else if (corpIDReAddFailed)
+                        {
+                            // No Corp ID was actually added — counter-only adjustment for the summary log.
+                            countCorpIDsReAddFailed--;
+                        }
+                        else if (corpIDReAdded)
+                        {
+                            // We added a Corp ID to Graph but the device is gone — roll back.
+                            await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
+                            countCorpIDsReAdded--;
+                        }
+                    }
+                    catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                    {
+                        // Singleton prevents another ConfirmSync instance from racing us.
+                        // Legitimate concurrent writers on a Synced row: user marking Deleting via UI,
+                        // or ReconcileSyncState flipping it to NonSyncing after a tag sync-setting change.
+                        if (corpIDFound)
+                        {
+                            // Only a timestamp update was lost.
                             _logger.DSLogWarning(
-                                $"Device {device.Make} {device.Model} {device.SerialNumber} in unexpected state '{freshDevice.Status}' after PreconditionFailed. " +
-                                $"Leaving Corp ID {device.CorporateIdentityID} in Graph for downstream reconciliation.",
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently. " +
+                                $"Corp ID already confirmed; no action needed.",
+                                fullMethodName);
+                            countCorpIDsFound--;
+                        }
+                        else if (corpIDReAddFailed)
+                        {
+                            countCorpIDsReAddFailed--;
+                        }
+                        else if (corpIDReAdded)
+                        {
+                            _logger.DSLogWarning(
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} was modified concurrently after Corp ID re-add. " +
+                                $"Reading fresh state to determine rollback.",
+                                fullMethodName);
+
+                            Device? freshDevice;
+                            try
+                            {
+                                freshDevice = await _dbService.GetDevice(device.Id, device.PartitionKey);
+                            }
+                            catch (Exception readEx)
+                            {
+                                _logger.DSLogException(
+                                    $"Could not read fresh device {device.Make} {device.Model} {device.SerialNumber} to determine rollback. " +
+                                    $"Leaving Corp ID {device.CorporateIdentityID} in Graph; ReconcileSyncState will reconcile.",
+                                    readEx, fullMethodName);
+                                // Don't decrement — Corp ID is still in Graph and tracked.
+                                continue;
+                            }
+
+                            if (freshDevice is null ||
+                                freshDevice.Status == DeviceStatus.Deleting ||
+                                freshDevice.Status == DeviceStatus.NonSyncing)
+                            {
+                                _logger.DSLogWarning(
+                                    $"Device {device.Make} {device.Model} {device.SerialNumber} is {(freshDevice?.Status.ToString() ?? "deleted")}. " +
+                                    $"Rolling back re-added Corp ID.",
+                                    fullMethodName);
+                                await RollbackReAddedCorpIdAsync(device.CorporateIdentityID, fullMethodName);
+                                countCorpIDsReAdded--;
+                            }
+                            else
+                            {
+                                // Singleton makes a second ConfirmSync impossible, and no other function transitions
+                                // a row into a state that leaves our Corp ID valid here. This is unexpected.
+                                // Leave the Corp ID in Graph; ReconcileSyncState/the next ConfirmSync run will reconcile.
+                                _logger.DSLogWarning(
+                                    $"Device {device.Make} {device.Model} {device.SerialNumber} in unexpected state '{freshDevice.Status}' after PreconditionFailed. " +
+                                    $"Leaving Corp ID {device.CorporateIdentityID} in Graph for downstream reconciliation.",
+                                    fullMethodName);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogException(
+                            $"Failed to update device record {device.Make} {device.Model} {device.SerialNumber}. " +
+                            $"CorporateIdentifier details may be out of sync.",
+                            ex, fullMethodName);
+
+                        // The DB row was not updated, so its on-disk state is unchanged.
+                        // Undo the in-memory counter bumps so the post-loop capacity reconciliation
+                        // reflects what actually persisted.
+                        if (corpIDReAddFailed)
+                        {
+                            // Because DB wasn't updated, don't release even though we know CorpID is missing
+                            // we want to just leave it like we found it and let ConfirmSync handle it on the next run
+                            countCorpIDsReAddFailed--;
+                        }
+                        else if (corpIDFound)
+                        {
+                            // Only a timestamp update was lost — counter-only adjustment for the summary log.
+                            countCorpIDsFound--;
+                        }
+                        else if (corpIDReAdded)
+                        {
+                            // A new Corp ID is in Graph but the DB row wasn't updated to point at it.
+                            // Leave countCorpIDsReAdded as-is: the orphan still consumes a slot in Graph,
+                            // and ReconcileSyncState / the next ConfirmSync run will reconcile.
+                            _logger.DSLogWarning(
+                                $"Device {device.Make} {device.Model} {device.SerialNumber} re-added Corp ID {device.CorporateIdentityID} but DB update failed. " +
+                                $"Corp ID left in Graph for downstream reconciliation.",
                                 fullMethodName);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.DSLogException(
-                        $"Failed to update device record {device.Make} {device.Model} {device.SerialNumber}. " +
-                        $"CorporateIdentifier details may be out of sync.",
-                        ex, fullMethodName);
 
-                    // The DB row was not updated, so its on-disk state is unchanged.
-                    // Undo the in-memory counter bumps so the post-loop capacity reconciliation
-                    // reflects what actually persisted.
-                    if (corpIDReAddFailed)
-                    {
-                        // Because DB wasn't updated, don't release even though we know CorpID is missing
-                        // we want to just leave it like we found it and let ConfirmSync handle it on the next run
-                        countCorpIDsReAddFailed--;
-                    }
-                    else if (corpIDFound)
-                    {
-                        // Only a timestamp update was lost — counter-only adjustment for the summary log.
-                        countCorpIDsFound--;
-                    }
-                    else if (corpIDReAdded)
-                    {
-                        // A new Corp ID is in Graph but the DB row wasn't updated to point at it.
-                        // Leave countCorpIDsReAdded as-is: the orphan still consumes a slot in Graph,
-                        // and ReconcileSyncState / the next ConfirmSync run will reconcile.
-                        _logger.DSLogWarning(
-                            $"Device {device.Make} {device.Model} {device.SerialNumber} re-added Corp ID {device.CorporateIdentityID} but DB update failed. " +
-                            $"Corp ID left in Graph for downstream reconciliation.",
-                            fullMethodName);
-                    }
-                }
             }
-
-            _logger.DSLogInformation($"ConfirmSync completed. Processed {countCorpIDsFound + countCorpIDsReAdded + countCorpIDsReAddFailed} devices: {countCorpIDsFound} found, {countCorpIDsReAdded} re-added, " +
-                                     $"{countCorpIDsReAddFailed} failed to re-add.", fullMethodName);
-
-            //
-            // Update CorpID counter for failed re-adds
-            //
-            if (countCorpIDsReAddFailed > 0)
+            finally
             {
-                var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
-                try
+                _logger.DSLogInformation($"ConfirmSync completed. Processed {countCorpIDsFound + countCorpIDsReAdded + countCorpIDsReAddFailed} devices: {countCorpIDsFound} found, {countCorpIDsReAdded} re-added, " +
+                                         $"{countCorpIDsReAddFailed} failed to re-add.", fullMethodName);
+
+                //
+                // Update CorpID counter for failed re-adds
+                //
+                if (countCorpIDsReAddFailed > 0)
                 {
-                    await capacityManager.ReleaseCorpIDs(countCorpIDsReAddFailed, CancellationToken.None);
+                    var capacityManager = new CorpIdCapacityManager(_dbService, _logger, _MaxCorpIDsAllowed);
+                    try
+                    {
+                        await capacityManager.ReleaseCorpIDs(countCorpIDsReAddFailed, CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.DSLogException($"Failed to release {countCorpIDsReAddFailed} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.DSLogException($"Failed to release {countCorpIDsReAddFailed} CorpID slots for failed re-adds. Manual correction may be required.", ex, fullMethodName);
-                }
+
+                _telemetryClient.Flush();
             }
         }
 
