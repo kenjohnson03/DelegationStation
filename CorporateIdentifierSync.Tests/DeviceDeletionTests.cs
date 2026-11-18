@@ -1,5 +1,7 @@
 ﻿using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
@@ -32,7 +34,8 @@ public class DeviceDeletionTests
             logger ?? NullLogger<DeviceDeletion>.Instance,
             dbService ?? new FakeDbService(),
             graphBetaService ?? new FakeGraphBetaService(),
-            singletonLock ?? new FakeSingletonLock(new FakeAsyncDisposable()));
+            singletonLock ?? new FakeSingletonLock(new FakeAsyncDisposable()),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
     }
 
     private static CosmosException CreateCosmosException(System.Net.HttpStatusCode statusCode)
@@ -62,7 +65,8 @@ public class DeviceDeletionTests
             NullLogger<DeviceDeletion>.Instance,
             new FakeDbService(),
             new FakeGraphBetaService(),
-            new FakeSingletonLock(new FakeAsyncDisposable()));
+            new FakeSingletonLock(new FakeAsyncDisposable()),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
 
         // Assert
         Assert.NotNull(sut);
@@ -217,7 +221,8 @@ public class DeviceDeletionTests
             }
         };
 
-        await CreateSut(dbService: db, graphBetaService: graph).Run(CreateTimerInfo(), cts.Token);
+        await CreateSut(dbService: db, graphBetaService: graph)
+            .Run(CreateTimerInfo(), cts.Token);
 
         Assert.Equal(1, graph.DeleteCallCount);
         Assert.Equal(expectedDbDeletes, db.DeleteDeviceCallCount);

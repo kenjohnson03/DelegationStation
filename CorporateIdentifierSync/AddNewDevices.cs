@@ -1,5 +1,6 @@
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
 using DelegationStationShared;
 using DelegationStationShared.Enums;
 using DelegationStationShared.Extensions;
@@ -17,18 +18,20 @@ namespace CorporateIdentifierSync
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
         private readonly IFunctionSingletonLock _singletonLock;
+        private readonly TelemetryClient _telemetryClient;
 
         private bool _IsCorpIDSyncEnabled;
         private int _BatchSize;
         private int _MaxCorpIDsAllowed;
         private int _MaxCorpIDRetries;
 
-        public AddNewDevices(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService, IFunctionSingletonLock singletonLock)
+        public AddNewDevices(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphBetaService graphBetaService, IFunctionSingletonLock singletonLock, TelemetryClient telemetryClient)
         {
             _logger = loggerFactory.CreateLogger<AddNewDevices>();
             _dbService = dbService;
             _graphBetaService = graphBetaService;
             _singletonLock = singletonLock;
+            _telemetryClient = telemetryClient;
         }
 
         public void GetEnvironmentVariables()
@@ -411,6 +414,8 @@ namespace CorporateIdentifierSync
                 {
                     _logger.DSLogException($"Failed to update Capacitymanager to update that of {reservedSlots}, {devicesSynced} were used.", ex, fullMethodName);
                 }
+
+                _telemetryClient.Flush();
             }
 
         }

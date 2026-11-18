@@ -1,5 +1,6 @@
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using DelegationStationShared.Extensions;
@@ -15,6 +16,7 @@ namespace CorporateIdentifierSync
         private readonly ICosmosDbService _dbService;
         private readonly IGraphBetaService _graphBetaService;
         private readonly IFunctionSingletonLock _singletonLock;
+        private readonly TelemetryClient _telemetryClient;
 
         private int _MaxCorpIDsAllowed;
 
@@ -22,12 +24,14 @@ namespace CorporateIdentifierSync
             ILogger<DeviceDeletion> logger,
             ICosmosDbService dbService,
             IGraphBetaService graphBetaService,
-            IFunctionSingletonLock singletonLock)
+            IFunctionSingletonLock singletonLock,
+            TelemetryClient telemetryClient)
         {
             _logger = logger;
             _dbService = dbService;
             _graphBetaService = graphBetaService;
             _singletonLock = singletonLock;
+            _telemetryClient = telemetryClient;
         }
 
         public void GetEnvironmentVariables()
@@ -203,6 +207,8 @@ namespace CorporateIdentifierSync
                         _logger.DSLogException("Failed to release CorpIDs after deletions.", ex, fullMethodName);
                     }
                 }
+
+                _telemetryClient.Flush();
             }
         }
     }

@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using DelegationStationShared.Enums;
 using Microsoft.Azure.Cosmos;
@@ -190,7 +192,8 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 loggerFactory ?? NullLoggerFactory.Instance,
                 db ?? new StubDbService(),
                 graph ?? new StubGraphBetaService(),
-                singletonLock ?? new StubSingletonLock());
+                singletonLock ?? new StubSingletonLock(),
+                new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
         }
 
         private static Device MakeDevice(
