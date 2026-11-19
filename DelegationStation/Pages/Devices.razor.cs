@@ -347,7 +347,9 @@ namespace DelegationStation.Pages
             }
             catch (Exception ex)
             {
-                userMessage = (MarkupString)$"Error adding device: {ex.Message} <br />Correlation Id:{c.ToString()}";
+                string errorMessage = System.Net.WebUtility.HtmlEncode(ex.Message)
+                    .Replace("\r\n", "\n").Replace("\n", "<br />");
+                userMessage = (MarkupString)$"Error adding device: <br />{errorMessage}<br />Correlation Id:{c.ToString()}";
                 logger.LogError(ex, "Error adding device. SerialNumber: {SerialNumber}, CorrelationId: {CorrelationId}, User: {UserName} {UserId}",
                     newDevice.SerialNumber, c, userName, userId);
             }
