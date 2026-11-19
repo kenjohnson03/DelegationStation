@@ -25,7 +25,7 @@ namespace DelegationStation.Pages
         private int TotalPages = 0;
         private int PageSize = 10;
 
-        [Parameter] public int PageNumber { get; set; }
+        private int PageNumber = 1;
 
         private const int DefaultMaxCorpIDsAllowed = 10000;
 
@@ -111,9 +111,8 @@ namespace DelegationStation.Pages
                 userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
             }
 
-            PageSize = deviceTagDBService.CurrentSearch.pageSize;
-            PageNumber = deviceTagDBService.CurrentSearch.pageNumber;
-            tagSearchName = deviceTagDBService.CurrentSearch.name ?? string.Empty;
+            PageNumber = pageState.SystemStatus.PageNumber;
+            tagSearchName = pageState.SystemStatus.SearchName;
             activeTagSearchName = tagSearchName;
             UpdateClaims();
             await GetTags();
@@ -144,11 +143,18 @@ namespace DelegationStation.Pages
                 TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups, activeTagSearchName);
                 TotalPages = (int)Math.Ceiling((decimal)TotalTags / PageSize);
 
+                if (PageNumber < 1 || PageNumber > TotalPages)
+                {
+                    PageNumber = 1;
+                }
+
                 deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(
                     groups,
                     PageNumber,
                     PageSize,
                     activeTagSearchName);
+                pageState.SystemStatus.PageNumber = PageNumber;
+                pageState.SystemStatus.SearchName = activeTagSearchName;
             }
             catch (Exception ex)
             {

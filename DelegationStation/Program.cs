@@ -82,6 +82,7 @@ builder.Services.AddServerSideBlazor()
     .AddMicrosoftIdentityConsentHandler();
 
 builder.Services.AddScoped<HelpNotificationService>();
+builder.Services.AddScoped<PageStateService>();
 builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
 builder.Services.AddSingleton<IFaqService, FaqService>();
 builder.Services.AddSingleton<IMaintenanceBannerService, MaintenanceBannerService>();

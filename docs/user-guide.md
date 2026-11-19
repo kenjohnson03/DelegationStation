@@ -94,3 +94,5 @@ On failure, a red error banner is shown with a correlation ID for troubleshootin
 ## Tags Page
 
 See the [Tags documentation](../README.md#dependencies) for information on how tags are configured.  Tags are managed through the **Tags** menu item in the navigation bar and control which groups of users can see and manage which sets of devices.
+
+Tags and System Status each remember your last applied tag search and results page when you navigate elsewhere in the app and return. This state is kept separately for each page and is private to your current browser tab's app session. Refreshing the browser, opening a new tab, or starting a new session resets it.

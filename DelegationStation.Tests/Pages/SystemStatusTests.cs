@@ -3,18 +3,23 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.QualityTools.Testing.Fakes;
 using Microsoft.Extensions.Configuration;
 using DelegationStation.Interfaces;
+using DelegationStation.Services;
 
 namespace DelegationStation.Tests.Pages
 {
     [TestClass]
     public class SystemStatusTests : Bunit.TestContext
     {
+        [TestInitialize]
+        public void RegisterPageState()
+        {
+            Services.AddScoped<PageStateService>();
+        }
+
         private static DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService CreateTagService(List<DeviceTag> deviceTags)
         {
             return new DelegationStation.Interfaces.Fakes.StubIDeviceTagDBService()
             {
-                CurrentSearchGet = () => new DelegationStation.Services.DeviceTagSearch()
-                    { pageNumber = 1, pageSize = 10, name = string.Empty },
                 GetDeviceTagsAsyncIEnumerableOfStringString =
                     (groupIds, name) => Task.FromResult(deviceTags),
                 GetDeviceTagCountAsyncIEnumerableOfStringString =
