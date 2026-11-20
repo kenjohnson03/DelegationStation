@@ -7,9 +7,8 @@ namespace DelegationStationShared.Models
     {
         [Required]
         [JsonProperty(PropertyName = "id")]
-        public Guid Id { get; set; }
-
-        public string PartitionKey { get; set; }
+        public string Id { get; set; } = "system-settings";
+        public string PartitionKey { get; set; } = "SystemSettings";
 
         public int MaxCorpIdsAllowed { get; set; }
 
@@ -25,15 +24,14 @@ namespace DelegationStationShared.Models
 
         public SystemSettings()
         {
-            Id = Guid.NewGuid();
-            PartitionKey = "SystemSettings";
             CreatedDT = DateTime.UtcNow;
             ModifiedDT = DateTime.UtcNow;
         }
 
         public override string ToString()
         {
-            return $"MaxCorpIdsAllowed: {MaxCorpIdsAllowed}, CorpIdWarningThresholdPercent: {CorpIdWarningThresholdPercent}, " +
+            return $"Delegation Station System Settings: " +
+                   $"MaxCorpIdsAllowed: {MaxCorpIdsAllowed}, CorpIdWarningThresholdPercent: {CorpIdWarningThresholdPercent}, " +
                    $"ExpireProcessedAfterDays: {ExpireProcessedAfterDays}, ExpireUnprocessedAfterDays: {ExpireUnprocessedAfterDays}";
         }
 
