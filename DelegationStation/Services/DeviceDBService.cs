@@ -14,6 +14,12 @@ namespace DelegationStation.Services
         private readonly Container _container;
         private string? _DefaultGroup;
 
+        internal DeviceDBService(Container container, ILogger<DeviceDBService> logger)
+        {
+            _container = container;
+            _logger = logger;
+        }
+
         public DeviceDBService(IConfiguration configuration, ILogger<DeviceDBService> logger)
         {
             this._logger = logger;
@@ -631,9 +637,18 @@ namespace DelegationStation.Services
 
         public async Task MarkDeviceToDeleteAsync(Device device)
         {
+            DateTime markedToDeleteUTC = DateTime.UtcNow;
+            await this._container.PatchItemAsync<Device>(
+                device.Id.ToString(),
+                new PartitionKey(device.PartitionKey),
+                new[]
+                {
+                    PatchOperation.Set("/Status", DeviceStatus.Deleting),
+                    PatchOperation.Set("/MarkedToDeleteUTC", markedToDeleteUTC)
+                });
+
             device.Status = DeviceStatus.Deleting;
-            device.MarkedToDeleteUTC = DateTime.UtcNow;
-            await this._container.UpsertItemAsync<Device>(device);
+            device.MarkedToDeleteUTC = markedToDeleteUTC;
         }
 
     }
