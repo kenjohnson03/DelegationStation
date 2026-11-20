@@ -1,0 +1,10 @@
+<Fakes xmlns="http://schemas.microsoft.com/fakes/2011/">
+  <Assembly Name="Microsoft.Azure.Cosmos.Client" />
+  <StubGeneration>
+    <Clear />
+    <Add FullName="Microsoft.Azure.Cosmos.Container!" />
+  </StubGeneration>
+  <ShimGeneration>
+    <Clear />
+  </ShimGeneration>
+</Fakes>
