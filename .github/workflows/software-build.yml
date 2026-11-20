@@ -28,6 +28,9 @@ env:
   AZURE_WEBJOB_PACKAGE_PATH: .\SeedCorpIDCounter\published
   AZURE_WEBJOB_PKG_NAME: seed-corpid-counter-webjob
 
+  AZURE_SETTINGS_WEBJOB_PACKAGE_PATH: .\SeedSystemSettings\published
+  AZURE_SETTINGS_WEBJOB_PKG_NAME: seed-system-settings-webjob
+
 jobs:
   build:
 
@@ -79,6 +82,7 @@ jobs:
         dotnet publish ${{ env.SRC_DIR }}/UpdateDevices --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_UPDATE_FUNCTION_PACKAGE_PATH }}"
         dotnet publish ${{ env.SRC_DIR }}/CorporateIdentifierSync --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_SYNC_FUNCTION_PACKAGE_PATH }}"
         dotnet publish ${{ env.SRC_DIR }}/SeedCorpIDCounter --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_WEBJOB_PACKAGE_PATH }}"
+        dotnet publish ${{ env.SRC_DIR }}/SeedSystemSettings --configuration ${{ env.CONFIGURATION}} --no-build --output "${{ env.AZURE_SETTINGS_WEBJOB_PACKAGE_PATH }}"
       
     - name: Upload WebApp Artifact
       uses: actions/upload-artifact@v4.6.0
@@ -105,4 +109,10 @@ jobs:
       with:
         name: ${{ env.AZURE_WEBJOB_PKG_NAME }}
         path: ${{ env.AZURE_WEBJOB_PACKAGE_PATH }}
+
+    - name: Upload System Settings WebJob Artifact
+      uses: actions/upload-artifact@v4.6.0
+      with:
+        name: ${{ env.AZURE_SETTINGS_WEBJOB_PKG_NAME }}
+        path: ${{ env.AZURE_SETTINGS_WEBJOB_PACKAGE_PATH }}
 

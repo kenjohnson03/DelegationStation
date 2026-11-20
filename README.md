@@ -51,8 +51,9 @@ This repository contains 4 applications:
   * Cleanup function:  Cleans up old DB entries related to the hand-off between the UpdateDevices and StragglerHandler functions 
 * (WIP) InTuneEnrollment function app
 
-The repository also includes a supporting WebJob used during deployment:
+The repository also includes supporting WebJobs used during deployment:
 * **SeedCorpIDCounter** (triggered WebJob): one-time job that seeds an initial `CorpIDCounter` document required by CorporateIdentifierSync. See [`SeedCorpIDCounter/README.md`](SeedCorpIDCounter/README.md).
+* **SeedSystemSettings** (triggered WebJob): creates initial system settings from existing environment variables and defaults, only when no settings document exists. See [`SeedSystemSettings/README.md`](SeedSystemSettings/README.md).
 
 These applications can be deployed into Azure App Services (Windows or Linux) or Container Instances via Azure CLI, Visual Studio, or GitHub Actions.
 
