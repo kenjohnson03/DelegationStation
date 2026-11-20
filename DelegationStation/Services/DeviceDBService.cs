@@ -474,44 +474,23 @@ namespace DelegationStation.Services
                 var qIresponse = await deviceQueryIterator.ReadNextAsync();
                 devices.AddRange(qIresponse.ToList());
             }
-            if (devices.Count != 0)
+            List<string> errors = new List<string>();
+            if (devices.Any(d =>
+                string.Equals(d.Make, device.Make, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(d.Model, device.Model, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(d.SerialNumber, device.SerialNumber, StringComparison.OrdinalIgnoreCase)))
             {
-                foreach (Device d in devices)
-                {
-                    if (d.Make == device.Make &&
-                        d.Model == device.Model &&
-                        d.SerialNumber == device.SerialNumber
-                    )
-                    {
-                        throw new Exception("Device already exists.");
-                    }
-                        
-                    if (!string.IsNullOrEmpty(d.PreferredHostname) && d.PreferredHostname == device.PreferredHostname)
-                    {
-                        throw new Exception("PreferredHostName already in use.");
-                    }
-                        
-                }
-                    
+                errors.Add("Device already exists.");
             }
-            if (!String.IsNullOrEmpty(device.PreferredHostname))
+            if (!string.IsNullOrEmpty(device.PreferredHostname) &&
+                devices.Any(d => string.Equals(d.PreferredHostname, device.PreferredHostname, StringComparison.OrdinalIgnoreCase)))
             {
-                q = new QueryDefinition("SELECT * FROM d WHERE d.Type = \"Device\" AND STRINGEQUALS(d.PreferredHostname,@name,true)");
-                q.WithParameter("@name", device.PreferredHostname);
-                deviceQueryIterator = this._container.GetItemQueryIterator<Device>(q);
-                while (deviceQueryIterator.HasMoreResults)
-                {
-                    var qIresponse = await deviceQueryIterator.ReadNextAsync();
-                    devices.AddRange(qIresponse.ToList());
-                }
-                if (devices.Count != 0)
-                {
-                    throw new Exception("PreferredHostname already in use.");
-                }
+                errors.Add("PreferredHostName already in use.");
             }
-
-
-
+            if (errors.Count != 0)
+            {
+                throw new Exception(string.Join(Environment.NewLine, errors));
+            }
             ItemResponse<Device> response = await this._container.UpsertItemAsync<Device>(device);
             return response;
         }
