@@ -18,6 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DelegationStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DelegationSharedLibrary\DelegationSharedLibrary.csproj" />
   </ItemGroup>
 

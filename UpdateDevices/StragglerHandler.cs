@@ -19,11 +19,7 @@ namespace UpdateDevices
         private readonly int _maxUDAttempts;
         private readonly int _maxSHAttempts;
 
-        public StragglerHandler(
-            ILoggerFactory loggerFactory,
-            ICosmosDbService dbService,
-            IGraphService graphService,
-            IGraphBetaService graphBetaService)
+        public StragglerHandler(ILoggerFactory loggerFactory, ICosmosDbService dbService, IGraphService graphService, IGraphBetaService graphBetaService)
         {
             _logger = loggerFactory.CreateLogger<StragglerHandler>();
             _dbService = dbService;
@@ -345,6 +341,76 @@ namespace UpdateDevices
                             _logger.DSLogInformation("Skipping rename since Preferred Hostname is null/empty: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber, fullMethodName);
                         }
                     }
+                }
+                else
+                {
+                    _logger.DSLogInformation("Device renaming is disabled for tag " + tag.Name + ". No rename applied for device " + device.Id + ".", fullMethodName);
+                }
+
+                //
+                // Rename device based on tag settings
+                //
+
+                if (tag.DeviceRenameEnabled)
+                {
+                    bool renameDevice = false;
+                    if (string.IsNullOrEmpty(tag.DeviceNameRegex))
+                    {
+                        renameDevice = true;
+                        _logger.DSLogInformation("No device name regex set for tag " + tag.Name + ". Proceeding with rename for device " + device.Id + ".", fullMethodName);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (Regex.IsMatch(d.PreferredHostname, tag.DeviceNameRegex))
+                            {
+                                renameDevice = true;
+                                _logger.DSLogInformation("Preferred hostname '" + d.PreferredHostname + "' for device " + device.Id + " matches device name regex " +
+                                    tag.DeviceNameRegex + " for tag " + tag.Name + ". Proceeding with rename.", fullMethodName);
+                            }
+                            else
+                            {
+                                renameDevice = false;
+                                _logger.DSLogError("Preferred hostname '" + d.PreferredHostname + "' for device " + device.Id + " does not match device name regex " +
+                                    tag.DeviceNameRegex + " for tag " + tag.Name + ". No rename applied.", fullMethodName);
+                            }
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            renameDevice = false;
+                            _logger.DSLogException("Device name regex " + tag.DeviceNameRegex + " for tag " + tag.Name + " is invalid. No rename applied for device " +
+                                device.Id + ".", ex, fullMethodName);
+                        }
+                        catch (RegexMatchTimeoutException ex)
+                        {
+                            renameDevice = false;
+                            _logger.DSLogException("Regex match timed out while evaluating preferred hostname '" + d.PreferredHostname + "' against device name regex " +
+                                tag.DeviceNameRegex + " for tag " + tag.Name + ". No rename applied for device " + device.Id + ".", ex, fullMethodName);
+                        }
+                    }
+
+                    if (renameDevice)
+                    {
+                        if (!String.IsNullOrEmpty(d.PreferredHostname))
+                        {
+                            bool renameResult = await _graphBetaService.SetDeviceName(device.Id, d.PreferredHostname);
+                            if (!renameResult)
+                            {
+                                _logger.DSLogError("Failed to rename device: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber +
+                                    " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                            }
+                            else
+                            {
+                                _logger.DSLogInformation("Updated device name for: '" + device.Id + " from '" + device.DeviceName + "' to '" + d.PreferredHostname + "'.", fullMethodName);
+                            }
+                        }
+                        else
+                        {
+                            _logger.DSLogInformation("Skipping rename since Preferred Hostname is null/empty: '" + device.Id + "' '" + device.Manufacturer + "' '" + device.Model + "' '" + device.SerialNumber, fullMethodName);
+                        }
+                    }
+
                 }
                 else
                 {

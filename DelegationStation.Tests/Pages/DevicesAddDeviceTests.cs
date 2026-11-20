@@ -206,6 +206,36 @@ namespace DelegationStation.Tests.Pages
         }
 
         [TestMethod]
+        [DataRow("\r\n")]
+        [DataRow("\n")]
+        public void AddDevice_MultipleDuplicateErrors_DisplaysSeparateLines(string newline)
+        {
+            using (ShimsContext.Create())
+            {
+                var tag = new DeviceTag { Id = Guid.NewGuid(), Name = "TestTag" };
+                var cut = SetupComponent(
+                    new List<DeviceTag> { tag },
+                    device => Task.FromException<Device>(new Exception(
+                        $"Device already exists.{newline}PreferredHostName already in use."))
+                );
+
+                FillAndSubmitAddForm(cut, "Dell", "Latitude", "SN12345", "Windows");
+
+                cut.WaitForAssertion(() =>
+                {
+                    var alert = cut.Find(".alert-danger");
+                    Assert.IsTrue(alert.TextContent.Contains("Device already exists."));
+                    Assert.IsTrue(alert.TextContent.Contains("PreferredHostName already in use."));
+                    Assert.AreEqual(3, alert.QuerySelectorAll("br").Length);
+                    Assert.IsTrue(alert.ChildNodes.Any(node =>
+                        node.TextContent == "Device already exists." &&
+                        node.NextSibling?.NodeName == "BR" &&
+                        node.NextSibling.NextSibling?.TextContent == "PreferredHostName already in use."));
+                });
+            }
+        }
+
+        [TestMethod]
         public void AddDevice_ServiceThrowsDuplicateSerial_ErrorMessageContainsCorrelationId()
         {
             using (ShimsContext.Create())
