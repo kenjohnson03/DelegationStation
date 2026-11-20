@@ -28,7 +28,7 @@ namespace DelegationStation.Pages
         private int PageSize = 10;
         private DeviceTag searchTag = new DeviceTag();
 
-        [Parameter] public int PageNumber { get; set; }
+        private int PageNumber = 1;
 
         protected override async Task OnInitializedAsync()
         {
@@ -40,20 +40,10 @@ namespace DelegationStation.Pages
                 userId = user.Claims.Where(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier").Select(c => c.Value.ToString()).FirstOrDefault() ?? "";
             }
             
-            PageSize = deviceTagDBService.CurrentSearch.pageSize;
-            PageNumber = deviceTagDBService.CurrentSearch.pageNumber;
-            searchTag.Name = deviceTagDBService.CurrentSearch.name ?? string.Empty;
+            PageNumber = pageState.Tags.PageNumber;
+            searchTag.Name = pageState.Tags.SearchName;
             UpdateClaims();
             await GetTags();
-        }
-
-        protected override async Task OnParametersSetAsync()
-        {
-            if (PageNumber < 1 || PageNumber > TotalPages)
-            {
-                PageNumber = 1;
-            }
-            deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize, searchTag.Name);
         }
         private async Task GetTagsSearch()
         {
@@ -116,13 +106,21 @@ namespace DelegationStation.Pages
         private async Task GetTags()
         {
             Guid c = Guid.NewGuid();
+            tagsLoading = true;
             userMessage = "";
             try
             {
                 TotalTags = await deviceTagDBService.GetDeviceTagCountAsync(groups, searchTag.Name);
                 TotalPages = (int)Math.Ceiling((decimal)TotalTags / PageSize);
 
+                if (PageNumber < 1 || PageNumber > TotalPages)
+                {
+                    PageNumber = 1;
+                }
+
                 deviceTags = await deviceTagDBService.GetDeviceTagsByPageAsync(groups, PageNumber, PageSize, searchTag.Name);
+                pageState.Tags.PageNumber = PageNumber;
+                pageState.Tags.SearchName = searchTag.Name;
                 await GetDevicesCount();
             }
             catch (Exception ex)
