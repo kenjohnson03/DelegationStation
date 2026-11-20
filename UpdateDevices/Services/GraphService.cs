@@ -3,13 +3,13 @@ using UpdateDevices.Interfaces;
 using DelegationStationShared;
 using DelegationStationShared.Extensions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using System.Security.Cryptography.X509Certificates;
 using DelegationStationShared.Models;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Hosting;
 
 
 namespace UpdateDevices.Services
@@ -19,7 +19,6 @@ namespace UpdateDevices.Services
 
         private static string _guidRegex = "^([0-9A-Fa-f]{8}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{4}[-]?[0-9A-Fa-f]{12})$";
 
-        private readonly IHostEnvironment _env;
         private readonly ILogger<GraphService> _logger;
         private GraphServiceClient _graphClient;
 
@@ -37,7 +36,6 @@ namespace UpdateDevices.Services
             string className = this.GetType().Name;
             string fullMethodName = className + "." + methodName;
 
-            this._env = env;
             this._logger = logger;
 
 
@@ -53,7 +51,7 @@ namespace UpdateDevices.Services
             string baseUrl = graphEndpoint + "v1.0";
 
 
-            if (_env.IsDevelopment())
+            if (env.IsDevelopment() || configuration.GetValue<bool>("GRAPH_USE_APP_CREDENTIALS"))
             {
 
                 var certDN = configuration.GetSection("CertificateDistinguishedName").Value;
@@ -97,9 +95,9 @@ namespace UpdateDevices.Services
             }
             else // Use Managed identity in Azure
             {
-                _logger.LogInformation("Using Managed Identity to authenticate to Graph service");
-                _logger.LogDebug("AzureCloud: " + azureCloud);
-                _logger.LogDebug("GraphEndpoint: " + graphEndpoint);
+                _logger.DSLogInformation("Using Managed Identity to authenticate to Graph service", fullMethodName);
+                _logger.DSLogDebug("AzureCloud: " + azureCloud, fullMethodName);
+                _logger.DSLogDebug("GraphEndpoint: " + graphEndpoint, fullMethodName);
 
                 ManagedIdentityCredential managedIdentityCredential = new ManagedIdentityCredential(options: options);
                 this._graphClient = new GraphServiceClient(managedIdentityCredential, scopes, baseUrl);

@@ -42,7 +42,7 @@ namespace UpdateDevices
 
             if (myTimer.ScheduleStatus is not null)
             {
-                _logger.LogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}");
+                _logger.DSLogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}",fullMethodName);
             }
 
             await CleanupUDProcessedEntries();

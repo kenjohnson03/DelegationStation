@@ -7,6 +7,8 @@ namespace DelegationStationShared.Enums
         Synced,
         Deleting,
         NonSyncing,
-        Failed
+        Failed,
+        Expired,
+        ExpirationFailed
     }
 }
