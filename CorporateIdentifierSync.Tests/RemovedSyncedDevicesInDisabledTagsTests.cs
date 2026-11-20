@@ -1,5 +1,7 @@
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using DelegationStationShared.Enums;
 using Microsoft.Azure.Cosmos;
@@ -50,7 +52,8 @@ public class RemoveSyncedDevicesInDisabledTagsTests
             new SilentLoggerFactory(),
             db,
             graph ?? new ScenarioGraphService(DeleteCorpIdResult.Success),
-            new FakeSingletonLock());
+            new FakeSingletonLock(),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
     }
 
     private static async Task RunSection1(ScenarioDbService db, ScenarioGraphService? graph = null)

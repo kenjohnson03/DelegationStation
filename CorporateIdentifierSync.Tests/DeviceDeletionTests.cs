@@ -1,5 +1,7 @@
 ﻿using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
@@ -32,7 +34,8 @@ public class DeviceDeletionTests
             logger ?? NullLogger<DeviceDeletion>.Instance,
             dbService ?? new FakeDbService(),
             graphBetaService ?? new FakeGraphBetaService(),
-            singletonLock ?? new FakeSingletonLock(new FakeAsyncDisposable()));
+            singletonLock ?? new FakeSingletonLock(new FakeAsyncDisposable()),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
     }
 
     private static CosmosException CreateCosmosException(System.Net.HttpStatusCode statusCode)
@@ -62,7 +65,8 @@ public class DeviceDeletionTests
             NullLogger<DeviceDeletion>.Instance,
             new FakeDbService(),
             new FakeGraphBetaService(),
-            new FakeSingletonLock(new FakeAsyncDisposable()));
+            new FakeSingletonLock(new FakeAsyncDisposable()),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
 
         // Assert
         Assert.NotNull(sut);
@@ -173,6 +177,88 @@ public class DeviceDeletionTests
         Assert.Equal(0, dbService.DeleteDeviceCallCount);
     }
     #endregion EarlyExitTests
+
+    [Fact]
+    public async Task Run_WhenCanceledBeforeRun_DoesNotQueryOrDeleteDevices()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var db = new FakeDbService();
+        var graph = new FakeGraphBetaService();
+
+        await CreateSut(dbService: db, graphBetaService: graph).Run(CreateTimerInfo(), cts.Token);
+
+        Assert.Equal(0, db.GetDevicesCallCount);
+        Assert.Equal(0, graph.DeleteCallCount);
+        Assert.Equal(0, db.TrySetCorpIDCounterCallCount);
+    }
+
+    [Theory]
+    [InlineData(DeleteCorpIdResult.Success, false, 4, 1)]
+    [InlineData(DeleteCorpIdResult.Success, true, 4, 1)]
+    [InlineData(DeleteCorpIdResult.NotFound, false, 5, 1)]
+    [InlineData(DeleteCorpIdResult.Error, false, 5, 0)]
+    public async Task Run_WhenCanceledDuringGraphDeletion_FinishesCurrentDeviceAndReleasesOnlySuccessfulDeletions(
+        DeleteCorpIdResult result, bool cosmosFailure, int expectedCount, int expectedDbDeletes)
+    {
+        using var cts = new CancellationTokenSource();
+        var db = new FakeDbService
+        {
+            DevicesToReturn = new List<Device>
+            {
+                new Device { CorporateIdentityID = "first-id" },
+                new Device { CorporateIdentityID = "second-id" }
+            },
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 },
+            DeleteDeviceException = cosmosFailure ? new InvalidOperationException("DB delete failed") : null
+        };
+        var graph = new FakeGraphBetaService
+        {
+            OnDelete = _ =>
+            {
+                cts.Cancel();
+                return Task.FromResult(result);
+            }
+        };
+
+        await CreateSut(dbService: db, graphBetaService: graph)
+            .Run(CreateTimerInfo(), cts.Token);
+
+        Assert.Equal(1, graph.DeleteCallCount);
+        Assert.Equal(expectedDbDeletes, db.DeleteDeviceCallCount);
+        Assert.Equal(expectedCount, db.Counter.CorpIDCount);
+        Assert.Equal(3, db.Counter.CorpIDReserve);
+        Assert.Equal(result == DeleteCorpIdResult.Success ? 1 : 0, db.TrySetCorpIDCounterCallCount);
+    }
+
+    [Fact]
+    public async Task Run_WhenLaterGraphDeletionThrows_ReleasesEarlierDeletionAndPropagatesException()
+    {
+        var db = new FakeDbService
+        {
+            DevicesToReturn = new List<Device>
+            {
+                new Device { CorporateIdentityID = "first-id" },
+                new Device { CorporateIdentityID = "second-id" }
+            },
+            Counter = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 }
+        };
+        var graph = new FakeGraphBetaService
+        {
+            OnDelete = id => id == "first-id"
+                ? Task.FromResult(DeleteCorpIdResult.Success)
+                : throw new InvalidOperationException("Graph delete failed")
+        };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateSut(dbService: db, graphBetaService: graph).Run(CreateTimerInfo()));
+
+        Assert.Equal("Graph delete failed", ex.Message);
+        Assert.Equal(1, db.DeleteDeviceCallCount);
+        Assert.Equal(4, db.Counter.CorpIDCount);
+        Assert.Equal(3, db.Counter.CorpIDReserve);
+        Assert.Equal(1, db.TrySetCorpIDCounterCallCount);
+    }
 
     #region HappyPathTests
     // ====================================================================
@@ -576,9 +662,14 @@ public class DeviceDeletionTests
     private sealed class FakeGraphBetaService : IGraphBetaService
     {
         public DeleteCorpIdResult DeleteResult { get; set; } = DeleteCorpIdResult.Success;
+        public Func<string, Task<DeleteCorpIdResult>>? OnDelete { get; set; }
+        public int DeleteCallCount { get; private set; }
 
         public Task<DeleteCorpIdResult> DeleteCorporateIdentifier(string identifierID)
-            => Task.FromResult(DeleteResult);
+        {
+            DeleteCallCount++;
+            return OnDelete is null ? Task.FromResult(DeleteResult) : OnDelete(identifierID);
+        }
 
         public Task<ImportedDeviceIdentity> AddCorporateIdentifier(ImportedDeviceIdentityType type, string identifier)
             => throw new NotImplementedException();

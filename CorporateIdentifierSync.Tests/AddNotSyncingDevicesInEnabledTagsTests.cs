@@ -1,5 +1,7 @@
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using DelegationStationShared.Enums;
 using Microsoft.Azure.Cosmos;
@@ -52,7 +54,8 @@ public class AddNotSyncingDevicesInEnabledTagsTests
             new SilentLoggerFactory(),
             db,
             graph,
-            new FakeSingletonLock());
+            new FakeSingletonLock(),
+            new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
     }
 
     private static async Task RunSection2(Section2DbService db, Section2GraphService graph)

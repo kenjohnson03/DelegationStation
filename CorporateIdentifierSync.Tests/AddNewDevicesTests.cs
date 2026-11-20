@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using DelegationStationShared.Enums;
 using Microsoft.Azure.Cosmos;
@@ -190,7 +192,8 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 loggerFactory ?? NullLoggerFactory.Instance,
                 db ?? new StubDbService(),
                 graph ?? new StubGraphBetaService(),
-                singletonLock ?? new StubSingletonLock());
+                singletonLock ?? new StubSingletonLock(),
+                new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
         }
 
         private static Device MakeDevice(
@@ -867,16 +870,208 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
         }
         #endregion EarlyExitTests
 
+        #region CancellationTests
+
+        [Theory]
+        [InlineData("BeforeRun")]
+        [InlineData("NonSyncingTags")]
+        [InlineData("NonSyncingDevice")]
+        [InlineData("Capacity")]
+        [InlineData("Reservation")]
+        [InlineData("SyncingTags")]
+        [InlineData("DeviceQuery")]
+        public async Task Run_WhenCanceledAtCheckpoint_StopsWithoutAddingAndReleasesOwnReservation(string checkpoint)
+        {
+            SetSyncEnabled(batchSize: 2);
+            using var cts = new CancellationTokenSource();
+            var firstDevice = MakeDevice();
+            var db = MakeSyncDb(
+                notSyncingDevices: new List<Device> { firstDevice, MakeDevice(serial: "SN002") },
+                syncingDevices: new List<Device> { MakeDevice(serial: "SN003") });
+            db.Counter.CorpIDCount = 7;
+            db.Counter.CorpIDReserve = 3;
+            var logFactory = new RecordingLoggerFactory();
+            var graph = new StubGraphBetaService();
+            int counterWrites = 0;
+            db.OnTrySetCorpIDCounter = (_, _) =>
+            {
+                counterWrites++;
+                if (checkpoint == "Reservation") cts.Cancel();
+                return Task.FromResult(true);
+            };
+
+            switch (checkpoint)
+            {
+                case "BeforeRun":
+                    cts.Cancel();
+                    break;
+                case "NonSyncingTags":
+                    db.OnGetNonSyncingDeviceTags = () =>
+                    {
+                        cts.Cancel();
+                        return Task.FromResult(new List<string>());
+                    };
+                    break;
+                case "NonSyncingDevice":
+                    db.OnUpdateDevice = _ =>
+                    {
+                        cts.Cancel();
+                        return Task.CompletedTask;
+                    };
+                    break;
+                case "Capacity":
+                    db.OnGetCorpIDCounter = () =>
+                    {
+                        cts.Cancel();
+                        return Task.FromResult(db.Counter);
+                    };
+                    break;
+                case "SyncingTags":
+                    db.OnGetSyncingDeviceTags = () =>
+                    {
+                        cts.Cancel();
+                        return Task.FromResult(new List<string>());
+                    };
+                    break;
+                case "DeviceQuery":
+                    db.OnGetAddedDevicesToSync = (_, _) =>
+                    {
+                        cts.Cancel();
+                        return Task.FromResult(new List<Device> { MakeDevice() });
+                    };
+                    break;
+            }
+
+            try
+            {
+                await CreateSut(loggerFactory: logFactory, db: db, graph: graph).Run(new TimerInfo(), cts.Token);
+
+                Assert.Null(graph.LastAddIdentifier);
+                Assert.Equal(7, db.Counter.CorpIDCount);
+                Assert.Equal(3, db.Counter.CorpIDReserve);
+                bool reserved = checkpoint is "Reservation" or "SyncingTags" or "DeviceQuery";
+                Assert.Equal(reserved ? 2 : 0, counterWrites);
+                Assert.Contains(logFactory.Logger.Logs,
+                    l => l.Level == LogLevel.Information && l.Message.Contains("Cancellation requested"));
+                if (checkpoint == "BeforeRun")
+                {
+                    Assert.False(db.WasGetNonSyncingDeviceTagsCalled);
+                }
+                else if (checkpoint == "NonSyncingTags")
+                {
+                    Assert.Single(db.GetAddedDevicesNotSyncingCalls);
+                    Assert.Empty(db.UpdatedDevices);
+                }
+                else if (checkpoint == "NonSyncingDevice")
+                {
+                    Assert.Same(firstDevice, Assert.Single(db.UpdatedDevices));
+                }
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        [Theory]
+        [InlineData(false, DeleteCorpIdResult.Success, 8)]
+        [InlineData(true, DeleteCorpIdResult.Success, 7)]
+        [InlineData(true, DeleteCorpIdResult.Error, 8)]
+        public async Task Run_WhenCanceledDuringGraphAdd_FinishesDeviceAndCommitsNetAdditions(
+            bool rollback, DeleteCorpIdResult rollbackResult, int expectedCount)
+        {
+            SetSyncEnabled(batchSize: 2);
+            using var cts = new CancellationTokenSource();
+            var firstDevice = MakeDevice();
+            var secondDevice = MakeDevice(serial: "SN002");
+            var db = MakeSyncDb(syncingDevices: new List<Device> { firstDevice, secondDevice });
+            db.Counter.CorpIDCount = 7;
+            db.Counter.CorpIDReserve = 3;
+            int counterWrites = 0;
+            db.OnTrySetCorpIDCounter = (_, _) =>
+            {
+                counterWrites++;
+                return Task.FromResult(true);
+            };
+            if (rollback)
+            {
+                db.OnUpdateDevice = _ => throw new CosmosException(
+                    "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
+            }
+            int addCalls = 0;
+            var graph = new StubGraphBetaService
+            {
+                OnAdd = (_, _) =>
+                {
+                    addCalls++;
+                    cts.Cancel();
+                    return Task.FromResult(new ImportedDeviceIdentity
+                    {
+                        Id = "completed-id",
+                        ImportedDeviceIdentifier = "completed-identifier"
+                    });
+                },
+                OnDelete = _ => Task.FromResult(rollbackResult)
+            };
+
+            try
+            {
+                await CreateSut(db: db, graph: graph).Run(new TimerInfo(), cts.Token);
+
+                Assert.Equal(1, addCalls);
+                Assert.Same(firstDevice, Assert.Single(db.UpdatedDevices));
+                Assert.Equal("completed-id", firstDevice.CorporateIdentityID);
+                Assert.Empty(secondDevice.CorporateIdentityID);
+                Assert.Equal(rollback ? "completed-id" : null, graph.LastDeletedId);
+                Assert.Equal(expectedCount, db.Counter.CorpIDCount);
+                Assert.Equal(3, db.Counter.CorpIDReserve);
+                Assert.Equal(2, counterWrites);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        [Fact]
+        public async Task Run_WhenRollbackThrows_CommitsCompletedAdditionAndReleasesReservation()
+        {
+            SetSyncEnabled(batchSize: 2);
+            var db = MakeSyncDb(syncingDevices: new List<Device> { MakeDevice() });
+            db.OnUpdateDevice = _ => throw new CosmosException(
+                "not found", HttpStatusCode.NotFound, 0, "act", 0.0);
+            var graph = new StubGraphBetaService
+            {
+                OnDelete = _ => throw new InvalidOperationException("rollback failed")
+            };
+
+            try
+            {
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => CreateSut(db: db, graph: graph).Run(new TimerInfo()));
+
+                Assert.Equal("rollback failed", ex.Message);
+                Assert.Equal(1, db.Counter.CorpIDCount);
+                Assert.Equal(0, db.Counter.CorpIDReserve);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
+        #endregion CancellationTests
+
         #region GetDevicesTests
         // ═══════════════════════════════════════════════════════════════════════
         // Run – GetAddedDevicesToSync
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Verifies that Run commits the capacity manager and returns when GetAddedDevicesToSync throws an exception.
+        /// Verifies that Run releases reserved capacity before propagating a device query exception.
         /// </summary>
         [Fact]
-        public async Task Run_WhenGetDevicesToSyncThrows_CommitsAndReturns()
+        public async Task Run_WhenGetDevicesToSyncThrows_ReleasesReservationAndPropagatesException()
         {
             // Arrange
             SetSyncEnabled();
@@ -887,9 +1082,10 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             try
             {
                 // Act
-                await sut.Run(new TimerInfo());
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.Run(new TimerInfo()));
 
                 // Assert – no devices were updated, and reserve was released (counter reserve back to 0)
+                Assert.Equal("db read error", ex.Message);
                 Assert.Empty(db.UpdatedDevices);
                 Assert.Equal(0, db.Counter.CorpIDReserve);
             }
@@ -899,15 +1095,39 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
             }
         }
 
+        [Fact]
+        public async Task Run_WhenGetSyncingTagsThrows_ReleasesReservationAndPropagatesException()
+        {
+            SetSyncEnabled();
+            var db = MakeSyncDb();
+            db.OnGetSyncingDeviceTags = () => throw new InvalidOperationException("tag read failed");
+
+            try
+            {
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => CreateSut(db: db).Run(new TimerInfo()));
+
+                Assert.Equal("tag read failed", ex.Message);
+                Assert.Empty(db.UpdatedDevices);
+                Assert.Equal(0, db.Counter.CorpIDCount);
+                Assert.Equal(0, db.Counter.CorpIDReserve);
+            }
+            finally
+            {
+                ClearEnvVars();
+            }
+        }
+
         /// <summary>
-        /// Verifies that Run does not propagate an exception when both GetAddedDevicesToSync and the commit both throw.
+        /// Verifies that a cleanup failure is logged without masking the original query exception.
         /// </summary>
         [Fact]
-        public async Task Run_WhenGetDevicesToSyncThrowsAndCommitThrows_DoesNotPropagateException()
+        public async Task Run_WhenGetDevicesToSyncThrowsAndCommitThrows_LogsCleanupFailureAndPropagatesQueryException()
         {
             // Arrange
             SetSyncEnabled();
             var db = MakeSyncDb();
+            var logFactory = new RecordingLoggerFactory();
             db.OnGetAddedDevicesToSync = (_, _) => throw new InvalidOperationException("db read error");
             var callCount = 0;
             db.OnTrySetCorpIDCounter = (_, _) =>
@@ -922,11 +1142,15 @@ namespace CorporateIdentifierSync.Tests.AddNewDevicesTests
                 return Task.FromResult(true);
             };
 
-            var sut = CreateSut(db: db);
+            var sut = CreateSut(loggerFactory: logFactory, db: db);
             try
             {
-                // Act – should NOT throw even though commit fails
-                await sut.Run(new TimerInfo());
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.Run(new TimerInfo()));
+
+                Assert.Equal("db read error", ex.Message);
+                Assert.Equal(2, callCount);
+                Assert.Contains(logFactory.Logger.Logs,
+                    l => l.Level == LogLevel.Error && l.Message.Contains("Failed to update Capacitymanager"));
             }
             finally
             {

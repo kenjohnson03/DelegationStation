@@ -1,5 +1,7 @@
 ﻿using CorporateIdentifierSync.Enums;
 using CorporateIdentifierSync.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using DelegationStationShared.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -89,7 +91,14 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
             public List<string> NonSyncingTagsToReturn { get; set; } = [];
             public List<Device> SyncedDevicesInTagsToReturn { get; set; } = [];
             public List<string> SyncingTagsToReturn { get; set; } = [];
+            public List<Device> NotSyncingDevicesInTagsToReturn { get; set; } = [];
             public CorpIDCounter CounterToReturn { get; set; } = new CorpIDCounter(0);
+            public Action<Device>? OnUpdateDevice { get; set; }
+            public Action? OnCounterWrite { get; set; }
+            public Action? OnGetNotSyncingDevices { get; set; }
+            public List<Device> UpdatedDevices { get; } = [];
+            public int SyncingTagQueries { get; private set; }
+            public int CounterWrites { get; private set; }
 
             public Task<List<string>> GetNonSyncingDeviceTags()
                 => Task.FromResult(NonSyncingTagsToReturn);
@@ -98,37 +107,72 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 => Task.FromResult(SyncedDevicesInTagsToReturn);
 
             public Task<List<string>> GetSyncingDeviceTags()
-                => Task.FromResult(SyncingTagsToReturn);
+            {
+                SyncingTagQueries++;
+                return Task.FromResult(SyncingTagsToReturn);
+            }
 
             public Task<CorpIDCounter> GetCorpIDCounter()
                 => Task.FromResult(CounterToReturn);
 
             public Task<bool> TrySetCorpIDCounter(CorpIDCounter counter, string etag)
-                => Task.FromResult(true);
+            {
+                CounterWrites++;
+                CounterToReturn = counter;
+                OnCounterWrite?.Invoke();
+                return Task.FromResult(true);
+            }
 
             public Task<List<Device>> GetAddedDevices(int batchSize) => throw new NotImplementedException();
             public Task<List<Device>> GetAddedDevicesNotSyncing(List<string> tagIds, int batchSize) => throw new NotImplementedException();
             public Task<List<Device>> GetAddedDevicesToSync(List<string> tagIds, int batchSize) => throw new NotImplementedException();
             public Task<List<Device>> GetDevicesMarkedForDeletion() => throw new NotImplementedException();
-            public Task UpdateDevice(Device device) => throw new NotImplementedException();
+            public Task UpdateDevice(Device device)
+            {
+                UpdatedDevices.Add(device);
+                OnUpdateDevice?.Invoke(device);
+                return Task.CompletedTask;
+            }
             public Task DeleteDevice(Device device) => throw new NotImplementedException();
             public Task<Device?> GetDevice(Guid id, string partitionKey) => throw new NotImplementedException();
             public Task<List<Device>> GetDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
             public Task<List<Device>> GetSyncedDevicesSyncedBefore(DateTime date) => throw new NotImplementedException();
             public Task<DeviceTag> GetDeviceTag(string id) => throw new NotImplementedException();
-            public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize) => throw new NotImplementedException();
+            public Task<List<Device>> GetNotSyncingDevicesInTags(List<string> tagsWithSyncEnabled, int batchSize)
+            {
+                OnGetNotSyncingDevices?.Invoke();
+                return Task.FromResult(NotSyncingDevicesInTagsToReturn);
+            }
             public Task<int> GetSyncedDeviceCountAsync() => throw new NotImplementedException();
         }
 
-        /// <summary>Stub for <see cref="IGraphBetaService"/> — not called by the methods under test.</summary>
+        /// <summary>Configurable Graph stub for reconciliation scenarios.</summary>
         private sealed class StubGraphBetaService : IGraphBetaService
         {
+            public Func<string, Task<DeleteCorpIdResult>>? OnDelete { get; set; }
+            public Action? OnAdd { get; set; }
+            public int DeleteCalls { get; private set; }
+            public int AddCalls { get; private set; }
+
             public Task<ImportedDeviceIdentity> AddCorporateIdentifier(
                 ImportedDeviceIdentityType type, string identifier)
-                => throw new NotImplementedException();
+            {
+                AddCalls++;
+                OnAdd?.Invoke();
+                return Task.FromResult(new ImportedDeviceIdentity
+                {
+                    Id = "added-id",
+                    ImportedDeviceIdentifier = identifier
+                });
+            }
 
             public Task<DeleteCorpIdResult> DeleteCorporateIdentifier(string identifierID)
-                => throw new NotImplementedException();
+            {
+                DeleteCalls++;
+                return OnDelete is null
+                    ? Task.FromResult(DeleteCorpIdResult.Success)
+                    : OnDelete(identifierID);
+            }
 
             public Task<bool> CorporateIdentifierExists(string identiferID)
                 => throw new NotImplementedException();
@@ -170,14 +214,16 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
         private static ReconcileSyncState CreateSut(
             CapturingLoggerFactory loggerFactory,
             StubCosmosDbService? db = null,
-            bool acquireLock = true)
+            bool acquireLock = true,
+            StubGraphBetaService? graph = null)
         {
             db ??= new StubCosmosDbService();
             return new ReconcileSyncState(
                 loggerFactory,
                 db,
-                new StubGraphBetaService(),
-                new StubSingletonLock(acquireLock));
+                graph ?? new StubGraphBetaService(),
+                new StubSingletonLock(acquireLock),
+                new TelemetryClient(new TelemetryConfiguration { DisableTelemetry = true }));
         }
 
         private static TimerInfo MakeTimerInfo(bool withScheduleStatus)
@@ -373,6 +419,160 @@ namespace CorporateIdentifierSync.Tests.ReconcileSyncStateTests
                 l => l.Message.Contains("ReconcileSyncState completed"));
         }
         #endregion EarlyExitTests
+
+        [Fact]
+        public async Task Run_WhenCanceledBeforeRun_DoesNotStartReconciliation()
+        {
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+            var loggerFactory = new CapturingLoggerFactory();
+
+            await CreateSut(loggerFactory).Run(new TimerInfo(), cts.Token);
+
+            Assert.Contains(loggerFactory.Logger.Logs, l => l.Message.Contains("Cancellation requested"));
+            Assert.DoesNotContain(loggerFactory.Logger.Logs, l => l.Message.Contains("Section 1"));
+        }
+
+        [Theory]
+        [InlineData(DeleteCorpIdResult.Success, 4)]
+        [InlineData(DeleteCorpIdResult.NotFound, 5)]
+        public async Task Run_WhenCanceledDuringRemoval_FinishesDeviceReleasesCapacityAndSkipsAdditions(
+            DeleteCorpIdResult deleteResult, int expectedCount)
+        {
+            using var env = new EnvVarScope();
+            env.Set("EnableCorpIDSync", "true");
+            using var cts = new CancellationTokenSource();
+            var firstDevice = new Device { CorporateIdentityID = "first-id" };
+            var db = new StubCosmosDbService
+            {
+                SyncedDevicesInTagsToReturn = [firstDevice, new Device { CorporateIdentityID = "second-id" }],
+                CounterToReturn = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 }
+            };
+            var graph = new StubGraphBetaService
+            {
+                OnDelete = _ =>
+                {
+                    cts.Cancel();
+                    return Task.FromResult(deleteResult);
+                }
+            };
+
+            await CreateSut(new CapturingLoggerFactory(), db, graph: graph)
+                .Run(new TimerInfo(), cts.Token);
+
+            Assert.Equal(1, graph.DeleteCalls);
+            Assert.Same(firstDevice, Assert.Single(db.UpdatedDevices));
+            Assert.Equal(DelegationStationShared.Enums.DeviceStatus.NonSyncing, firstDevice.Status);
+            Assert.Equal(expectedCount, db.CounterToReturn.CorpIDCount);
+            Assert.Equal(3, db.CounterToReturn.CorpIDReserve);
+            Assert.Equal(deleteResult == DeleteCorpIdResult.Success ? 1 : 0, db.CounterWrites);
+            Assert.Equal(0, db.SyncingTagQueries);
+        }
+
+        [Fact]
+        public async Task Run_WhenLaterRemovalThrows_ReleasesEarlierRemovalAndPropagatesException()
+        {
+            using var env = new EnvVarScope();
+            env.Set("EnableCorpIDSync", "true");
+            var db = new StubCosmosDbService
+            {
+                SyncedDevicesInTagsToReturn =
+                [
+                    new Device { CorporateIdentityID = "first-id" },
+                    new Device { CorporateIdentityID = "second-id" }
+                ],
+                CounterToReturn = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 }
+            };
+            var graph = new StubGraphBetaService
+            {
+                OnDelete = id => id == "first-id"
+                    ? Task.FromResult(DeleteCorpIdResult.Success)
+                    : throw new InvalidOperationException("Graph delete failed")
+            };
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => CreateSut(new CapturingLoggerFactory(), db, graph: graph).Run(new TimerInfo()));
+
+            Assert.Equal("Graph delete failed", ex.Message);
+            Assert.Equal(4, db.CounterToReturn.CorpIDCount);
+            Assert.Equal(3, db.CounterToReturn.CorpIDReserve);
+            Assert.Equal(1, db.CounterWrites);
+            Assert.Equal(0, db.SyncingTagQueries);
+        }
+
+        [Theory]
+        [InlineData(false, DeleteCorpIdResult.Success, 6)]
+        [InlineData(true, DeleteCorpIdResult.Success, 5)]
+        [InlineData(true, DeleteCorpIdResult.Error, 6)]
+        public async Task Run_WhenCanceledDuringAddition_FinishesDeviceAndCommitsNetAdditions(
+            bool rollback, DeleteCorpIdResult rollbackResult, int expectedCount)
+        {
+            using var env = new EnvVarScope();
+            env.Set("EnableCorpIDSync", "true");
+            using var cts = new CancellationTokenSource();
+            var firstDevice = new Device();
+            var secondDevice = new Device();
+            var db = new StubCosmosDbService
+            {
+                SyncingTagsToReturn = ["enabled-tag"],
+                NotSyncingDevicesInTagsToReturn = [firstDevice, secondDevice],
+                CounterToReturn = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 }
+            };
+            if (rollback)
+            {
+                db.OnUpdateDevice = _ => throw new Microsoft.Azure.Cosmos.CosmosException(
+                    "not found", System.Net.HttpStatusCode.NotFound, 0, "test", 0);
+            }
+            var graph = new StubGraphBetaService
+            {
+                OnAdd = () => cts.Cancel(),
+                OnDelete = _ => Task.FromResult(rollbackResult)
+            };
+
+            await CreateSut(new CapturingLoggerFactory(), db, graph: graph)
+                .Run(new TimerInfo(), cts.Token);
+
+            Assert.Equal(1, graph.AddCalls);
+            Assert.Same(firstDevice, Assert.Single(db.UpdatedDevices));
+            Assert.Empty(secondDevice.CorporateIdentityID);
+            Assert.Equal(rollback ? 1 : 0, graph.DeleteCalls);
+            Assert.Equal(expectedCount, db.CounterToReturn.CorpIDCount);
+            Assert.Equal(3, db.CounterToReturn.CorpIDReserve);
+            Assert.Equal(2, db.CounterWrites);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Run_WhenCanceledBeforeFirstAddition_DoesNotAddAndReleasesAnyReservation(bool afterReservation)
+        {
+            using var env = new EnvVarScope();
+            env.Set("EnableCorpIDSync", "true");
+            using var cts = new CancellationTokenSource();
+            var db = new StubCosmosDbService
+            {
+                SyncingTagsToReturn = ["enabled-tag"],
+                NotSyncingDevicesInTagsToReturn = [new Device()],
+                CounterToReturn = new CorpIDCounter(0) { CorpIDCount = 5, CorpIDReserve = 3 }
+            };
+            if (afterReservation)
+            {
+                db.OnCounterWrite = () => cts.Cancel();
+            }
+            else
+            {
+                db.OnGetNotSyncingDevices = () => cts.Cancel();
+            }
+            var graph = new StubGraphBetaService();
+
+            await CreateSut(new CapturingLoggerFactory(), db, graph: graph).Run(new TimerInfo(), cts.Token);
+
+            Assert.Equal(0, graph.AddCalls);
+            Assert.Empty(db.UpdatedDevices);
+            Assert.Equal(5, db.CounterToReturn.CorpIDCount);
+            Assert.Equal(3, db.CounterToReturn.CorpIDReserve);
+            Assert.Equal(afterReservation ? 2 : 0, db.CounterWrites);
+        }
 
         /// <summary>
         /// Verifies that Run completes a full execution including both the non-syncing and syncing device sections when sync is enabled.
